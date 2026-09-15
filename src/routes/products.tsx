@@ -1,3 +1,4 @@
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { ArrowDownUp, Filter, ImageOff, Pencil, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
