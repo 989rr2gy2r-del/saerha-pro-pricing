@@ -32,9 +32,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { products, type Product } from "@/lib/mock-data";
+import { productsQueryOptions } from "@/lib/db/products";
+import { type Product } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/products")({
+  loader: ({ context }) => context.queryClient.ensureQueryData(productsQueryOptions),
+  errorComponent: ({ error }) => (
+    <div dir="rtl" role="alert" className="p-6 text-right text-sm">
+      تعذّر تحميل المنتجات: {error.message}
+    </div>
+  ),
+  notFoundComponent: () => (
+    <div dir="rtl" className="p-6 text-right text-sm">
+      لا توجد منتجات.
+    </div>
+  ),
   head: () => ({
     meta: [
       { title: "المنتجات — سعّرها" },
