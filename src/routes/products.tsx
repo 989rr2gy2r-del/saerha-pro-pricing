@@ -159,8 +159,11 @@ function Products() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end">
+            <div className="flex flex-wrap items-end gap-2">
               <p className="num text-xs text-muted-foreground">النتائج: {rows.length}</p>
+              <Badge variant={data.source === "database" ? "default" : "secondary"}>
+                {data.source === "database" ? "من قاعدة البيانات" : "بيانات تجريبية مؤقتة"}
+              </Badge>
             </div>
           </CardContent>
         </Card>
