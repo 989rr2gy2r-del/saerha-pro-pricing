@@ -84,11 +84,17 @@ function Products() {
   const [sort, setSort] = useState("sku");
   const [selected, setSelected] = useState<Product | null>(null);
 
-  const categories = useMemo(() => [...new Set(products.map((p) => p.category1))], []);
+  const { data } = useSuspenseQuery(productsQueryOptions);
+  const items = data.items;
+
+  const categories = useMemo(
+    () => [...new Set(items.map((p) => p.category1))].filter(Boolean),
+    [items],
+  );
 
   const rows = useMemo(() => {
     const term = q.trim();
-    return products
+    return items
       .filter((p) => (cat === "all" ? true : p.category1 === cat))
       .filter((p) =>
         term
