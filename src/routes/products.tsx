@@ -1,3 +1,4 @@
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { ArrowDownUp, Filter, ImageOff, Pencil, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -32,9 +33,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { products, type Product } from "@/lib/mock-data";
+import { productsQueryOptions } from "@/lib/db/products";
+import { type Product } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/products")({
+  loader: ({ context }) => context.queryClient.ensureQueryData(productsQueryOptions),
+  errorComponent: ({ error }) => (
+    <div dir="rtl" role="alert" className="p-6 text-right text-sm">
+      تعذّر تحميل المنتجات: {error.message}
+    </div>
+  ),
+  notFoundComponent: () => (
+    <div dir="rtl" className="p-6 text-right text-sm">
+      لا توجد منتجات.
+    </div>
+  ),
   head: () => ({
     meta: [
       { title: "المنتجات — سعّرها" },
@@ -72,11 +85,17 @@ function Products() {
   const [sort, setSort] = useState("sku");
   const [selected, setSelected] = useState<Product | null>(null);
 
-  const categories = useMemo(() => [...new Set(products.map((p) => p.category1))], []);
+  const { data } = useSuspenseQuery(productsQueryOptions);
+  const items = data.items;
+
+  const categories = useMemo(
+    () => [...new Set(items.map((p) => p.category1))].filter(Boolean),
+    [items],
+  );
 
   const rows = useMemo(() => {
     const term = q.trim();
-    return products
+    return items
       .filter((p) => (cat === "all" ? true : p.category1 === cat))
       .filter((p) =>
         term
@@ -140,8 +159,11 @@ function Products() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end">
+            <div className="flex flex-wrap items-end gap-2">
               <p className="num text-xs text-muted-foreground">النتائج: {rows.length}</p>
+              <Badge variant={data.source === "database" ? "default" : "secondary"}>
+                {data.source === "database" ? "من قاعدة البيانات" : "بيانات تجريبية مؤقتة"}
+              </Badge>
             </div>
           </CardContent>
         </Card>
