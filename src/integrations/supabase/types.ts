@@ -76,10 +76,13 @@ export type Database = {
       }
       order_items: {
         Row: {
+          brand: string | null
           created_at: string
+          extra: Json
           free_quantity: number | null
           id: string
           line_no: number | null
+          line_total: number | null
           matched_sku: string | null
           notes: string | null
           order_id: string
@@ -87,12 +90,16 @@ export type Database = {
           quantity: number | null
           raw_name: string | null
           unit: string | null
+          unit_price: number | null
         }
         Insert: {
+          brand?: string | null
           created_at?: string
+          extra?: Json
           free_quantity?: number | null
           id?: string
           line_no?: number | null
+          line_total?: number | null
           matched_sku?: string | null
           notes?: string | null
           order_id: string
@@ -100,12 +107,16 @@ export type Database = {
           quantity?: number | null
           raw_name?: string | null
           unit?: string | null
+          unit_price?: number | null
         }
         Update: {
+          brand?: string | null
           created_at?: string
+          extra?: Json
           free_quantity?: number | null
           id?: string
           line_no?: number | null
+          line_total?: number | null
           matched_sku?: string | null
           notes?: string | null
           order_id?: string
@@ -113,6 +124,7 @@ export type Database = {
           quantity?: number | null
           raw_name?: string | null
           unit?: string | null
+          unit_price?: number | null
         }
         Relationships: [
           {
@@ -251,11 +263,14 @@ export type Database = {
           created_at: string
           currency: string
           customer_id: string | null
+          extra: Json
           id: string
           is_active: boolean
           price_type: Database["public"]["Enums"]["price_type"]
           product_id: string
           source: string | null
+          source_field: string | null
+          source_price_type: string | null
           updated_at: string
           valid_from: string
           valid_to: string | null
@@ -265,11 +280,14 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_id?: string | null
+          extra?: Json
           id?: string
           is_active?: boolean
           price_type: Database["public"]["Enums"]["price_type"]
           product_id: string
           source?: string | null
+          source_field?: string | null
+          source_price_type?: string | null
           updated_at?: string
           valid_from?: string
           valid_to?: string | null
@@ -279,11 +297,14 @@ export type Database = {
           created_at?: string
           currency?: string
           customer_id?: string | null
+          extra?: Json
           id?: string
           is_active?: boolean
           price_type?: Database["public"]["Enums"]["price_type"]
           product_id?: string
           source?: string | null
+          source_field?: string | null
+          source_price_type?: string | null
           updated_at?: string
           valid_from?: string
           valid_to?: string | null
@@ -347,11 +368,15 @@ export type Database = {
         Row: {
           brand: string | null
           category_main: string | null
+          category_main_en: string | null
           category_sub: string | null
+          category_sub_en: string | null
           category_third: string | null
           color: string | null
+          country_of_origin: string | null
           created_at: string
           description: string | null
+          extra: Json
           id: string
           image_url: string | null
           model: string | null
@@ -361,18 +386,25 @@ export type Database = {
           short_name: string | null
           size: string | null
           sku: string
+          source: string | null
           status: Database["public"]["Enums"]["product_status"]
+          supplier: string | null
           unit: string | null
           updated_at: string
+          warranty: string | null
         }
         Insert: {
           brand?: string | null
           category_main?: string | null
+          category_main_en?: string | null
           category_sub?: string | null
+          category_sub_en?: string | null
           category_third?: string | null
           color?: string | null
+          country_of_origin?: string | null
           created_at?: string
           description?: string | null
+          extra?: Json
           id?: string
           image_url?: string | null
           model?: string | null
@@ -382,18 +414,25 @@ export type Database = {
           short_name?: string | null
           size?: string | null
           sku: string
+          source?: string | null
           status?: Database["public"]["Enums"]["product_status"]
+          supplier?: string | null
           unit?: string | null
           updated_at?: string
+          warranty?: string | null
         }
         Update: {
           brand?: string | null
           category_main?: string | null
+          category_main_en?: string | null
           category_sub?: string | null
+          category_sub_en?: string | null
           category_third?: string | null
           color?: string | null
+          country_of_origin?: string | null
           created_at?: string
           description?: string | null
+          extra?: Json
           id?: string
           image_url?: string | null
           model?: string | null
@@ -403,9 +442,12 @@ export type Database = {
           short_name?: string | null
           size?: string | null
           sku?: string
+          source?: string | null
           status?: Database["public"]["Enums"]["product_status"]
+          supplier?: string | null
           unit?: string | null
           updated_at?: string
+          warranty?: string | null
         }
         Relationships: []
       }
@@ -638,7 +680,14 @@ export type Database = {
       customer_type: "retail" | "wholesale" | "contractor" | "government"
       order_source: "image" | "pdf" | "excel" | "text" | "handwriting"
       order_status: "new" | "in_review" | "priced" | "closed"
-      price_type: "retail" | "reseller" | "customer_special" | "manual_quote"
+      price_type:
+        | "retail"
+        | "reseller"
+        | "customer_special"
+        | "manual_quote"
+        | "unit_price"
+        | "price_after_discount"
+        | "retail_min"
       product_status: "active" | "inactive"
       quote_status: "draft" | "sent" | "accepted" | "expired"
     }
@@ -773,7 +822,15 @@ export const Constants = {
       customer_type: ["retail", "wholesale", "contractor", "government"],
       order_source: ["image", "pdf", "excel", "text", "handwriting"],
       order_status: ["new", "in_review", "priced", "closed"],
-      price_type: ["retail", "reseller", "customer_special", "manual_quote"],
+      price_type: [
+        "retail",
+        "reseller",
+        "customer_special",
+        "manual_quote",
+        "unit_price",
+        "price_after_discount",
+        "retail_min",
+      ],
       product_status: ["active", "inactive"],
       quote_status: ["draft", "sent", "accepted", "expired"],
     },
