@@ -1,0 +1,9 @@
+CREATE INDEX IF NOT EXISTS prices_product_idx ON public.prices (product_id);
+CREATE INDEX IF NOT EXISTS prices_customer_idx ON public.prices (customer_id);
+CREATE INDEX IF NOT EXISTS order_items_product_idx ON public.order_items (product_id);
+CREATE INDEX IF NOT EXISTS quotation_items_product_idx ON public.quotation_items (product_id);
+CREATE INDEX IF NOT EXISTS orders_customer_idx ON public.orders (customer_id);
+CREATE INDEX IF NOT EXISTS quotations_customer_idx ON public.quotations (customer_id);
+CREATE INDEX IF NOT EXISTS quotations_order_idx ON public.quotations (order_id);
+CREATE INDEX IF NOT EXISTS price_history_price_idx ON public.price_history (price_id);
+CREATE INDEX IF NOT EXISTS product_aliases_product_idx ON public.product_aliases (product_id);

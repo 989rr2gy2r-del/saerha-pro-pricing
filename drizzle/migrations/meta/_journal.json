@@ -15,6 +15,13 @@
       "when": 1789521978837,
       "tag": "0001_saerha_import_readiness_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789613956664,
+      "tag": "0002_add_fk_indexes",
+      "breakpoints": true
     }
   ]
 }
