@@ -673,6 +673,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_staff: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       alias_source: "manual" | "import" | "learned"
