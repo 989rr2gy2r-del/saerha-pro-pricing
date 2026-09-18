@@ -242,10 +242,42 @@ export type Order = {
 };
 
 export const orders: Order[] = [
-  { id: "o1", ref: "ORD-D-1001", customer: "عميل تجريبي 1", source: "صورة", itemsCount: 8, date: "2026-09-12", status: "قيد المراجعة" },
-  { id: "o2", ref: "ORD-D-1002", customer: "عميل تجريبي 2", source: "PDF", itemsCount: 4, date: "2026-09-12", status: "جديد" },
-  { id: "o3", ref: "ORD-D-1003", customer: "عميل تجريبي 3", source: "خط اليد", itemsCount: 11, date: "2026-09-11", status: "تم التسعير" },
-  { id: "o4", ref: "ORD-D-1004", customer: "عميل تجريبي 1", source: "Excel", itemsCount: 25, date: "2026-09-10", status: "مغلق" },
+  {
+    id: "o1",
+    ref: "ORD-D-1001",
+    customer: "عميل تجريبي 1",
+    source: "صورة",
+    itemsCount: 8,
+    date: "2026-09-12",
+    status: "قيد المراجعة",
+  },
+  {
+    id: "o2",
+    ref: "ORD-D-1002",
+    customer: "عميل تجريبي 2",
+    source: "PDF",
+    itemsCount: 4,
+    date: "2026-09-12",
+    status: "جديد",
+  },
+  {
+    id: "o3",
+    ref: "ORD-D-1003",
+    customer: "عميل تجريبي 3",
+    source: "خط اليد",
+    itemsCount: 11,
+    date: "2026-09-11",
+    status: "تم التسعير",
+  },
+  {
+    id: "o4",
+    ref: "ORD-D-1004",
+    customer: "عميل تجريبي 1",
+    source: "Excel",
+    itemsCount: 25,
+    date: "2026-09-10",
+    status: "مغلق",
+  },
 ];
 
 export type QuoteStatus = "مسودة" | "مرسل" | "مقبول" | "منتهي";
@@ -290,8 +322,26 @@ export const quotes: Quote[] = [
     status: "مسودة",
     notes: "عرض تجريبي — بدون أسعار حقيقية.",
     items: [
-      { id: "qi1", productName: "قاطع كهربائي تجريبي", sku: "DEMO-EL-0001", qty: 10, unit: "حبة", unitPrice: 0, discount: 0, total: 0 },
-      { id: "qi2", productName: "كشاف إنارة تجريبي", sku: "DEMO-LT-0002", qty: 4, unit: "حبة", unitPrice: 0, discount: 0, total: 0 },
+      {
+        id: "qi1",
+        productName: "قاطع كهربائي تجريبي",
+        sku: "DEMO-EL-0001",
+        qty: 10,
+        unit: "حبة",
+        unitPrice: 0,
+        discount: 0,
+        total: 0,
+      },
+      {
+        id: "qi2",
+        productName: "كشاف إنارة تجريبي",
+        sku: "DEMO-LT-0002",
+        qty: 4,
+        unit: "حبة",
+        unitPrice: 0,
+        discount: 0,
+        total: 0,
+      },
     ],
   },
   {
@@ -307,7 +357,16 @@ export const quotes: Quote[] = [
     status: "مرسل",
     notes: "عرض تجريبي.",
     items: [
-      { id: "qi3", productName: "ماسورة سباكة تجريبية", sku: "DEMO-PL-0003", qty: 60, unit: "متر", unitPrice: 0, discount: 0, total: 0 },
+      {
+        id: "qi3",
+        productName: "ماسورة سباكة تجريبية",
+        sku: "DEMO-PL-0003",
+        qty: 60,
+        unit: "متر",
+        unitPrice: 0,
+        discount: 0,
+        total: 0,
+      },
     ],
   },
   {
@@ -323,14 +382,33 @@ export const quotes: Quote[] = [
     status: "مقبول",
     notes: "عرض تجريبي.",
     items: [
-      { id: "qi4", productName: "خلاط مغسلة تجريبي", sku: "DEMO-SN-0004", qty: 6, unit: "حبة", unitPrice: 0, discount: 0, total: 0 },
+      {
+        id: "qi4",
+        productName: "خلاط مغسلة تجريبي",
+        sku: "DEMO-SN-0004",
+        qty: 6,
+        unit: "حبة",
+        unitPrice: 0,
+        discount: 0,
+        total: 0,
+      },
     ],
   },
 ];
 
 export const reviewAlerts = [
-  { id: "a1", titleAr: "طلبية بحاجة إلى مراجعة أصناف", refAr: "ORD-D-1001", severity: "warning" as const },
-  { id: "a2", titleAr: "منتج تجريبي بدون سعر تجزئة", refAr: "DEMO-BM-0005", severity: "warning" as const },
+  {
+    id: "a1",
+    titleAr: "طلبية بحاجة إلى مراجعة أصناف",
+    refAr: "ORD-D-1001",
+    severity: "warning" as const,
+  },
+  {
+    id: "a2",
+    titleAr: "منتج تجريبي بدون سعر تجزئة",
+    refAr: "DEMO-BM-0005",
+    severity: "warning" as const,
+  },
   { id: "a3", titleAr: "عرض سعر مسودة لم يُرسل", refAr: "QT-D-2001", severity: "info" as const },
 ];
 

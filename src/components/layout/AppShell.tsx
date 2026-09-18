@@ -1,4 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
   FilePlus2,
@@ -9,10 +9,13 @@ import {
   FileText,
   Settings,
   Plus,
+  LogOut,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useCallback, type ReactNode } from "react";
 
 import { BrandLockup } from "@/components/brand/Logo";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/integrations/supabase/auth-provider";
 import { COMPANY, SYSTEM } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +44,14 @@ export function AppShell({
   children: ReactNode;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { signOut, user } = useAuth();
+  const navigate = useNavigate();
   const isActive = (to: string) => (to === "/" ? pathname === "/" : pathname.startsWith(to));
+
+  const handleLogout = useCallback(async () => {
+    await signOut();
+    navigate({ to: "/login", search: { redirect: "/" } });
+  }, [navigate, signOut]);
 
   return (
     <div dir="rtl" className="flex min-h-screen w-full bg-background">
@@ -67,8 +77,28 @@ export function AppShell({
             </Link>
           ))}
         </nav>
-        <div className="border-t border-sidebar-border p-4 text-[11px] leading-relaxed text-primary-foreground/60">
-          {COMPANY.nameAr}
+        <div className="border-t border-sidebar-border p-4">
+          <div className="mb-3 text-[11px] leading-relaxed text-primary-foreground/60">
+            {COMPANY.nameAr}
+          </div>
+          <div className="flex items-center justify-between gap-2 rounded-xl bg-sidebar-accent/40 p-2">
+            <div className="min-w-0">
+              <p className="truncate text-[10px] font-semibold text-primary-foreground/60">الحساب</p>
+              <p className="truncate text-xs font-bold text-primary-foreground">
+                {user?.email ?? "مستخدم"}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-8 gap-1 bg-white/10 text-primary-foreground hover:bg-white/20"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              خروج
+            </Button>
+          </div>
         </div>
       </aside>
 
@@ -87,12 +117,27 @@ export function AppShell({
           </div>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-border/60 px-4 py-3 lg:border-t-0 lg:px-8 lg:py-5">
             <div className="min-w-0">
-              <h1 className="truncate text-lg font-extrabold text-foreground lg:text-2xl">{title}</h1>
+              <h1 className="truncate text-lg font-extrabold text-foreground lg:text-2xl">
+                {title}
+              </h1>
               {subtitle && (
-                <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground lg:text-sm">{subtitle}</p>
+                <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground lg:text-sm">
+                  {subtitle}
+                </p>
               )}
             </div>
-            {action}
+            <div className="flex items-center gap-2">
+              {action}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="hidden gap-1 sm:flex"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4" /> خروج
+              </Button>
+            </div>
           </div>
         </header>
 

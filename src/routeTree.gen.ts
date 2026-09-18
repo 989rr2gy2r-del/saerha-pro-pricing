@@ -11,12 +11,16 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CustomersRouteImport } from './routes/customers'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as NewOrderRouteImport } from './routes/new-order'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as PricesRouteImport } from './routes/prices'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as QuotesRouteImport } from './routes/quotes'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ApiAnalyzeOrderRouteImport } from './routes/api/analyze-order'
+import { Route as ApiImportProductsRouteImport } from './routes/api/import-products'
+import { Route as ApiSupabaseWriteRouteImport } from './routes/api/supabase-write'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -26,6 +30,11 @@ const IndexRoute = IndexRouteImport.update({
 const CustomersRoute = CustomersRouteImport.update({
   id: '/customers',
   path: '/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewOrderRoute = NewOrderRouteImport.update({
@@ -58,80 +67,123 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnalyzeOrderRoute = ApiAnalyzeOrderRouteImport.update({
+  id: '/api/analyze-order',
+  path: '/api/analyze-order',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiImportProductsRoute = ApiImportProductsRouteImport.update({
+  id: '/api/import-products',
+  path: '/api/import-products',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSupabaseWriteRoute = ApiSupabaseWriteRouteImport.update({
+  id: '/api/supabase-write',
+  path: '/api/supabase-write',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/customers': typeof CustomersRoute
+  '/login': typeof LoginRoute
   '/new-order': typeof NewOrderRoute
   '/orders': typeof OrdersRoute
   '/prices': typeof PricesRoute
   '/products': typeof ProductsRoute
   '/quotes': typeof QuotesRoute
   '/settings': typeof SettingsRoute
+  '/api/analyze-order': typeof ApiAnalyzeOrderRoute
+  '/api/import-products': typeof ApiImportProductsRoute
+  '/api/supabase-write': typeof ApiSupabaseWriteRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/customers': typeof CustomersRoute
+  '/login': typeof LoginRoute
   '/new-order': typeof NewOrderRoute
   '/orders': typeof OrdersRoute
   '/prices': typeof PricesRoute
   '/products': typeof ProductsRoute
   '/quotes': typeof QuotesRoute
   '/settings': typeof SettingsRoute
+  '/api/analyze-order': typeof ApiAnalyzeOrderRoute
+  '/api/import-products': typeof ApiImportProductsRoute
+  '/api/supabase-write': typeof ApiSupabaseWriteRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/customers': typeof CustomersRoute
+  '/login': typeof LoginRoute
   '/new-order': typeof NewOrderRoute
   '/orders': typeof OrdersRoute
   '/prices': typeof PricesRoute
   '/products': typeof ProductsRoute
   '/quotes': typeof QuotesRoute
   '/settings': typeof SettingsRoute
+  '/api/analyze-order': typeof ApiAnalyzeOrderRoute
+  '/api/import-products': typeof ApiImportProductsRoute
+  '/api/supabase-write': typeof ApiSupabaseWriteRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/customers'
+    | '/login'
     | '/new-order'
     | '/orders'
     | '/prices'
     | '/products'
     | '/quotes'
     | '/settings'
+    | '/api/analyze-order'
+    | '/api/import-products'
+    | '/api/supabase-write'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/customers'
+    | '/login'
     | '/new-order'
     | '/orders'
     | '/prices'
     | '/products'
     | '/quotes'
     | '/settings'
+    | '/api/analyze-order'
+    | '/api/import-products'
+    | '/api/supabase-write'
   id:
     | '__root__'
     | '/'
     | '/customers'
+    | '/login'
     | '/new-order'
     | '/orders'
     | '/prices'
     | '/products'
     | '/quotes'
     | '/settings'
+    | '/api/analyze-order'
+    | '/api/import-products'
+    | '/api/supabase-write'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CustomersRoute: typeof CustomersRoute
+  LoginRoute: typeof LoginRoute
   NewOrderRoute: typeof NewOrderRoute
   OrdersRoute: typeof OrdersRoute
   PricesRoute: typeof PricesRoute
   ProductsRoute: typeof ProductsRoute
   QuotesRoute: typeof QuotesRoute
   SettingsRoute: typeof SettingsRoute
+  ApiAnalyzeOrderRoute: typeof ApiAnalyzeOrderRoute
+  ApiImportProductsRoute: typeof ApiImportProductsRoute
+  ApiSupabaseWriteRoute: typeof ApiSupabaseWriteRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -148,6 +200,13 @@ declare module '@tanstack/react-router' {
       path: '/customers'
       fullPath: '/customers'
       preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/new-order': {
@@ -192,18 +251,43 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/analyze-order': {
+      id: '/api/analyze-order'
+      path: '/api/analyze-order'
+      fullPath: '/api/analyze-order'
+      preLoaderRoute: typeof ApiAnalyzeOrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/import-products': {
+      id: '/api/import-products'
+      path: '/api/import-products'
+      fullPath: '/api/import-products'
+      preLoaderRoute: typeof ApiImportProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/supabase-write': {
+      id: '/api/supabase-write'
+      path: '/api/supabase-write'
+      fullPath: '/api/supabase-write'
+      preLoaderRoute: typeof ApiSupabaseWriteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CustomersRoute: CustomersRoute,
+  LoginRoute: LoginRoute,
   NewOrderRoute: NewOrderRoute,
   OrdersRoute: OrdersRoute,
   PricesRoute: PricesRoute,
   ProductsRoute: ProductsRoute,
   QuotesRoute: QuotesRoute,
   SettingsRoute: SettingsRoute,
+  ApiAnalyzeOrderRoute: ApiAnalyzeOrderRoute,
+  ApiImportProductsRoute: ApiImportProductsRoute,
+  ApiSupabaseWriteRoute: ApiSupabaseWriteRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

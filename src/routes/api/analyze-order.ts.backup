@@ -1,0 +1,101 @@
+import { GoogleGenAI } from "@google/genai";
+import { createFileRoute } from "@tanstack/react-router";
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+});
+
+export const Route = createFileRoute("/api/analyze-order")({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        try {
+          const body = await request.json();
+          const image = body?.image;
+
+          if (!image || typeof image !== "string") {
+            return Response.json(
+              { success: false, error: "لم يتم إرسال صورة." },
+              { status: 400 },
+            );
+          }
+
+          const match = image.match(/^data:(image\/[^;]+);base64,(.+)$/);
+
+          if (!match) {
+            return Response.json(
+              { success: false, error: "صيغة الصورة غير صحيحة." },
+              { status: 400 },
+            );
+          }
+
+          const mimeType = match[1];
+          const base64Data = match[2];
+
+          const prompt = `
+أنت محرك قراءة طلبيات لمحل مواد كهربائية وصحية اسمه "سعّرها".
+
+اقرأ صورة الطلبية بدقة واستخرج الأصناف والبيانات الظاهرة فقط.
+
+أرجع JSON فقط بهذا الشكل:
+{
+  "items": [
+    {
+      "description": "اسم الصنف كما ظهر في الصورة",
+      "quantity": 0,
+      "unit": "الوحدة إن ظهرت",
+      "raw_text": "النص الأصلي للصنف",
+      "confidence": 0
+    }
+  ],
+  "notes": "أي ملاحظات أو أجزاء غير واضحة"
+}
+
+القواعد:
+- لا تخترع أي صنف.
+- لا تخترع SKU.
+- لا تخترع سعرًا.
+- لا تخمن الكمية إذا لم تكن واضحة.
+- احتفظ بالنص الأصلي قدر الإمكان.
+- confidence رقم بين 0 و1.
+- إذا كان جزء من النص غير واضح، اذكر ذلك في notes.
+- المطلوب قراءة الطلبية فقط، وليس تسعيرها.
+`;
+
+          const response = await ai.models.generateContent({
+            model: "gemini-3.6-flash",
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  { text: prompt },
+                  {
+                    inlineData: {
+                      mimeType,
+                      data: base64Data,
+                    },
+                  },
+                ],
+              },
+            ],
+          });
+
+          return Response.json({
+            success: true,
+            result: response.text ?? "",
+          });
+        } catch (error) {
+          console.error("Gemini analyze-order error:", error);
+
+          return Response.json(
+            {
+              success: false,
+              error: "حدث خطأ أثناء تحليل الصورة بواسطة Gemini.",
+            },
+            { status: 500 },
+          );
+        }
+      },
+    },
+  },
+});
