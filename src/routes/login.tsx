@@ -5,7 +5,7 @@ import { useAuth } from "@/integrations/supabase/auth-provider";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>) => ({
-    redirect: typeof search.redirect === "string" ? search.redirect : "/",
+    redirect: typeof search['redirect'] === "string" ? search['redirect'] : "/",
   }),
   component: LoginPage,
 });
@@ -47,8 +47,8 @@ function LoginPage() {
       await signIn(email.trim(), password);
 
       const redirect =
-        typeof search.redirect === "string" && search.redirect.startsWith("/")
-          ? search.redirect
+        typeof search['redirect'] === "string" && search['redirect'].startsWith("/")
+          ? search['redirect']
           : "/";
 
       await navigate({ to: redirect });
