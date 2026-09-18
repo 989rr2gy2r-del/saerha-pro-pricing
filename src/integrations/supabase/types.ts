@@ -260,6 +260,7 @@ export type Database = {
       prices: {
         Row: {
           amount: number
+          amount_exact: number | null
           created_at: string
           currency: string
           customer_id: string | null
@@ -277,6 +278,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          amount_exact?: number | null
           created_at?: string
           currency?: string
           customer_id?: string | null
@@ -294,6 +296,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          amount_exact?: number | null
           created_at?: string
           currency?: string
           customer_id?: string | null
