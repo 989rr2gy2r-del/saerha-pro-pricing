@@ -1,3 +1,4 @@
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Eye, Plus, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";

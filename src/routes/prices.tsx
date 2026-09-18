@@ -1,3 +1,4 @@
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { createFileRoute } from "@tanstack/react-router";
 import { Info, Pencil, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";

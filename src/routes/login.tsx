@@ -4,6 +4,9 @@ import { createFileRoute, Navigate, useNavigate, useSearch } from "@tanstack/rea
 import { useAuth } from "@/integrations/supabase/auth-provider";
 
 export const Route = createFileRoute("/login")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    redirect: typeof search.redirect === "string" ? search.redirect : "/",
+  }),
   component: LoginPage,
 });
 
