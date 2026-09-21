@@ -42,12 +42,16 @@ async function fetchGeminiRequest(
           role: "user",
           parts: [
             { text: prompt },
-            {
-              inline_data: {
-                mime_type: mimeType,
-                data: base64Data,
-              },
-            },
+            ...(base64Data
+              ? [
+                  {
+                    inline_data: {
+                      mime_type: mimeType,
+                      data: base64Data,
+                    },
+                  },
+                ]
+              : []),
           ],
         },
       ],
@@ -255,8 +259,8 @@ export const Route = createFileRoute("/api/analyze-order")({
           const primaryResult = await fetchGeminiWithRetry(
             apiKey,
             PRIMARY_MODEL,
-            mimeType || "text/plain",
-            base64Data || Buffer.from(effectivePrompt, "utf8").toString("base64"),
+            mimeType,
+            base64Data,
             effectivePrompt,
             PRIMARY_MAX_ATTEMPTS,
           );
