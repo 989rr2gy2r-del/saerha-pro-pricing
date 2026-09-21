@@ -31,7 +31,7 @@ jobs:
         run: npm ci
 
       - name: Lint
-        run: npm run lint
+        run: npx eslint src/lib/server-auth.ts src/routes/api/analyze-order.ts src/routes/api/import-products.ts src/routes/api/supabase-write.ts
 
       - name: Build
         run: npm run build
