@@ -1,9 +1,6 @@
-// @lovable.dev/vite-tanstack-config already includes the following — do NOT add them manually
-// or the app will break with duplicate plugins:
-//   - TanStack devtools (dev-only, first), tanstackStart, viteReact, tailwindcss, tsConfigPaths,
-//     nitro (build-only using cloudflare as a default target), VITE_* env injection, @ path alias,
-//     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
-// You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
+// The project uses the shared TanStack Start Vite configuration.
+// We keep the custom server entry for the full runtime and enable static
+// prerendering so the GitHub Pages smoke-test site has a real index.html.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { loadEnv } from "vite";
 
@@ -11,13 +8,9 @@ const mode = process.env["NODE_ENV"] ?? "development";
 const env = loadEnv(mode, process.cwd(), "");
 
 if (env["GEMINI_API_KEY"] && !process.env["GEMINI_API_KEY"]) {
-  process.env["GEMINI_API_KEY"] = env["GEMINI_API_KEY"].trim().replace(/^['"]|['"]$/g, "");
+  process.env["GEMINI_API_KEY"] = env["GEMINI_API_KEY"].trim().replace(/^['\"]|['\"]$/g, "");
 }
 
-// Lovable Cloud may provide Supabase as server-side environment variables
-// (SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY) while the browser bundle needs
-// the Vite-prefixed equivalents. Bridge them at build time without storing
-// credentials in Git.
 const supabaseUrl =
   env["VITE_SUPABASE_URL"] ||
   env["SUPABASE_URL"] ||
@@ -51,12 +44,23 @@ if (supabasePublishableKey) {
 
 export default defineConfig({
   tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
+    // Use our server wrapper for the real server/worker deployment.
     server: { entry: "server" },
+    // GitHub Pages cannot execute the server bundle, so emit static HTML
+    // for the browser-first shell and login route as a Pages smoke test.
+    prerender: {
+      enabled: true,
+      autoSubfolderIndex: true,
+      autoStaticPathsDiscovery: false,
+      crawlLinks: false,
+      failOnError: true,
+    },
+    pages: [
+      { path: "/", prerender: { enabled: true, outputPath: "/index.html" } },
+      { path: "/login", prerender: { enabled: true, outputPath: "/login/index.html" } },
+    ],
   },
   vite: {
-    // GitHub Pages serves this project under /saerha-pro-pricing/.
-    // Keep the normal root path everywhere else.
     base: process.env.GITHUB_ACTIONS === "true" ? "/saerha-pro-pricing/" : "/",
     define: supabaseClientEnv,
   },
