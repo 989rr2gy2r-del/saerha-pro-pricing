@@ -74,6 +74,9 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  // This is an authenticated, browser-first app. Avoid SSR of the route tree so
+  // Supabase/browser auth state cannot crash the initial server render.
+  ssr: false,
   head: () => ({
     meta: [
       { charSet: "utf-8" },
