@@ -3,9 +3,25 @@ import type { Database } from "@/integrations/supabase/types";
 import type { Customer, Product } from "@/lib/mock-data";
 
 export function supabaseConfigured() {
-  const url = import.meta.env["VITE_SUPABASE_URL"] || process.env["SUPABASE_URL"];
+  const url =
+    import.meta.env["VITE_SUPABASE_URL"] ||
+    import.meta.env["SUPABASE_URL"] ||
+    process.env["VITE_SUPABASE_URL"] ||
+    process.env["SUPABASE_URL"] ||
+    "https://kgthdneognrllfykavqp.supabase.co";
   const key =
-    import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] || process.env["SUPABASE_PUBLISHABLE_KEY"];
+    import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||
+    import.meta.env["SUPABASE_PUBLISHABLE_KEY"] ||
+    import.meta.env["VITE_SUPABASE_ANON_KEY"] ||
+    import.meta.env["SUPABASE_ANON_KEY"] ||
+    import.meta.env["VITE_SUPABASE_KEY"] ||
+    import.meta.env["SUPABASE_KEY"] ||
+    process.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||
+    process.env["SUPABASE_PUBLISHABLE_KEY"] ||
+    process.env["VITE_SUPABASE_ANON_KEY"] ||
+    process.env["SUPABASE_ANON_KEY"] ||
+    process.env["VITE_SUPABASE_KEY"] ||
+    process.env["SUPABASE_KEY"];
   return Boolean(url && key);
 }
 
