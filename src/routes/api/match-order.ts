@@ -16,18 +16,31 @@ export const Route = createFileRoute("/api/match-order")({
           const items = Array.isArray(body?.items) ? body.items.slice(0, 200) as InputItem[] : [];
           if (!items.length) return Response.json({ success: false, error: "لا توجد بنود للمطابقة." }, { status: 400 });
 
-          const [productsResult, aliasesResult] = await Promise.all([
+          const [productsResult, aliasesResult, correctionsResult] = await Promise.all([
             auth.supabase.from("products").select(
               "id, sku, name_ar, name_en, short_name, brand, model, size, unit",
             ).eq("status", "active").limit(10000),
             auth.supabase.from("product_aliases").select("product_id, alias, normalized_alias").limit(20000),
+            auth.supabase
+              .from("ai_corrections")
+              .select("product_id, raw_text, normalized_text, action")
+              .in("action", ["accepted", "corrected", "alias_added"])
+              .limit(20000),
           ]);
 
           if (productsResult.error) throw new Error(productsResult.error.message);
           if (aliasesResult.error) throw new Error(aliasesResult.error.message);
+          if (correctionsResult.error) throw new Error(correctionsResult.error.message);
 
           const products = productsResult.data ?? [];
-          const aliases = aliasesResult.data ?? [];
+          const aliases = [
+            ...(aliasesResult.data ?? []),
+            ...(correctionsResult.data ?? []).map((row) => ({
+              product_id: row.product_id,
+              alias: row.raw_text,
+              normalized_alias: row.normalized_text,
+            })),
+          ];
 
           const results = items.map((item, index) => {
             const text = String(item.description ?? item.raw_text ?? "").trim();
