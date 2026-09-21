@@ -267,23 +267,31 @@ function NewOrder() {
     if (!normalizedText) return;
 
     const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-    if (!token) return;
+    const userId = sessionData.session?.user?.id;
+    if (!userId) return;
 
-    await fetch("/api/record-correction", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        rawText,
-        normalizedText,
-        productId: item.product.id,
-        action,
-        addAlias,
-      }),
+    const { error } = await supabase.from("ai_corrections").insert({
+      product_id: item.product.id,
+      raw_text: rawText,
+      normalized_text: normalizedText,
+      action,
+      created_by: userId,
     });
+    if (error) throw error;
+
+    if (addAlias) {
+      const { error: aliasError } = await supabase.from("product_aliases").upsert(
+        {
+          product_id: item.product.id,
+          alias: rawText,
+          normalized_alias: normalizedText,
+          lang: "ar",
+          source: "manual",
+        },
+        { onConflict: "product_id,normalized_alias" },
+      );
+      if (aliasError) throw aliasError;
+    }
   };
 
   const handleAcceptMatch = (index: number) => {
