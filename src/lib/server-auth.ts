@@ -35,8 +35,7 @@ export type AuthenticatedServerClient = {
 export async function authenticateStaffRequest(
   request: Request,
 ): Promise<AuthenticatedServerClient | Response> {
-  const authHeader =
-    request.headers.get("authorization") ?? request.headers.get("Authorization");
+  const authHeader = request.headers.get("authorization") ?? request.headers.get("Authorization");
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return Response.json(
@@ -97,17 +96,11 @@ export async function authenticateStaffRequest(
 
   if (rolesError) {
     console.error("Staff authorization lookup failed", rolesError.message);
-    return Response.json(
-      { success: false, error: "Authorization check failed" },
-      { status: 500 },
-    );
+    return Response.json({ success: false, error: "Authorization check failed" }, { status: 500 });
   }
 
   if (!roles?.length) {
-    return Response.json(
-      { success: false, error: "Forbidden" },
-      { status: 403 },
-    );
+    return Response.json({ success: false, error: "Forbidden" }, { status: 403 });
   }
 
   return { supabase, userId };
