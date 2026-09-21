@@ -78,6 +78,7 @@ const getCustomerList = (customers?: QuoteCustomer[] | null) => customers ?? [];
 const getCustomerName = (customers?: QuoteCustomer[] | null) =>
   getCustomerList(customers)[0]?.name ?? "عميل";
 
+// CI verification for quote export flow.
 function Quotes() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [open, setOpen] = useState<Quote | null>(null);
