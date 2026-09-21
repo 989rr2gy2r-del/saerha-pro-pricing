@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
+import { authenticateStaffRequest } from "@/lib/server-auth";
 
 function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith("sb_publishable_") || value.startsWith("sb_secret_");
@@ -63,55 +62,11 @@ export const Route = createFileRoute("/api/import-products")({
     handlers: {
       POST: async ({ request }) => {
         try {
-          const authHeader =
-            request.headers.get("authorization") ?? request.headers.get("Authorization");
-          if (!authHeader || !authHeader.startsWith("Bearer ")) {
-            return Response.json(
-              { success: false, error: "Unauthorized: missing bearer token" },
-              { status: 401 },
-            );
+          const auth = await authenticateStaffRequest(request);
+          if ("error" in auth) {
+            return Response.json({ success: false, error: auth.error }, { status: auth.status });
           }
-
-          const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-          if (!token) {
-            return Response.json(
-              { success: false, error: "Unauthorized: empty bearer token" },
-              { status: 401 },
-            );
-          }
-
-          const SUPABASE_URL = process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"];
-          const SUPABASE_PUBLISHABLE_KEY =
-            process.env["SUPABASE_PUBLISHABLE_KEY"] || process.env["VITE_SUPABASE_PUBLISHABLE_KEY"];
-
-          if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-            return Response.json(
-              { success: false, error: "Supabase is not configured on the server" },
-              { status: 500 },
-            );
-          }
-
-          const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-            global: {
-              fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            },
-            auth: {
-              persistSession: false,
-              autoRefreshToken: false,
-              storage: undefined,
-            },
-          });
-
-          const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-          if (claimsError || !claimsData?.claims?.sub) {
-            return Response.json(
-              { success: false, error: "Unauthorized: invalid user token" },
-              { status: 401 },
-            );
-          }
+          const supabase = auth.supabase;
 
           const body = await request.json();
           const rows = Array.isArray(body?.rows) ? body.rows : [];
@@ -262,17 +217,7 @@ export const Route = createFileRoute("/api/import-products")({
                     .select("id")
                     .single();
                   if (result.error) throw new Error(result.error.message);
-                  await supabase.from("price_history").insert({
-                    product_id: productId,
-                    price_id: result.data.id,
-                    customer_id: customer.data.id,
-                    price_type: priceCheck.type,
-                    old_amount: Number(existingPrice.data.amount),
-                    new_amount: numericValue,
-                    currency: normalizeImportString(row?.currency || "KWD") || "KWD",
-                    reason: "excel_import",
-                    changed_at: new Date().toISOString(),
-                  });
+                  
                   summary.priceChanged += 1;
                   continue;
                 }
@@ -294,17 +239,7 @@ export const Route = createFileRoute("/api/import-products")({
                     .single();
 
                   if (result.error) throw new Error(result.error.message);
-                  await supabase.from("price_history").insert({
-                    product_id: productId,
-                    price_id: result.data.id,
-                    customer_id: customer.data.id,
-                    price_type: priceCheck.type,
-                    old_amount: null,
-                    new_amount: numericValue,
-                    currency: normalizeImportString(row?.currency || "KWD") || "KWD",
-                    reason: "excel_import",
-                    changed_at: new Date().toISOString(),
-                  });
+                  
                   summary.priceChanged += 1;
                 }
                 continue;
@@ -337,17 +272,7 @@ export const Route = createFileRoute("/api/import-products")({
                   .single();
 
                 if (result.error) throw new Error(result.error.message);
-                await supabase.from("price_history").insert({
-                  product_id: productId,
-                  price_id: result.data.id,
-                  customer_id: null,
-                  price_type: priceCheck.type,
-                  old_amount: Number(existingPrice.data.amount),
-                  new_amount: numericValue,
-                  currency: normalizeImportString(row?.currency || "KWD") || "KWD",
-                  reason: "excel_import",
-                  changed_at: new Date().toISOString(),
-                });
+                
                 summary.priceChanged += 1;
                 continue;
               }
@@ -369,17 +294,7 @@ export const Route = createFileRoute("/api/import-products")({
                   .single();
 
                 if (result.error) throw new Error(result.error.message);
-                await supabase.from("price_history").insert({
-                  product_id: productId,
-                  price_id: result.data.id,
-                  customer_id: null,
-                  price_type: priceCheck.type,
-                  old_amount: null,
-                  new_amount: numericValue,
-                  currency: normalizeImportString(row?.currency || "KWD") || "KWD",
-                  reason: "excel_import",
-                  changed_at: new Date().toISOString(),
-                });
+                
                 summary.priceChanged += 1;
               }
             }
