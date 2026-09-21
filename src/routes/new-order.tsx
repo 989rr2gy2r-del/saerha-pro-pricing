@@ -219,7 +219,39 @@ function NewOrder() {
     });
   };
 
+  const recordCorrection = async (
+    item: ReviewItem,
+    action: "accepted" | "corrected" | "alias_added",
+    addAlias = false,
+  ) => {
+    if (!item.product) return;
+    const rawText = item.raw_text || item.description || "";
+    const normalizedText = normalizeForMatch(rawText);
+    if (!normalizedText) return;
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) return;
+
+    await fetch("/api/record-correction", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        rawText,
+        normalizedText,
+        productId: item.product.id,
+        action,
+        addAlias,
+      }),
+    });
+  };
+
   const handleAcceptMatch = (index: number) => {
+    const current = analysisResult?.items[index];
+    if (current?.product) void recordCorrection(current, "accepted");
     patchReviewItem(index, (item) => ({
       ...item,
       accepted: true,
@@ -244,6 +276,10 @@ function NewOrder() {
 
   const handleProductSelect = (index: number, productId: string) => {
     const selected = products.find((product) => product.id === productId) ?? null;
+    const current = analysisResult?.items[index];
+    if (current && selected) {
+      void recordCorrection({ ...current, product: selected }, "corrected");
+    }
     patchReviewItem(index, (item) => {
       const nextStatus: MatchStatus = selected ? "HIGH_CONFIDENCE" : "UNMATCHED";
       return {
@@ -279,39 +315,14 @@ function NewOrder() {
     const normalizedText = normalizeForMatch(aliasText);
     if (!normalizedText) return;
 
-    const { data: existing, error: selectError } = await supabase
-      .from("product_aliases")
-      .select("id, alias, normalized_alias")
-      .eq("product_id", item.product.id)
-      .order("created_at", { ascending: false });
-
-    if (!selectError) {
-      const duplicate = (existing ?? []).some(
-        (row) =>
-          normalizeForMatch(row.alias || "") === normalizedText ||
-          normalizeForMatch(row.normalized_alias || "") === normalizedText,
-      );
-      if (duplicate) {
-        setAnalysisError("هذا الاختصار محفوظ فعليًا ولا يحتاج تكرارًا.");
-        return;
-      }
+    try {
+      await recordCorrection(item, "alias_added", true);
+      setAnalysisError("");
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : "تعذر حفظ الاختصار.");
     }
-
-    const { error } = await supabase.from("product_aliases").insert({
-      product_id: item.product.id,
-      alias: aliasText.trim(),
-      normalized_alias: normalizedText,
-      lang: "mixed",
-      source: "learned",
-    });
-
-    if (error) {
-      setAnalysisError(error.message || "تعذر حفظ الاختصار.");
-      return;
-    }
-
-    setAnalysisError("");
   };
+
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
