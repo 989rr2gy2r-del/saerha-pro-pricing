@@ -539,6 +539,7 @@ function NewOrder() {
           items: validItems.map((item) => ({
             productId: item.product!.id,
             quantity: item.quantity,
+            unit: item.unit || item.product!.unit || "حبة",
           })),
         }),
       });
@@ -559,6 +560,8 @@ function NewOrder() {
 
         return {
           ...item,
+          quantity: Number(result?.quantity ?? item.quantity),
+          unit: String(result?.baseUnit ?? item.unit ?? item.product!.unit ?? "حبة"),
           priceAmount: Number(price.amount),
           priceType: price.priceType,
           priceLabel: getPriceLookupKey(price.priceType),
