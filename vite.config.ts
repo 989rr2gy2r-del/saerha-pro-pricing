@@ -55,6 +55,9 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    // GitHub Pages serves this project under /saerha-pro-pricing/.
+    // Keep the normal root path everywhere else.
+    base: process.env.GITHUB_ACTIONS === "true" ? "/saerha-pro-pricing/" : "/",
     define: supabaseClientEnv,
   },
 });
