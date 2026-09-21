@@ -323,7 +323,6 @@ function NewOrder() {
       "image/webp",
       "image/heic",
       "application/pdf",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "text/csv",
       "application/vnd.ms-excel",
@@ -333,7 +332,7 @@ function NewOrder() {
     const validFiles = files.filter(
       (file) =>
         accepted.includes(file.type) ||
-        /\.(jpe?g|png|webp|heic|pdf|docx|xlsx|xls|csv|txt)$/i.test(file.name),
+        /\.(jpe?g|png|webp|heic|pdf|xlsx|xls|csv|txt)$/i.test(file.name),
     );
 
     setUploadedFiles(
@@ -647,13 +646,12 @@ function NewOrder() {
             <div>
               <p className="text-base font-extrabold">رفع طلبية</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                اختر ملفًا واحدًا أو أكثر من أنواع: JPG · PNG · WEBP · HEIC · PDF · DOCX · XLSX ·
-                CSV.
+                اختر ملفًا واحدًا أو أكثر من أنواع: JPG · PNG · WEBP · HEIC · PDF · XLSX · CSV · TXT.
               </p>
             </div>
             <Input
               type="file"
-              accept=".jpg,.jpeg,.png,.webp,.heic,.pdf,.docx,.xlsx,.xls,.csv"
+              accept=".jpg,.jpeg,.png,.webp,.heic,.pdf,.xlsx,.xls,.csv,.txt"
               multiple
               className="h-12 cursor-pointer text-sm"
               onChange={handleFileChange}
