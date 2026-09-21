@@ -364,17 +364,7 @@ function normalizePrice(value: unknown): number | null {
 export async function importProductsAndPrices(
   rows: ProductImportRow[],
 ): Promise<ProductImportSummary> {
-  if (typeof window !== "undefined") {
-    const response = await fetch("/api/import-products", {
-      method: "POST",
-      headers: await getAuthenticatedApiHeaders(),
-      body: JSON.stringify({ rows }),
-    });
-    const payload = await response.json();
-    if (!response.ok || payload?.success === false)
-      throw new Error(payload?.error ?? "تعذر استيراد المنتجات.");
-    return payload.summary as ProductImportSummary;
-  }
+
 
   if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
 
