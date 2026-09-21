@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
+import { convertQuantity } from "@/lib/pricing/unit-converter";
 
 type ProductRecord = {
   id: string;
@@ -552,49 +553,83 @@ function NewOrder() {
     }
 
     try {
-      const { data: pricingSession } = await supabase.auth.getSession();
-      const pricingToken = pricingSession.session?.access_token;
-      if (!pricingToken) {
-        throw new Error("انتهت جلسة الدخول. سجّل الدخول ثم أعد المحاولة.");
-      }
+      const { data: customerRow, error: customerError } = await supabase
+        .from("customers")
+        .select("id, customer_type")
+        .eq("id", customerId)
+        .maybeSingle();
+      if (customerError) throw customerError;
+      if (!customerRow) throw new Error("العميل غير موجود.");
 
-      const pricingResponse = await fetch("/api/price-order", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${pricingToken}`,
-        },
-        body: JSON.stringify({
-          customerId,
-          items: validItems.map((item) => ({
-            productId: item.product!.id,
-            quantity: item.quantity,
-            unit: item.unit || item.product!.unit || "حبة",
-          })),
-        }),
-      });
+      const productIds = validItems.map((item) => item.product!.id);
+      const [{ data: priceRows, error: priceError }, { data: conversionRows, error: conversionError }] =
+        await Promise.all([
+          supabase
+            .from("prices")
+            .select("id, product_id, price_type, customer_id, amount, currency, source, valid_from, valid_to")
+            .in("product_id", productIds)
+            .order("valid_from", { ascending: false }),
+          supabase
+            .from("unit_conversions")
+            .select("from_unit, to_unit, multiplier, product_id")
+            .or(`product_id.is.null,product_id.in.(${productIds.join(",")})`),
+        ]);
+      if (priceError) throw priceError;
+      if (conversionError) throw conversionError;
 
-      const pricingData = await pricingResponse.json();
-      if (!pricingResponse.ok) {
-        throw new Error(pricingData?.error || "تعذر حساب أسعار الطلبية.");
-      }
+      const preferredType =
+        customerRow.customer_type === "wholesale" ||
+        customerRow.customer_type === "contractor" ||
+        customerRow.customer_type === "government"
+          ? "reseller"
+          : "retail";
 
-      const pricingResults = Array.isArray(pricingData?.results) ? pricingData.results : [];
-      const quoteLines = validItems.map((item, index) => {
-        const result = pricingResults[index];
-        const price = result?.price;
-
-        if (!price) {
-          return { ...item, priceAmount: null, priceType: null, priceLabel: "لا يوجد سعر" };
+      const today = new Date().toISOString().slice(0, 10);
+      const quoteLines = validItems.map((item) => {
+        const productId = item.product!.id;
+        const rows = (priceRows ?? []).filter(
+          (row) =>
+            row.product_id === productId &&
+            row.valid_from <= today &&
+            (!row.valid_to || row.valid_to > today) &&
+            Number(row.amount) >= 0,
+        );
+        const customerSpecial = rows
+          .filter((row) => row.price_type === "customer_special" && row.customer_id === customerId)
+          .sort((a, b) => String(b.valid_from).localeCompare(String(a.valid_from)))[0];
+        const preferred = rows
+          .filter((row) => row.price_type === preferredType && !row.customer_id)
+          .sort((a, b) => String(b.valid_from).localeCompare(String(a.valid_from)))[0];
+        const retail = rows
+          .filter((row) => row.price_type === "retail" && !row.customer_id)
+          .sort((a, b) => String(b.valid_from).localeCompare(String(a.valid_from)))[0];
+        const reseller = rows
+          .filter((row) => row.price_type === "reseller" && !row.customer_id)
+          .sort((a, b) => String(b.valid_from).localeCompare(String(a.valid_from)))[0];
+        const chosen = customerSpecial ?? preferred ?? retail ?? reseller ?? null;
+        const requestedUnit = item.unit || item.product!.unit || "حبة";
+        const conversion = convertQuantity(
+          Number(item.quantity),
+          requestedUnit,
+          item.product!.unit || requestedUnit,
+          (conversionRows ?? []) as Array<{
+            from_unit: string;
+            to_unit: string;
+            multiplier: number;
+            product_id: string | null;
+          }>,
+          productId,
+        );
+        if (!chosen || (conversion.reason && conversion.quantity === Number(item.quantity) && requestedUnit !== (item.product!.unit || requestedUnit))) {
+          return { ...item, priceAmount: null, priceType: null, priceLabel: "لا يوجد سعر مناسب", quantity: conversion.quantity, unit: item.product!.unit || requestedUnit };
         }
-
         return {
           ...item,
-          quantity: Number(result?.quantity ?? item.quantity),
-          unit: String(result?.baseUnit ?? item.unit ?? item.product!.unit ?? "حبة"),
-          priceAmount: Number(price.amount),
-          priceType: price.priceType,
-          priceLabel: getPriceLookupKey(price.priceType),
+          quantity: conversion.quantity,
+          unit: item.product!.unit || requestedUnit,
+          priceAmount: Number(chosen.amount),
+          priceType: chosen.price_type,
+          priceLabel: getPriceLookupKey(chosen.price_type),
         };
       });
 
