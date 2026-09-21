@@ -14,10 +14,39 @@ if (env["GEMINI_API_KEY"] && !process.env["GEMINI_API_KEY"]) {
   process.env["GEMINI_API_KEY"] = env["GEMINI_API_KEY"].trim().replace(/^['"]|['"]$/g, "");
 }
 
+// Lovable Cloud may provide Supabase as server-side environment variables
+// (SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY) while the browser bundle needs
+// the Vite-prefixed equivalents. Bridge them at build time without storing
+// credentials in Git.
+const supabaseUrl =
+  env["VITE_SUPABASE_URL"] ||
+  env["SUPABASE_URL"] ||
+  process.env["VITE_SUPABASE_URL"] ||
+  process.env["SUPABASE_URL"];
+
+const supabasePublishableKey =
+  env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||
+  env["SUPABASE_PUBLISHABLE_KEY"] ||
+  process.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||
+  process.env["SUPABASE_PUBLISHABLE_KEY"];
+
+const supabaseClientEnv: Record<string, string> = {};
+
+if (supabaseUrl) {
+  supabaseClientEnv["import.meta.env.VITE_SUPABASE_URL"] = JSON.stringify(supabaseUrl);
+}
+
+if (supabasePublishableKey) {
+  supabaseClientEnv["import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY"] =
+    JSON.stringify(supabasePublishableKey);
+}
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
     server: { entry: "server" },
+  },
+  vite: {
+    define: supabaseClientEnv,
   },
 });
