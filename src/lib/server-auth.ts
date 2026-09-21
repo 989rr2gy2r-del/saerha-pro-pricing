@@ -45,7 +45,7 @@ export async function authenticateStaffRequest(
     );
   }
 
-  const token = authHeader.replace(/^Bearer\\s+/i, "").trim();
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!token) {
     return Response.json(
       { success: false, error: "Unauthorized: empty bearer token" },
