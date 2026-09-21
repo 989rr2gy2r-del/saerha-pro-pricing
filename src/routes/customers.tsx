@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Mail, MapPin, Phone, Plus, Search, Tag } from "lucide-react";
+import { Mail, MapPin, Phone, Plus, Search, Tag, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { createCustomer, updateCustomer } from "@/lib/db/saerha-data";
+import { createCustomer, deleteCustomer, updateCustomer } from "@/lib/db/saerha-data";
 import { supabase } from "@/integrations/supabase/client";
 import type { Customer } from "@/lib/mock-data";
 
@@ -211,6 +211,21 @@ function CustomerForm({
     }
   }, [selected, open]);
 
+  const removeCustomer = async () => {
+    if (!selected) return;
+    if (!window.confirm(`هل تريد حذف العميل "${selected.name}" نهائيًا؟`)) return;
+    try {
+      setLoading(true);
+      await deleteCustomer(selected.id);
+      setOpen(false);
+      if (onSaved) await onSaved();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "تعذر حذف العميل");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const saveCustomer = async () => {
     try {
       setLoading(true);
@@ -349,13 +364,27 @@ function CustomerForm({
               onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
             />
           </div>
-          <Button
-            className="h-12 w-full font-extrabold sm:col-span-2"
-            onClick={saveCustomer}
-            disabled={loading}
-          >
-            {loading ? "جارٍ الحفظ..." : "حفظ العميل"}
-          </Button>
+          <div className="grid gap-2 sm:col-span-2 sm:grid-cols-2">
+            <Button
+              className="h-12 w-full font-extrabold"
+              onClick={saveCustomer}
+              disabled={loading}
+            >
+              {loading ? "جارٍ الحفظ..." : "حفظ العميل"}
+            </Button>
+            {selected && (
+              <Button
+                type="button"
+                variant="destructive"
+                className="h-12 w-full font-extrabold"
+                onClick={() => void removeCustomer()}
+                disabled={loading}
+              >
+                <Trash2 className="ml-2 h-4 w-4" />
+                حذف العميل
+              </Button>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
