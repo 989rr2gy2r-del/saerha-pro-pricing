@@ -1,32 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { authenticateStaffRequest } from "@/lib/server-auth";
 
-function isNewSupabaseApiKey(value: string): boolean {
-  return value.startsWith("sb_publishable_") || value.startsWith("sb_secret_");
-}
-
-function createSupabaseFetch(supabaseKey: string): typeof fetch {
-  return (input, init) => {
-    const headers = new Headers(
-      typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined,
-    );
-
-    if (init?.headers) {
-      new Headers(init.headers).forEach((value, key) => headers.set(key, value));
-    }
-
-    if (
-      isNewSupabaseApiKey(supabaseKey) &&
-      headers.get("Authorization") === `Bearer ${supabaseKey}`
-    ) {
-      headers.delete("Authorization");
-    }
-
-    headers.set("apikey", supabaseKey);
-    return fetch(input, { ...init, headers });
-  };
-}
-
 const normalizeImportString = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   return String(value).trim();
@@ -68,8 +42,22 @@ export const Route = createFileRoute("/api/import-products")({
           }
           const supabase = auth.supabase;
 
+          const contentLength = Number(request.headers.get("content-length") ?? 0);
+          if (contentLength > 8 * 1024 * 1024) {
+            return Response.json(
+              { success: false, error: "ملف الاستيراد أكبر من الحد المسموح (8MB)." },
+              { status: 413 },
+            );
+          }
+
           const body = await request.json();
-          const rows = Array.isArray(body?.rows) ? body.rows : [];
+          const rows = Array.isArray(body?.rows) ? body.rows.slice(0, 5000) : [];
+          if (Array.isArray(body?.rows) && body.rows.length > 5000) {
+            return Response.json(
+              { success: false, error: "الاستيراد يتجاوز الحد الأقصى البالغ 5000 صف." },
+              { status: 413 },
+            );
+          }
           const summary = { new: 0, updated: 0, priceChanged: 0, duplicate: 0, error: 0 };
           const seen = new Set<string>();
 
