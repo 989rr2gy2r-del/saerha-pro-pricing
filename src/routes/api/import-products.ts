@@ -295,10 +295,7 @@ export const Route = createFileRoute("/api/import-products")({
 
           return Response.json({ success: true, summary });
         } catch (error) {
-          console.error(
-            "Product import failed",
-            error instanceof Error ? error.name : "unknown",
-          );
+          console.error("Product import failed", error instanceof Error ? error.name : "unknown");
           return Response.json(
             { success: false, error: "تعذر إتمام الاستيراد، يرجى المحاولة مرة أخرى." },
             { status: 500 },
