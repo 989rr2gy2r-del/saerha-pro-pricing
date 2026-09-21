@@ -1,62 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
-
-function isNewSupabaseApiKey(value: string): boolean {
-  return value.startsWith("sb_publishable_") || value.startsWith("sb_secret_");
-}
-
-function createSupabaseFetch(supabaseKey: string): typeof fetch {
-  return (input, init) => {
-    const headers = new Headers(
-      typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined,
-    );
-
-    if (init?.headers) {
-      new Headers(init.headers).forEach((value, key) => headers.set(key, value));
-    }
-
-    if (
-      isNewSupabaseApiKey(supabaseKey) &&
-      headers.get("Authorization") === `Bearer ${supabaseKey}`
-    ) {
-      headers.delete("Authorization");
-    }
-
-    headers.set("apikey", supabaseKey);
-    return fetch(input, { ...init, headers });
-  };
-}
-
-const normalizeImportString = (value: unknown): string => {
-  if (value === null || value === undefined) return "";
-  return String(value).trim();
-};
-
-const normalizePrice = (value: unknown): number | null => {
-  if (value === null || value === undefined || value === "") return null;
-
-  const raw = String(value).trim();
-  const normalized = raw
-    .replace(/٬/g, "")
-    .replace(/\u0660/g, "0")
-    .replace(/\u0661/g, "1")
-    .replace(/\u0662/g, "2")
-    .replace(/\u0663/g, "3")
-    .replace(/\u0664/g, "4")
-    .replace(/\u0665/g, "5")
-    .replace(/\u0666/g, "6")
-    .replace(/\u0667/g, "7")
-    .replace(/\u0668/g, "8")
-    .replace(/\u0669/g, "9")
-    .replace(/[^0-9.-]/g, "")
-    .replace(/(?!^)-/g, "")
-    .replace(/(?<=\d),(?=\d{3}(?:\D|$))/g, "");
-
-  if (!normalized || normalized === "-" || normalized === ".") return null;
-  const asNumber = Number(normalized);
-  return Number.isFinite(asNumber) ? asNumber : null;
-};
+import { authenticateStaffRequest } from "@/lib/server-auth";
 
 export const Route = createFileRoute("/api/import-products")({
   server: {
@@ -231,17 +174,23 @@ export const Route = createFileRoute("/api/import-products")({
                   .from("customers")
                   .select("id")
                   .ilike("name", customerName)
-                  .maybeSingle();
+                  .limit(2);
 
                 if (customer.error) throw new Error(customer.error.message);
-                if (!customer.data) continue;
+                if (!customer.data?.length) continue;
+                if (customer.data.length > 1) {
+                  summary.error += 1;
+                  continue;
+                }
+
+                const customerId = customer.data[0].id;
 
                 const existingPrice = await supabase
                   .from("prices")
                   .select("id, amount")
                   .eq("product_id", productId)
                   .eq("price_type", priceCheck.type)
-                  .eq("customer_id", customer.data.id)
+                  .eq("customer_id", customerId)
                   .maybeSingle();
 
                 if (existingPrice.error) throw new Error(existingPrice.error.message);
@@ -262,17 +211,6 @@ export const Route = createFileRoute("/api/import-products")({
                     .select("id")
                     .single();
                   if (result.error) throw new Error(result.error.message);
-                  await supabase.from("price_history").insert({
-                    product_id: productId,
-                    price_id: result.data.id,
-                    customer_id: customer.data.id,
-                    price_type: priceCheck.type,
-                    old_amount: Number(existingPrice.data.amount),
-                    new_amount: numericValue,
-                    currency: normalizeImportString(row?.currency || "KWD") || "KWD",
-                    reason: "excel_import",
-                    changed_at: new Date().toISOString(),
-                  });
                   summary.priceChanged += 1;
                   continue;
                 }
@@ -283,7 +221,7 @@ export const Route = createFileRoute("/api/import-products")({
                     .insert({
                       product_id: productId,
                       price_type: priceCheck.type,
-                      customer_id: customer.data.id,
+                      customer_id: customerId,
                       amount: numericValue,
                       currency: normalizeImportString(row?.currency || "KWD") || "KWD",
                       source: "excel_import",
@@ -294,17 +232,6 @@ export const Route = createFileRoute("/api/import-products")({
                     .single();
 
                   if (result.error) throw new Error(result.error.message);
-                  await supabase.from("price_history").insert({
-                    product_id: productId,
-                    price_id: result.data.id,
-                    customer_id: customer.data.id,
-                    price_type: priceCheck.type,
-                    old_amount: null,
-                    new_amount: numericValue,
-                    currency: normalizeImportString(row?.currency || "KWD") || "KWD",
-                    reason: "excel_import",
-                    changed_at: new Date().toISOString(),
-                  });
                   summary.priceChanged += 1;
                 }
                 continue;
@@ -337,17 +264,6 @@ export const Route = createFileRoute("/api/import-products")({
                   .single();
 
                 if (result.error) throw new Error(result.error.message);
-                await supabase.from("price_history").insert({
-                  product_id: productId,
-                  price_id: result.data.id,
-                  customer_id: null,
-                  price_type: priceCheck.type,
-                  old_amount: Number(existingPrice.data.amount),
-                  new_amount: numericValue,
-                  currency: normalizeImportString(row?.currency || "KWD") || "KWD",
-                  reason: "excel_import",
-                  changed_at: new Date().toISOString(),
-                });
                 summary.priceChanged += 1;
                 continue;
               }
@@ -369,17 +285,6 @@ export const Route = createFileRoute("/api/import-products")({
                   .single();
 
                 if (result.error) throw new Error(result.error.message);
-                await supabase.from("price_history").insert({
-                  product_id: productId,
-                  price_id: result.data.id,
-                  customer_id: null,
-                  price_type: priceCheck.type,
-                  old_amount: null,
-                  new_amount: numericValue,
-                  currency: normalizeImportString(row?.currency || "KWD") || "KWD",
-                  reason: "excel_import",
-                  changed_at: new Date().toISOString(),
-                });
                 summary.priceChanged += 1;
               }
             }
