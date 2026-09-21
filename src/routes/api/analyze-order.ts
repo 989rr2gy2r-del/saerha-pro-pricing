@@ -320,9 +320,9 @@ export const Route = createFileRoute("/api/analyze-order")({
                   }
 
                   result = result
-                    .replace(/^\`\`\`json\s*/i, "")
-                    .replace(/^\`\`\`\s*/i, "")
-                    .replace(/\s*\`\`\`$/i, "")
+                    .replace(/^```json\s*/i, "")
+                    .replace(/^```\s*/i, "")
+                    .replace(/\s*```$/i, "")
                     .trim();
 
                   const start = result.indexOf("{");
@@ -398,9 +398,9 @@ export const Route = createFileRoute("/api/analyze-order")({
           let result = typeof candidateText === "string" ? candidateText : "";
 
           result = result
-            .replace(/^\`\`\`json\s*/i, "")
-            .replace(/^\`\`\`\s*/i, "")
-            .replace(/\s*\`\`\`$/i, "")
+            .replace(/^```json\s*/i, "")
+            .replace(/^```\s*/i, "")
+            .replace(/\s*```$/i, "")
             .trim();
 
           const start = result.indexOf("{");
