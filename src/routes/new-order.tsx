@@ -523,41 +523,48 @@ function NewOrder() {
     }
 
     try {
-      const quoteLines = await Promise.all(
-        validItems.map(async (item) => {
-          const { data: priceRows, error } = await supabase
-            .from("prices")
-            .select(
-              "id, product_id, price_type, customer_id, amount, currency, source, source_price_type",
-            )
-            .eq("product_id", item.product!.id)
-            .order("created_at", { ascending: true });
+      const { data: pricingSession } = await supabase.auth.getSession();
+      const pricingToken = pricingSession.session?.access_token;
+      if (!pricingToken) {
+        throw new Error("انتهت جلسة الدخول. سجّل الدخول ثم أعد المحاولة.");
+      }
 
-          if (error) throw error;
-
-          const customerSpecific = (priceRows ?? []).find(
-            (row) => row.price_type === "customer_special" && row.customer_id === customerId,
-          );
-          const baseRetail = (priceRows ?? []).find(
-            (row) => row.price_type === "retail" && !row.customer_id,
-          );
-          const baseReseller = (priceRows ?? []).find(
-            (row) => row.price_type === "reseller" && !row.customer_id,
-          );
-          const chosen = customerSpecific ?? baseRetail ?? baseReseller ?? null;
-
-          if (!chosen) {
-            return { ...item, priceAmount: null, priceType: null, priceLabel: "لا يوجد سعر" };
-          }
-
-          return {
-            ...item,
-            priceAmount: Number(chosen.amount ?? 0),
-            priceType: chosen.price_type,
-            priceLabel: getPriceLookupKey(chosen.price_type),
-          };
+      const pricingResponse = await fetch("/api/price-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${pricingToken}`,
+        },
+        body: JSON.stringify({
+          customerId,
+          items: validItems.map((item) => ({
+            productId: item.product!.id,
+            quantity: item.quantity,
+          })),
         }),
-      );
+      });
+
+      const pricingData = await pricingResponse.json();
+      if (!pricingResponse.ok) {
+        throw new Error(pricingData?.error || "تعذر حساب أسعار الطلبية.");
+      }
+
+      const pricingResults = Array.isArray(pricingData?.results) ? pricingData.results : [];
+      const quoteLines = validItems.map((item, index) => {
+        const result = pricingResults[index];
+        const price = result?.price;
+
+        if (!price) {
+          return { ...item, priceAmount: null, priceType: null, priceLabel: "لا يوجد سعر" };
+        }
+
+        return {
+          ...item,
+          priceAmount: Number(price.amount),
+          priceType: price.priceType,
+          priceLabel: getPriceLookupKey(price.priceType),
+        };
+      });
 
       const missingPrices = quoteLines.filter(
         (line) => line.priceAmount === null || !Number.isFinite(line.priceAmount),
