@@ -32,8 +32,7 @@ export const Route = createFileRoute("/api/supabase-write")({
           const body = await request.json();
           const table = String(body?.table ?? "");
           const action = body?.action;
-          const payload =
-            body?.payload && typeof body.payload === "object" ? body.payload : {};
+          const payload = body?.payload && typeof body.payload === "object" ? body.payload : {};
           const filters = Array.isArray(body?.filters) ? body.filters : [];
           const select = typeof body?.select === "string" ? body.select : undefined;
 
@@ -140,10 +139,7 @@ export const Route = createFileRoute("/api/supabase-write")({
             "Supabase write proxy failed",
             error instanceof Error ? error.name : "unknown",
           );
-          return Response.json(
-            { success: false, error: "تعذر تنفيذ العملية." },
-            { status: 500 },
-          );
+          return Response.json({ success: false, error: "تعذر تنفيذ العملية." }, { status: 500 });
         }
       },
     },
