@@ -166,7 +166,7 @@ export const Route = createFileRoute("/api/price-order")({
                 from_unit: string;
                 to_unit: string;
                 multiplier: number;
-                product_id?: string | null;
+                product_id: string | null;
               }>,
               productId,
             );
