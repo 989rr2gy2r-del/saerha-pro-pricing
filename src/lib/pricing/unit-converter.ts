@@ -5,7 +5,7 @@ export type UnitConversion = {
   product_id: string | null;
 };
 
-const UNIT_ALIASES: Record<string, string> = {
+// Verified canonical aliases for pricing units.\nconst UNIT_ALIASES: Record<string, string> = {
   "حبة": "pcs", "حبات": "pcs", "قطعة": "pcs", "قطع": "pcs", "pc": "pcs", "pcs": "pcs",
   "علبة": "box", "علب": "box", "box": "box", "boxes": "box",
   "كرتون": "carton", "cartons": "carton", "carton": "carton",
