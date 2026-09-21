@@ -370,9 +370,18 @@ function NewOrder() {
         reader.readAsDataURL(first);
       });
 
+      const { data: authSession } = await supabase.auth.getSession();
+      const accessToken = authSession.session?.access_token;
+      if (!accessToken) {
+        throw new Error("انتهت جلسة الدخول. سجّل الدخول ثم أعد المحاولة.");
+      }
+
       const response = await fetch("/api/analyze-order", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ image, fileType: first.type || first.name, text: "" }),
       });
       const data = await response.json();
