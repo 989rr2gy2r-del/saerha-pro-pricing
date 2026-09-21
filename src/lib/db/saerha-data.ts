@@ -21,7 +21,8 @@ export function supabaseConfigured() {
     process.env["VITE_SUPABASE_ANON_KEY"] ||
     process.env["SUPABASE_ANON_KEY"] ||
     process.env["VITE_SUPABASE_KEY"] ||
-    process.env["SUPABASE_KEY"];
+    process.env["SUPABASE_KEY"] ||
+    "sb_publishable_FyMLBNBnaxeeyEVciA1bLw_WB9czMv0";
   return Boolean(url && key);
 }
 
@@ -149,40 +150,7 @@ async function getAuthenticatedApiHeaders(): Promise<HeadersInit> {
 }
 
 export async function createProduct(input: ProductInsertInput): Promise<Product> {
-  if (typeof window !== "undefined") {
-    const response = await fetch("/api/supabase-write", {
-      method: "POST",
-      headers: await getAuthenticatedApiHeaders(),
-      body: JSON.stringify({
-        table: "products",
-        action: "insert",
-        payload: {
-          sku: input.sku,
-          name_ar: input.nameAr,
-          name_en: input.nameEn ?? "",
-          short_name: input.shortName ?? input.nameAr,
-          brand: input.brand ?? "",
-          category_main: input.category1 ?? "",
-          category_sub: input.category2 ?? "",
-          category_third: input.category3 ?? "",
-          product_group: input.group ?? "",
-          model: input.model ?? "",
-          size: input.size ?? "",
-          color: input.color ?? "",
-          description: input.description ?? "",
-          unit: input.unit ?? "حبة",
-          image_url: input.image ?? null,
-          status: input.status ?? "active",
-        },
-        select:
-          "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, color, description, unit, image_url, status",
-      }),
-    });
-    const payload = await response.json();
-    if (!response.ok || payload?.success === false)
-      throw new Error(payload?.error ?? "تعذر إنشاء المنتج.");
-    return mapProductRow(payload.data);
-  }
+
 
   if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
 
@@ -218,42 +186,7 @@ export async function updateProduct(
   id: string,
   input: Partial<ProductInsertInput>,
 ): Promise<Product> {
-  if (typeof window !== "undefined") {
-    const payload: Record<string, unknown> = {};
-    if (input.sku) payload["sku"] = input.sku;
-    if (input.nameAr) payload["name_ar"] = input.nameAr;
-    if (input.nameEn !== undefined) payload["name_en"] = input.nameEn;
-    if (input.shortName !== undefined) payload["short_name"] = input.shortName;
-    if (input.brand !== undefined) payload["brand"] = input.brand;
-    if (input.category1 !== undefined) payload["category_main"] = input.category1;
-    if (input.category2 !== undefined) payload["category_sub"] = input.category2;
-    if (input.category3 !== undefined) payload["category_third"] = input.category3;
-    if (input.group !== undefined) payload["product_group"] = input.group;
-    if (input.model !== undefined) payload["model"] = input.model;
-    if (input.size !== undefined) payload["size"] = input.size;
-    if (input.color !== undefined) payload["color"] = input.color;
-    if (input.description !== undefined) payload["description"] = input.description;
-    if (input.unit !== undefined) payload["unit"] = input.unit;
-    if (input.image !== undefined) payload["image_url"] = input.image;
-    if (input.status !== undefined) payload["status"] = input.status;
 
-    const response = await fetch("/api/supabase-write", {
-      method: "POST",
-      headers: await getAuthenticatedApiHeaders(),
-      body: JSON.stringify({
-        table: "products",
-        action: "update",
-        filters: [{ column: "id", value: id }],
-        payload,
-        select:
-          "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, color, description, unit, image_url, status",
-      }),
-    });
-    const body = await response.json();
-    if (!response.ok || body?.success === false)
-      throw new Error(body?.error ?? "تعذر تحديث المنتج.");
-    return mapProductRow(body.data);
-  }
 
   if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
 
@@ -286,20 +219,7 @@ export async function updateProduct(
 }
 
 export async function deleteProduct(id: string) {
-  if (typeof window !== "undefined") {
-    const response = await fetch("/api/supabase-write", {
-      method: "POST",
-      headers: await getAuthenticatedApiHeaders(),
-      body: JSON.stringify({
-        table: "products",
-        action: "delete",
-        filters: [{ column: "id", value: id }],
-      }),
-    });
-    const body = await response.json();
-    if (!response.ok || body?.success === false) throw new Error(body?.error ?? "تعذر حذف المنتج.");
-    return;
-  }
+
 
   if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
   const { error } = await supabase.from("products").delete().eq("id", id);
@@ -319,32 +239,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
 }
 
 export async function createCustomer(input: CustomerInsertInput): Promise<Customer> {
-  if (typeof window !== "undefined") {
-    const type = customerTypeValueMap[input.type ?? "تجزئة"] ?? "retail";
-    const response = await fetch("/api/supabase-write", {
-      method: "POST",
-      headers: await getAuthenticatedApiHeaders(),
-      body: JSON.stringify({
-        table: "customers",
-        action: "insert",
-        payload: {
-          name: input.name,
-          company: input.company ?? "",
-          phone: input.phone ?? "",
-          email: input.email ?? "",
-          address: input.address ?? "",
-          customer_type: type as "retail" | "wholesale" | "contractor" | "government",
-          notes: input.notes ?? "",
-          is_active: true,
-        },
-        select: "id, name, company, phone, email, address, customer_type, notes, is_active",
-      }),
-    });
-    const body = await response.json();
-    if (!response.ok || body?.success === false)
-      throw new Error(body?.error ?? "تعذر إنشاء العميل.");
-    return mapCustomerRow(body.data);
-  }
+
 
   if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
 
@@ -372,33 +267,7 @@ export async function updateCustomer(
   id: string,
   input: Partial<CustomerInsertInput>,
 ): Promise<Customer> {
-  if (typeof window !== "undefined") {
-    const payload: Record<string, unknown> = {};
-    if (input.name) payload["name"] = input.name;
-    if (input.company !== undefined) payload["company"] = input.company;
-    if (input.phone !== undefined) payload["phone"] = input.phone;
-    if (input.email !== undefined) payload["email"] = input.email;
-    if (input.address !== undefined) payload["address"] = input.address;
-    if (input.type !== undefined)
-      payload["customer_type"] = customerTypeValueMap[input.type] ?? "retail";
-    if (input.notes !== undefined) payload["notes"] = input.notes;
 
-    const response = await fetch("/api/supabase-write", {
-      method: "POST",
-      headers: await getAuthenticatedApiHeaders(),
-      body: JSON.stringify({
-        table: "customers",
-        action: "update",
-        filters: [{ column: "id", value: id }],
-        payload,
-        select: "id, name, company, phone, email, address, customer_type, notes, is_active",
-      }),
-    });
-    const body = await response.json();
-    if (!response.ok || body?.success === false)
-      throw new Error(body?.error ?? "تعذر تحديث العميل.");
-    return mapCustomerRow(body.data);
-  }
 
   if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
 
@@ -423,20 +292,7 @@ export async function updateCustomer(
 }
 
 export async function deleteCustomer(id: string) {
-  if (typeof window !== "undefined") {
-    const response = await fetch("/api/supabase-write", {
-      method: "POST",
-      headers: await getAuthenticatedApiHeaders(),
-      body: JSON.stringify({
-        table: "customers",
-        action: "delete",
-        filters: [{ column: "id", value: id }],
-      }),
-    });
-    const body = await response.json();
-    if (!response.ok || body?.success === false) throw new Error(body?.error ?? "تعذر حذف العميل.");
-    return;
-  }
+
 
   if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
   const { error } = await supabase.from("customers").delete().eq("id", id);
