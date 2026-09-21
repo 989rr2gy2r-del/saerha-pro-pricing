@@ -100,6 +100,16 @@ function Quotes() {
     void loadQuotes();
   }, []);
 
+  const filteredQuotes = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return quotes;
+    return quotes.filter((quote) =>
+      [quote.reference, getCustomerName(quote.customers), quote.price_type]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term)),
+    );
+  }, [quotes, search]);
+
   const downloadPdf = (quote: Quote) => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const customer = getCustomerList(quote.customers)[0] ?? { name: "عميل", company: "" };
