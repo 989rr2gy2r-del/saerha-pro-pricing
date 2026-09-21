@@ -164,8 +164,8 @@ function parseLocalOcrText(text: string) {
   const units = "حبة|قطعة|علبة|كرتون|كرتونه|كرتون|متر|سم|مم|كجم|كغ|جم|غ|لتر|ل|مل|رول|لفة|باكيت|كيس|طقم|زوج|متر".split("|");
   const unitPattern = units.join("|");
   const lines = text
-    .split(/\\r?\\n/)
-    .map((line) => line.replace(/[|¦]+/g, " ").replace(/\\s+/g, " ").trim())
+    .split(/\r?\n/)
+    .map((line) => line.replace(/[|¦]+/g, " ").replace(/\s+/g, " ").trim())
     .filter((line) => line.length >= 2);
 
   return lines.map((line, index) => {
@@ -645,7 +645,7 @@ function NewOrder() {
       } catch (serverError) {
         // GitHub Pages is static, so the local OCR fallback guarantees that
         // image reading still works even when the server AI endpoint is unavailable.
-        if (!image || !/^data:image\\//i.test(image)) {
+        if (!image || !/^data:image\//i.test(image)) {
           throw serverError;
         }
 
@@ -671,7 +671,8 @@ function NewOrder() {
         notes: String(item["notes"] ?? "").trim(),
       }));
 
-            setAnalysisResult({
+            setAnalysisError("");
+      setAnalysisResult({
         items: matchedItems,
         notes: String(rawResult["notes"] ?? "").trim(),
       });
