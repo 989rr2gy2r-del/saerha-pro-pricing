@@ -221,6 +221,7 @@ export const Route = createFileRoute("/api/analyze-order")({
             }
           }
 
+          // Keep intake format stable for image, PDF, and structured text sources.
           const prompt = `
 أنت محرك قراءة طلبيات لمحل مواد كهربائية وصحية اسمه "سعّرها".
 
