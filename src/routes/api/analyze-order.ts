@@ -1,11 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { authenticateStaffRequest } from "@/lib/server-auth";
 import { getServerEnv } from "@/lib/server-env";
 
 const PRIMARY_MODEL = "gemini-3.6-flash";
 const FALLBACK_MODEL = "gemini-3.5-flash-lite";
 const PRIMARY_MAX_ATTEMPTS = 3;
 const GEMINI_RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
+const MAX_REQUEST_BYTES = 12 * 1024 * 1024;
+const MAX_BASE64_CHARS = 12 * 1024 * 1024;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 10;
+
+const rateLimit = new Map<string, { count: number; resetAt: number }>();
+
+function isRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const current = rateLimit.get(userId);
+
+  if (!current || now >= current.resetAt) {
+    rateLimit.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+
+  current.count += 1;
+  return current.count > RATE_LIMIT_MAX_REQUESTS;
+}
 
 function buildGeminiEndpoint(model: string): string {
   return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
@@ -28,36 +48,43 @@ async function fetchGeminiRequest(
   base64Data: string,
   prompt: string,
 ): Promise<{ response: Response; responseText: string }> {
-  const endpoint = buildGeminiEndpoint(model);
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: prompt },
-            {
-              inline_data: {
-                mime_type: mimeType,
-                data: base64Data,
-              },
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
 
-  const responseText = await response.text();
-  return { response, responseText };
+  try {
+    const response = await fetch(buildGeminiEndpoint(model), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: prompt },
+              {
+                inline_data: {
+                  mime_type: mimeType,
+                  data: base64Data,
+                },
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+        },
+      }),
+      signal: controller.signal,
+    });
+
+    const responseText = await response.text();
+    return { response, responseText };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function fetchGeminiWithRetry(
@@ -74,7 +101,7 @@ async function fetchGeminiWithRetry(
     console.info(`[Gemini OCR] ${model} attempt ${attempt + 1}/${maxAttempts}`);
 
     try {
-      const { response, responseText } = await fetchGeminiRequest(
+      const result = await fetchGeminiRequest(
         apiKey,
         model,
         mimeType,
@@ -82,25 +109,28 @@ async function fetchGeminiWithRetry(
         prompt,
       );
 
-      if (response.ok) {
-        return { response, responseText };
+      if (result.response.ok) {
+        return result;
       }
 
-      if (!isRetryableGeminiError(response.status) || attempt === maxAttempts - 1) {
-        return { response, responseText };
+      if (!isRetryableGeminiError(result.response.status) || attempt === maxAttempts - 1) {
+        return result;
       }
 
-      console.warn(`[Gemini OCR] ${model} transient failure`, response.status);
-      const delayMs = getRetryDelayMs(attempt);
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      console.warn(`[Gemini OCR] ${model} transient failure`, result.response.status);
+      await new Promise((resolve) => setTimeout(resolve, getRetryDelayMs(attempt)));
     } catch (error) {
       lastError = error;
-      console.warn(`[Gemini OCR] ${model} transient exception`);
+      console.warn(
+        `[Gemini OCR] ${model} transient exception`,
+        error instanceof Error ? error.name : "unknown",
+      );
+
       if (attempt === maxAttempts - 1) {
         break;
       }
-      const delayMs = getRetryDelayMs(attempt);
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+      await new Promise((resolve) => setTimeout(resolve, getRetryDelayMs(attempt)));
     }
   }
 
@@ -162,12 +192,30 @@ export const Route = createFileRoute("/api/analyze-order")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const auth = await authenticateStaffRequest(request);
+        if (auth instanceof Response) return auth;
+
+        if (isRateLimited(auth.userId)) {
+          return Response.json(
+            { success: false, error: "تم تجاوز حد المحاولات، يرجى المحاولة بعد قليل." },
+            { status: 429 },
+          );
+        }
+
         try {
           const apiKey = getGeminiApiKey();
           if (!apiKey) {
             return Response.json(
-              { success: false, error: "Gemini غير مهيأ على الخادم." },
+              { success: false, error: "خدمة تحليل الطلبات غير مهيأة حاليًا." },
               { status: 503 },
+            );
+          }
+
+          const contentLength = Number(request.headers.get("content-length") ?? 0);
+          if (contentLength > MAX_REQUEST_BYTES) {
+            return Response.json(
+              { success: false, error: "حجم الصورة أكبر من الحد المسموح." },
+              { status: 413 },
             );
           }
 
@@ -178,11 +226,20 @@ export const Route = createFileRoute("/api/analyze-order")({
             return Response.json({ success: false, error: "لم يتم إرسال صورة." }, { status: 400 });
           }
 
-          const match = image.match(/^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i);
+          if (image.length > MAX_BASE64_CHARS) {
+            return Response.json(
+              { success: false, error: "حجم الصورة أكبر من الحد المسموح." },
+              { status: 413 },
+            );
+          }
+
+          const match = image.match(
+            /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i,
+          );
 
           if (!match) {
             return Response.json(
-              { success: false, error: "صيغة الصورة غير صحيحة." },
+              { success: false, error: "صيغة الصورة غير مدعومة." },
               { status: 400 },
             );
           }
@@ -232,16 +289,6 @@ export const Route = createFileRoute("/api/analyze-order")({
 
           if (!primaryResult.response.ok) {
             const primaryStatus = primaryResult.response.status;
-            const primaryMessage = (() => {
-              try {
-                const payload = JSON.parse(primaryResult.responseText) as {
-                  error?: { message?: unknown };
-                };
-                return typeof payload.error?.message === "string" ? payload.error.message : "";
-              } catch {
-                return "";
-              }
-            })();
 
             if (isRetryableGeminiError(primaryStatus)) {
               console.warn(`[Gemini OCR] primary transient failure ${primaryStatus}`);
@@ -259,30 +306,27 @@ export const Route = createFileRoute("/api/analyze-order")({
 
                 if (fallbackResult.response.ok) {
                   console.info("[Gemini OCR] fallback success");
-                  const fallbackPayload = (() => {
-                    try {
-                      return JSON.parse(fallbackResult.responseText);
-                    } catch {
-                      return { raw: fallbackResult.responseText };
-                    }
-                  })();
 
-                  const candidateText = (
-                    fallbackPayload as {
+                  let result = "";
+                  try {
+                    const fallbackPayload = JSON.parse(fallbackResult.responseText) as {
                       candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }>;
-                    }
-                  ).candidates?.[0]?.content?.parts?.[0]?.text;
+                    };
+                    const candidateText =
+                      fallbackPayload.candidates?.[0]?.content?.parts?.[0]?.text;
+                    result = typeof candidateText === "string" ? candidateText : "";
+                  } catch {
+                    result = "";
+                  }
 
-                  let result = typeof candidateText === "string" ? candidateText : "";
                   result = result
-                    .replace(/^```json\s*/i, "")
-                    .replace(/^```\s*/i, "")
-                    .replace(/\s*```$/i, "")
+                    .replace(/^\`\`\`json\s*/i, "")
+                    .replace(/^\`\`\`\s*/i, "")
+                    .replace(/\s*\`\`\`$/i, "")
                     .trim();
 
                   const start = result.indexOf("{");
                   const end = result.lastIndexOf("}");
-
                   if (start >= 0 && end > start) {
                     result = result.slice(start, end + 1);
                   }
@@ -298,8 +342,10 @@ export const Route = createFileRoute("/api/analyze-order")({
                     );
                   }
 
-                  const parsed = normalizeAnalysisResult(parsedJson);
-                  return Response.json({ success: true, result: parsed });
+                  return Response.json({
+                    success: true,
+                    result: normalizeAnalysisResult(parsedJson),
+                  });
                 }
 
                 console.warn("[Gemini OCR] fallback failure");
@@ -325,15 +371,13 @@ export const Route = createFileRoute("/api/analyze-order")({
               }
             }
 
-            console.error(
-              `Gemini HTTP ${primaryStatus}: ${primaryMessage || "Unknown Gemini error"}`,
-            );
+            console.error(`Gemini HTTP ${primaryStatus}`);
             return Response.json(
               {
                 success: false,
-                error: `Gemini HTTP ${primaryStatus}: ${primaryMessage || "Unknown Gemini error"}`,
+                error: "تعذر تحليل الصورة حاليًا، يرجى المحاولة مرة أخرى.",
               },
-              { status: primaryStatus },
+              { status: 502 },
             );
           }
 
@@ -342,22 +386,21 @@ export const Route = createFileRoute("/api/analyze-order")({
           try {
             responsePayload = JSON.parse(primaryResult.responseText);
           } catch {
-            responsePayload = { raw: primaryResult.responseText };
+            responsePayload = null;
           }
 
           const candidateText = (
             responsePayload as {
               candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }>;
-            }
-          ).candidates?.[0]?.content?.parts?.[0]?.text;
+            } | null
+          )?.candidates?.[0]?.content?.parts?.[0]?.text;
 
           let result = typeof candidateText === "string" ? candidateText : "";
 
-          // Accept JSON-only output while tolerating a fenced response from the model.
           result = result
-            .replace(/^```json\s*/i, "")
-            .replace(/^```\s*/i, "")
-            .replace(/\s*```$/i, "")
+            .replace(/^\`\`\`json\s*/i, "")
+            .replace(/^\`\`\`\s*/i, "")
+            .replace(/\s*\`\`\`$/i, "")
             .trim();
 
           const start = result.indexOf("{");
@@ -370,16 +413,14 @@ export const Route = createFileRoute("/api/analyze-order")({
           const parsedJson = safeParseJson(result);
           if (!parsedJson) {
             return Response.json(
-              { success: false, error: "استجابة Gemini غير صالحة أو غير JSON." },
-              { status: 400 },
+              { success: false, error: "استجابة خدمة التحليل غير صالحة." },
+              { status: 502 },
             );
           }
 
-          const parsed = normalizeAnalysisResult(parsedJson);
-
           return Response.json({
             success: true,
-            result: parsed,
+            result: normalizeAnalysisResult(parsedJson),
           });
         } catch (error) {
           console.error(
@@ -390,7 +431,7 @@ export const Route = createFileRoute("/api/analyze-order")({
           return Response.json(
             {
               success: false,
-              error: "حدث خطأ أثناء تحليل الصورة بواسطة Gemini.",
+              error: "حدث خطأ أثناء تحليل الصورة، يرجى المحاولة مرة أخرى.",
             },
             { status: 500 },
           );
