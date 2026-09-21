@@ -17,3 +17,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Production server smoke test
+        run: |
+          PORT=4173 HOST=127.0.0.1 node .output/server/index.mjs > /tmp/saerha-server.log 2>&1 &
+          server_pid=$!
+          trap "kill $server_pid 2>/dev/null || true" EXIT
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ -o /tmp/saerha-response.html; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "--- server log ---"
+          cat /tmp/saerha-server.log
+          echo "--- response ---"
+          cat /tmp/saerha-response.html 2>/dev/null || true
+          exit 1
