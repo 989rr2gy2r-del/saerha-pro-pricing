@@ -671,7 +671,31 @@ function NewOrder() {
         notes: String(item["notes"] ?? "").trim(),
       }));
 
-            setAnalysisError("");
+            // Match each extracted line against the products loaded from Supabase.
+      // Keep the review state explicit so the user can confirm or correct every match.
+      const matchedItems: ReviewItem[] = normalizedItems.map((item) => {
+        const match = findLocalProductMatch(item.description || item.raw_text, products);
+        const confidence = match ? Math.max(item.confidence, match.score) : item.confidence;
+        const status: MatchStatus = match
+          ? confidence >= 0.85
+            ? "HIGH_CONFIDENCE"
+            : "NEEDS_REVIEW"
+          : "UNMATCHED";
+
+        return {
+          ...item,
+          confidence,
+          product: match?.product ?? null,
+          matchReason: match
+            ? "تمت المطابقة محليًا مع قاعدة المنتجات"
+            : "لم يتم العثور على منتج مطابق تلقائيًا",
+          status,
+          rejected: false,
+          accepted: false,
+        };
+      });
+
+      setAnalysisError("");
       setAnalysisResult({
         items: matchedItems,
         notes: String(rawResult["notes"] ?? "").trim(),
