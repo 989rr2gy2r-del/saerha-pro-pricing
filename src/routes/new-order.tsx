@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import * as XLSX from "xlsx";
 import { FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Upload } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 
@@ -332,7 +333,7 @@ function NewOrder() {
     const validFiles = files.filter(
       (file) =>
         accepted.includes(file.type) ||
-        /\.(jpe?g|png|webp|heic|pdf|docx|xlsx|xls|csv)$/i.test(file.name),
+        /\.(jpe?g|png|webp|heic|pdf|docx|xlsx|xls|csv|txt)$/i.test(file.name),
     );
 
     setUploadedFiles(
@@ -360,15 +361,43 @@ function NewOrder() {
     setLastAnalyzedKey(analyzedKey);
 
     try {
-      const reader = new FileReader();
-      const image = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          if (typeof reader.result === "string") resolve(reader.result);
-          else reject(new Error("تعذر قراءة الملف."));
-        };
-        reader.onerror = () => reject(new Error("تعذر قراءة الملف."));
-        reader.readAsDataURL(first);
-      });
+      let image = "";
+      let text = "";
+
+      if (first.type === "text/csv" || /\.csv$/i.test(first.name)) {
+        text = await first.text();
+      } else if (
+        first.type === "text/plain" ||
+        /\.txt$/i.test(first.name)
+      ) {
+        text = await first.text();
+      } else if (
+        first.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        first.type === "application/vnd.ms-excel" ||
+        /\.(xlsx|xls)$/i.test(first.name)
+      ) {
+        const workbook = XLSX.read(await first.arrayBuffer(), { type: "array" });
+        text = workbook.SheetNames.map((sheetName) => {
+          const sheet = workbook.Sheets[sheetName];
+          const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+          return `ورقة: ${sheetName}\n${csv}`;
+        }).join("\n\n");
+      } else {
+        const reader = new FileReader();
+        image = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => {
+            if (typeof reader.result === "string") resolve(reader.result);
+            else reject(new Error("تعذر قراءة الملف."));
+          };
+          reader.onerror = () => reject(new Error("تعذر قراءة الملف."));
+          reader.readAsDataURL(first);
+        });
+      }
+
+      if (!image && !text.trim()) {
+        throw new Error("الملف فارغ أو لم نتمكن من استخراج محتواه.");
+      }
+
 
       const { data: authSession } = await supabase.auth.getSession();
       const accessToken = authSession.session?.access_token;
@@ -382,7 +411,11 @@ function NewOrder() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ image, fileType: first.type || first.name, text: "" }),
+        body: JSON.stringify({
+          image,
+          fileType: first.type || first.name,
+          text,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || "تعذر تحليل الطلبية.");
