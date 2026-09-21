@@ -507,28 +507,66 @@ function NewOrder() {
       const rawItems = Array.isArray(rawResult["items"])
         ? (rawResult["items"] as Record<string, unknown>[])
         : [];
-      const matchedItems = rawItems.map((item, index: number) => {
-        const description = String(item["description"] ?? item["raw_text"] ?? "").trim();
-        const rawText = String(item["raw_text"] ?? item["description"] ?? "").trim();
-        const quantity = Number(item["quantity"] ?? 0);
-        const confidence = Number(item["confidence"] ?? 0.5);
-        const itemText = `${description} ${rawText}`.trim();
-        const match = findBestProductMatch(itemText, products, []);
-        const product = match.product;
+      const normalizedItems = rawItems.map((item, index: number) => ({
+        id: `${Date.now()}-${index}`,
+        description: String(item["description"] ?? item["raw_text"] ?? "").trim(),
+        raw_text: String(item["raw_text"] ?? item["description"] ?? "").trim(),
+        quantity: Number(item["quantity"] ?? 0),
+        unit: String(item["unit"] ?? "").trim(),
+        confidence: Number(item["confidence"] ?? 0.5),
+        notes: String(item["notes"] ?? "").trim(),
+      }));
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const matchResponse = await fetch("/api/match-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(sessionData.session?.access_token
+            ? { Authorization: `Bearer ${sessionData.session.access_token}` }
+            : {}),
+        },
+        body: JSON.stringify({
+          items: normalizedItems.map((item) => ({
+            id: item.id,
+            description: item.description,
+            raw_text: item.raw_text,
+            quantity: item.quantity,
+            unit: item.unit,
+          })),
+        }),
+      });
+
+      const matchData = await matchResponse.json();
+      if (!matchResponse.ok) {
+        throw new Error(matchData?.error || "تعذر مطابقة الأصناف مع قاعدة المنتجات.");
+      }
+
+      const matchResults = Array.isArray(matchData?.results) ? matchData.results : [];
+      const matchedItems = normalizedItems.map((item, index) => {
+        const result = matchResults[index];
+        const best = result?.best;
+        const product = best?.product ? (best.product as ProductRecord) : null;
+        const aiConfidence = Number(item.confidence);
+        const matchConfidence = Number(best?.score ?? 0);
+        const confidence = Number.isFinite(aiConfidence)
+          ? Math.min(1, Math.max(0, Math.min(aiConfidence, matchConfidence || aiConfidence)))
+          : matchConfidence;
+
         return {
-          id: `${Date.now()}-${index}`,
-          description,
-          quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 0,
-          unit: String(item["unit"] ?? "").trim(),
-          raw_text: rawText,
-          confidence: Number.isFinite(confidence) ? Math.min(1, Math.max(0, confidence)) : 0.5,
-          notes: String(item["notes"] ?? "").trim(),
+          id: item.id,
+          description: item.description,
+          quantity: Number.isFinite(item.quantity) && item.quantity > 0 ? item.quantity : 0,
+          unit: item.unit,
+          raw_text: item.raw_text,
+          confidence,
+          notes: item.notes,
           product,
-          matchReason: match.reason,
-          status: match.status,
+          matchReason: String(best?.reason ?? "لا توجد مطابقة كافية"),
+          status: best?.status === "HIGH_CONFIDENCE" ? "HIGH_CONFIDENCE" : product ? "NEEDS_REVIEW" : "UNMATCHED",
           rejected: false,
-          accepted: Boolean(product) && match.status === "HIGH_CONFIDENCE",
-        };
+          accepted: Boolean(product) && best?.status === "HIGH_CONFIDENCE" && !result?.requiresReview,
+        } as ReviewItem;
       });
 
       setAnalysisResult({
