@@ -178,23 +178,44 @@ export const Route = createFileRoute("/api/analyze-order")({
           }
 
           const body = await request.json();
-          const image = body?.image;
+          const image = typeof body?.image === "string" ? body.image : "";
+          const textInput = typeof body?.text === "string" ? body.text.trim() : "";
 
-          if (!image || typeof image !== "string") {
-            return Response.json({ success: false, error: "لم يتم إرسال صورة." }, { status: 400 });
-          }
-
-          const match = image.match(/^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i);
-
-          if (!match) {
+          if (!image && !textInput) {
             return Response.json(
-              { success: false, error: "صيغة الصورة غير صحيحة." },
+              { success: false, error: "أرسل صورة أو ملفًا نصيًا/جدولًا." },
               { status: 400 },
             );
           }
 
-          const mimeType = match[1] ?? "image/png";
-          const base64Data = match[2] ?? "";
+          if (textInput.length > 120_000) {
+            return Response.json(
+              { success: false, error: "حجم النص كبير جدًا للتحليل." },
+              { status: 413 },
+            );
+          }
+
+          let mimeType = "";
+          let base64Data = "";
+          if (image) {
+            const match = image.match(
+              /^data:((?:image\/[a-z0-9.+-]+)|application\/pdf);base64,([A-Za-z0-9+/=]+)$/i,
+            );
+            if (!match) {
+              return Response.json(
+                { success: false, error: "صيغة الملف غير مدعومة. استخدم صورة أو PDF أو جدولًا نصيًا." },
+                { status: 400 },
+              );
+            }
+            mimeType = match[1] ?? "image/png";
+            base64Data = match[2] ?? "";
+            if (base64Data.length > 12_000_000) {
+              return Response.json(
+                { success: false, error: "الملف كبير جدًا للتحليل المباشر." },
+                { status: 413 },
+              );
+            }
+          }
 
           const prompt = `
 أنت محرك قراءة طلبيات لمحل مواد كهربائية وصحية اسمه "سعّرها".
@@ -227,12 +248,16 @@ export const Route = createFileRoute("/api/analyze-order")({
 - المطلوب قراءة الطلبية فقط، وليس تسعيرها.
 `;
 
+          const effectivePrompt = textInput
+            ? prompt + "\n\nالمدخل النصي/الجدولي:\n" + textInput
+            : prompt;
+
           const primaryResult = await fetchGeminiWithRetry(
             apiKey,
             PRIMARY_MODEL,
-            mimeType,
-            base64Data,
-            prompt,
+            mimeType || "text/plain",
+            base64Data || Buffer.from(effectivePrompt, "utf8").toString("base64"),
+            effectivePrompt,
             PRIMARY_MAX_ATTEMPTS,
           );
 
