@@ -1,4 +1,4 @@
-export type UnitConversion = {
+// Canonical unit normalization for pricing.\nexport type UnitConversion = {
   from_unit: string;
   to_unit: string;
   multiplier: number;
