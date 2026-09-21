@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { authenticateStaffRequest } from "@/lib/server-auth";
+import { convertQuantity } from "@/lib/pricing/unit-converter";
 
+const PRODUCT_SELECT = "id, unit";
 const PRICE_SELECT =
   "id, product_id, price_type, customer_id, amount, currency, source, source_price_type, valid_from, valid_to";
 
@@ -120,13 +122,27 @@ export const Route = createFileRoute("/api/price-order")({
             );
           }
 
-          const { data: prices, error: pricesError } = await auth.supabase
-            .from("prices")
-            .select(PRICE_SELECT)
-            .in("product_id", productIds)
-            .order("valid_from", { ascending: false });
+          const [{ data: products, error: productsError }, { data: prices, error: pricesError }, { data: conversions, error: conversionsError }] =
+            await Promise.all([
+              auth.supabase.from("products").select(PRODUCT_SELECT).in("id", productIds),
+              auth.supabase
+                .from("prices")
+                .select(PRICE_SELECT)
+                .in("product_id", productIds)
+                .order("valid_from", { ascending: false }),
+              auth.supabase
+                .from("unit_conversions")
+                .select("from_unit, to_unit, multiplier, product_id")
+                .or("product_id.is.null,product_id.in.(" + productIds.join(",") + ")"),
+            ]);
 
+          if (productsError) throw productsError;
           if (pricesError) throw pricesError;
+          if (conversionsError) throw conversionsError;
+
+          const productUnitById = new Map(
+            (products ?? []).map((row) => [row.id, row.unit as string | null]),
+          );
 
           const today = new Date().toISOString().slice(0, 10);
           const rowsByProduct = new Map<string, PriceRow[]>();
@@ -139,7 +155,21 @@ export const Route = createFileRoute("/api/price-order")({
 
           const results = items.map((item, index) => {
             const productId = typeof item?.productId === "string" ? item.productId : "";
-            const quantity = Number(item?.quantity ?? 0);
+            const requestedUnit = typeof item?.unit === "string" ? item.unit : "";
+            const baseUnit = productUnitById.get(productId) ?? null;
+            const rawQuantity = Number(item?.quantity ?? 0);
+            const conversion = convertQuantity(
+              rawQuantity,
+              requestedUnit || baseUnit,
+              baseUnit,
+              (conversions ?? []) as Array<{
+                from_unit: string;
+                to_unit: string;
+                multiplier: number;
+                product_id?: string | null;
+              }>,
+              productId,
+            );
             const selected = choosePrice(
               rowsByProduct.get(productId) ?? [],
               customerId,
@@ -151,16 +181,35 @@ export const Route = createFileRoute("/api/price-order")({
               return {
                 index,
                 productId,
-                quantity,
+                quantity: rawQuantity,
+                requestedUnit,
+                baseUnit,
+                conversion,
                 price: null,
                 reason: "لا يوجد سعر فعال لهذا المنتج والعميل.",
+              };
+            }
+
+            if (conversion.reason && requestedUnit && baseUnit && conversion.quantity === rawQuantity) {
+              return {
+                index,
+                productId,
+                quantity: rawQuantity,
+                requestedUnit,
+                baseUnit,
+                conversion,
+                price: null,
+                reason: conversion.reason,
               };
             }
 
             return {
               index,
               productId,
-              quantity,
+              quantity: conversion.quantity,
+              requestedUnit,
+              baseUnit,
+              conversion,
               price: {
                 id: selected.id,
                 amount: selected.amount,
