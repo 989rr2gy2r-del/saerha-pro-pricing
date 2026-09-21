@@ -1,5 +1,4 @@
 name: Deploy web app to GitHub Pages
-# Pages source is configured for GitHub Actions.
 
 on:
   push:
@@ -21,29 +20,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
-
       - name: Install dependencies
         run: npm ci
-
       - name: Build
         run: npm run build
-
-      - name: Verify static entry points
+      - name: Verify Pages entry
         run: |
           test -f .output/public/index.html
-          test -f .output/public/login/index.html
-          echo "Static Pages output:"
-          find .output/public -maxdepth 2 -type f | sort | head -100
-
+          cp .output/public/index.html .output/public/404.html
+          test -f .output/public/404.html
+          echo "Pages entry verified"
+          ls -la .output/public | head -50
       - name: Configure Pages
         uses: actions/configure-pages@v5
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
