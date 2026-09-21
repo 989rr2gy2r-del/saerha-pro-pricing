@@ -34,6 +34,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify static entry points
+        run: |
+          test -f .output/public/index.html
+          test -f .output/public/login/index.html
+          echo "Static Pages output:"
+          find .output/public -maxdepth 2 -type f | sort | head -100
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
