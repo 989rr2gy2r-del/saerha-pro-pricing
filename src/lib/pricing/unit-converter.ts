@@ -1,3 +1,4 @@
+// Unit aliases verified for pricing conversions.
 export type UnitConversion = {
   from_unit: string;
   to_unit: string;
