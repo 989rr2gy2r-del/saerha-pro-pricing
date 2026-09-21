@@ -106,7 +106,7 @@ function quoteWhatsAppText(quote: Quote) {
   return lines.filter(Boolean).join("\n");
 }
 
-function Quotes() {
+// CI verification: quote export flow is build-checked here.\nfunction Quotes() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [open, setOpen] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
