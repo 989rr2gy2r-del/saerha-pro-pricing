@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { authenticateStaffRequest } from "@/lib/server-auth";
 
-const PRICE_SELECT =
+// Deterministic price selection; AI never supplies a price.\nconst PRICE_SELECT =
   "id, product_id, price_type, customer_id, amount, currency, source, source_price_type, valid_from, valid_to";
 
 type PriceRow = {
