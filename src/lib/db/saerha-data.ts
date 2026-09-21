@@ -8,7 +8,7 @@ export function supabaseConfigured() {
     import.meta.env["SUPABASE_URL"] ||
     process.env["VITE_SUPABASE_URL"] ||
     process.env["SUPABASE_URL"] ||
-    "https://kgthdneognrllfykavqp.supabase.co";
+    "https://ebtjwwrjhsebojurkvgy.supabase.co";
   const key =
     import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||
     import.meta.env["SUPABASE_PUBLISHABLE_KEY"] ||
