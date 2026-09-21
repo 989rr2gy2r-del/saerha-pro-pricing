@@ -1,32 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
-
-function isNewSupabaseApiKey(value: string): boolean {
-  return value.startsWith("sb_publishable_") || value.startsWith("sb_secret_");
-}
-
-function createSupabaseFetch(supabaseKey: string): typeof fetch {
-  return (input, init) => {
-    const headers = new Headers(
-      typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined,
-    );
-
-    if (init?.headers) {
-      new Headers(init.headers).forEach((value, key) => headers.set(key, value));
-    }
-
-    if (
-      isNewSupabaseApiKey(supabaseKey) &&
-      headers.get("Authorization") === `Bearer ${supabaseKey}`
-    ) {
-      headers.delete("Authorization");
-    }
-
-    headers.set("apikey", supabaseKey);
-    return fetch(input, { ...init, headers });
-  };
-}
+import { authenticateStaffRequest } from "@/lib/server-auth";
 
 const normalizeImportString = (value: unknown): string => {
   if (value === null || value === undefined) return "";
@@ -55,66 +28,39 @@ const normalizePrice = (value: unknown): number | null => {
 
   if (!normalized || normalized === "-" || normalized === ".") return null;
   const asNumber = Number(normalized);
-  return Number.isFinite(asNumber) ? asNumber : null;
+  return Number.isFinite(asNumber) && asNumber >= 0 ? asNumber : null;
 };
 
 export const Route = createFileRoute("/api/import-products")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const auth = await authenticateStaffRequest(request);
+        if (auth instanceof Response) return auth;
+
         try {
-          const authHeader =
-            request.headers.get("authorization") ?? request.headers.get("Authorization");
-          if (!authHeader || !authHeader.startsWith("Bearer ")) {
+          const contentLength = Number(request.headers.get("content-length") ?? 0);
+          if (contentLength > 8 * 1024 * 1024) {
             return Response.json(
-              { success: false, error: "Unauthorized: missing bearer token" },
-              { status: 401 },
-            );
-          }
-
-          const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-          if (!token) {
-            return Response.json(
-              { success: false, error: "Unauthorized: empty bearer token" },
-              { status: 401 },
-            );
-          }
-
-          const SUPABASE_URL = process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"];
-          const SUPABASE_PUBLISHABLE_KEY =
-            process.env["SUPABASE_PUBLISHABLE_KEY"] || process.env["VITE_SUPABASE_PUBLISHABLE_KEY"];
-
-          if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-            return Response.json(
-              { success: false, error: "Supabase is not configured on the server" },
-              { status: 500 },
-            );
-          }
-
-          const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-            global: {
-              fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            },
-            auth: {
-              persistSession: false,
-              autoRefreshToken: false,
-              storage: undefined,
-            },
-          });
-
-          const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-          if (claimsError || !claimsData?.claims?.sub) {
-            return Response.json(
-              { success: false, error: "Unauthorized: invalid user token" },
-              { status: 401 },
+              { success: false, error: "حجم ملف الاستيراد أكبر من الحد المسموح." },
+              { status: 413 },
             );
           }
 
           const body = await request.json();
           const rows = Array.isArray(body?.rows) ? body.rows : [];
+
+          if (rows.length > 5000) {
+            return Response.json(
+              {
+                success: false,
+                error: "الاستيراد الواحد محدود بـ 5000 صف حاليًا. قسّم الملف إلى دفعات.",
+              },
+              { status: 413 },
+            );
+          }
+
+          const supabase = auth.supabase;
           const summary = { new: 0, updated: 0, priceChanged: 0, duplicate: 0, error: 0 };
           const seen = new Set<string>();
 
@@ -231,17 +177,22 @@ export const Route = createFileRoute("/api/import-products")({
                   .from("customers")
                   .select("id")
                   .ilike("name", customerName)
-                  .maybeSingle();
+                  .limit(2);
 
                 if (customer.error) throw new Error(customer.error.message);
-                if (!customer.data) continue;
+                if (!customer.data?.length) continue;
+                if (customer.data.length > 1) {
+                  summary.error += 1;
+                  continue;
+                }
 
+                const customerId = customer.data[0].id;
                 const existingPrice = await supabase
                   .from("prices")
                   .select("id, amount")
                   .eq("product_id", productId)
                   .eq("price_type", priceCheck.type)
-                  .eq("customer_id", customer.data.id)
+                  .eq("customer_id", customerId)
                   .maybeSingle();
 
                 if (existingPrice.error) throw new Error(existingPrice.error.message);
@@ -261,18 +212,8 @@ export const Route = createFileRoute("/api/import-products")({
                     .eq("id", existingPrice.data.id)
                     .select("id")
                     .single();
+
                   if (result.error) throw new Error(result.error.message);
-                  await supabase.from("price_history").insert({
-                    product_id: productId,
-                    price_id: result.data.id,
-                    customer_id: customer.data.id,
-                    price_type: priceCheck.type,
-                    old_amount: Number(existingPrice.data.amount),
-                    new_amount: numericValue,
-                    currency: normalizeImportString(row?.currency || "KWD") || "KWD",
-                    reason: "excel_import",
-                    changed_at: new Date().toISOString(),
-                  });
                   summary.priceChanged += 1;
                   continue;
                 }
@@ -283,7 +224,7 @@ export const Route = createFileRoute("/api/import-products")({
                     .insert({
                       product_id: productId,
                       price_type: priceCheck.type,
-                      customer_id: customer.data.id,
+                      customer_id: customerId,
                       amount: numericValue,
                       currency: normalizeImportString(row?.currency || "KWD") || "KWD",
                       source: "excel_import",
@@ -294,17 +235,6 @@ export const Route = createFileRoute("/api/import-products")({
                     .single();
 
                   if (result.error) throw new Error(result.error.message);
-                  await supabase.from("price_history").insert({
-                    product_id: productId,
-                    price_id: result.data.id,
-                    customer_id: customer.data.id,
-                    price_type: priceCheck.type,
-                    old_amount: null,
-                    new_amount: numericValue,
-                    currency: normalizeImportString(row?.currency || "KWD") || "KWD",
-                    reason: "excel_import",
-                    changed_at: new Date().toISOString(),
-                  });
                   summary.priceChanged += 1;
                 }
                 continue;
@@ -337,17 +267,6 @@ export const Route = createFileRoute("/api/import-products")({
                   .single();
 
                 if (result.error) throw new Error(result.error.message);
-                await supabase.from("price_history").insert({
-                  product_id: productId,
-                  price_id: result.data.id,
-                  customer_id: null,
-                  price_type: priceCheck.type,
-                  old_amount: Number(existingPrice.data.amount),
-                  new_amount: numericValue,
-                  currency: normalizeImportString(row?.currency || "KWD") || "KWD",
-                  reason: "excel_import",
-                  changed_at: new Date().toISOString(),
-                });
                 summary.priceChanged += 1;
                 continue;
               }
@@ -369,17 +288,6 @@ export const Route = createFileRoute("/api/import-products")({
                   .single();
 
                 if (result.error) throw new Error(result.error.message);
-                await supabase.from("price_history").insert({
-                  product_id: productId,
-                  price_id: result.data.id,
-                  customer_id: null,
-                  price_type: priceCheck.type,
-                  old_amount: null,
-                  new_amount: numericValue,
-                  currency: normalizeImportString(row?.currency || "KWD") || "KWD",
-                  reason: "excel_import",
-                  changed_at: new Date().toISOString(),
-                });
                 summary.priceChanged += 1;
               }
             }
@@ -387,8 +295,11 @@ export const Route = createFileRoute("/api/import-products")({
 
           return Response.json({ success: true, summary });
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Import failed";
-          return Response.json({ success: false, error: message }, { status: 500 });
+          console.error("Product import failed", error instanceof Error ? error.name : "unknown");
+          return Response.json(
+            { success: false, error: "تعذر إتمام الاستيراد، يرجى المحاولة مرة أخرى." },
+            { status: 500 },
+          );
         }
       },
     },
