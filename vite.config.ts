@@ -27,8 +27,16 @@ const supabaseUrl =
 const supabasePublishableKey =
   env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||
   env["SUPABASE_PUBLISHABLE_KEY"] ||
+  env["VITE_SUPABASE_ANON_KEY"] ||
+  env["SUPABASE_ANON_KEY"] ||
+  env["VITE_SUPABASE_KEY"] ||
+  env["SUPABASE_KEY"] ||
   process.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||
-  process.env["SUPABASE_PUBLISHABLE_KEY"];
+  process.env["SUPABASE_PUBLISHABLE_KEY"] ||
+  process.env["VITE_SUPABASE_ANON_KEY"] ||
+  process.env["SUPABASE_ANON_KEY"] ||
+  process.env["VITE_SUPABASE_KEY"] ||
+  process.env["SUPABASE_KEY"];
 
 const supabaseClientEnv: Record<string, string> = {};
 
