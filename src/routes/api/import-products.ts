@@ -1,63 +1,66 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { authenticateStaffRequest } from "@/lib/server-auth";
 
+const normalizeImportString = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+};
+
+const normalizePrice = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === "") return null;
+
+  const raw = String(value).trim();
+  const normalized = raw
+    .replace(/٬/g, "")
+    .replace(/\u0660/g, "0")
+    .replace(/\u0661/g, "1")
+    .replace(/\u0662/g, "2")
+    .replace(/\u0663/g, "3")
+    .replace(/\u0664/g, "4")
+    .replace(/\u0665/g, "5")
+    .replace(/\u0666/g, "6")
+    .replace(/\u0667/g, "7")
+    .replace(/\u0668/g, "8")
+    .replace(/\u0669/g, "9")
+    .replace(/[^0-9.-]/g, "")
+    .replace(/(?!^)-/g, "")
+    .replace(/(?<=\d),(?=\d{3}(?:\D|$))/g, "");
+
+  if (!normalized || normalized === "-" || normalized === ".") return null;
+  const asNumber = Number(normalized);
+  return Number.isFinite(asNumber) && asNumber >= 0 ? asNumber : null;
+};
+
 export const Route = createFileRoute("/api/import-products")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const auth = await authenticateStaffRequest(request);
+        if (auth instanceof Response) return auth;
+
         try {
-          const authHeader =
-            request.headers.get("authorization") ?? request.headers.get("Authorization");
-          if (!authHeader || !authHeader.startsWith("Bearer ")) {
+          const contentLength = Number(request.headers.get("content-length") ?? 0);
+          if (contentLength > 8 * 1024 * 1024) {
             return Response.json(
-              { success: false, error: "Unauthorized: missing bearer token" },
-              { status: 401 },
-            );
-          }
-
-          const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-          if (!token) {
-            return Response.json(
-              { success: false, error: "Unauthorized: empty bearer token" },
-              { status: 401 },
-            );
-          }
-
-          const SUPABASE_URL = process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"];
-          const SUPABASE_PUBLISHABLE_KEY =
-            process.env["SUPABASE_PUBLISHABLE_KEY"] || process.env["VITE_SUPABASE_PUBLISHABLE_KEY"];
-
-          if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-            return Response.json(
-              { success: false, error: "Supabase is not configured on the server" },
-              { status: 500 },
-            );
-          }
-
-          const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-            global: {
-              fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            },
-            auth: {
-              persistSession: false,
-              autoRefreshToken: false,
-              storage: undefined,
-            },
-          });
-
-          const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-          if (claimsError || !claimsData?.claims?.sub) {
-            return Response.json(
-              { success: false, error: "Unauthorized: invalid user token" },
-              { status: 401 },
+              { success: false, error: "حجم ملف الاستيراد أكبر من الحد المسموح." },
+              { status: 413 },
             );
           }
 
           const body = await request.json();
           const rows = Array.isArray(body?.rows) ? body.rows : [];
+
+          if (rows.length > 5000) {
+            return Response.json(
+              {
+                success: false,
+                error: "الاستيراد الواحد محدود بـ 5000 صف حاليًا. قسّم الملف إلى دفعات.",
+              },
+              { status: 413 },
+            );
+          }
+
+          const supabase = auth.supabase;
           const summary = { new: 0, updated: 0, priceChanged: 0, duplicate: 0, error: 0 };
           const seen = new Set<string>();
 
@@ -184,7 +187,6 @@ export const Route = createFileRoute("/api/import-products")({
                 }
 
                 const customerId = customer.data[0].id;
-
                 const existingPrice = await supabase
                   .from("prices")
                   .select("id, amount")
@@ -210,6 +212,7 @@ export const Route = createFileRoute("/api/import-products")({
                     .eq("id", existingPrice.data.id)
                     .select("id")
                     .single();
+
                   if (result.error) throw new Error(result.error.message);
                   summary.priceChanged += 1;
                   continue;
@@ -292,8 +295,14 @@ export const Route = createFileRoute("/api/import-products")({
 
           return Response.json({ success: true, summary });
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Import failed";
-          return Response.json({ success: false, error: message }, { status: 500 });
+          console.error(
+            "Product import failed",
+            error instanceof Error ? error.name : "unknown",
+          );
+          return Response.json(
+            { success: false, error: "تعذر إتمام الاستيراد، يرجى المحاولة مرة أخرى." },
+            { status: 500 },
+          );
         }
       },
     },
