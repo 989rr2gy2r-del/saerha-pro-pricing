@@ -19,7 +19,7 @@ jobs:
       - run: npm run build
       - name: Production server smoke test
         run: |
-          PORT=4173 HOST=127.0.0.1 node .output/server/index.mjs > /tmp/saerha-server.log 2>&1 &
+          npx wrangler dev --config .output/server/wrangler.json --local --port 4173 > /tmp/saerha-server.log 2>&1 &
           server_pid=$!
           trap "kill $server_pid 2>/dev/null || true" EXIT
           for i in {1..30}; do
