@@ -1,33 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
-
-function isNewSupabaseApiKey(value: string): boolean {
-  return value.startsWith("sb_publishable_") || value.startsWith("sb_secret_");
-}
-
-function createSupabaseFetch(supabaseKey: string): typeof fetch {
-  return (input, init) => {
-    const headers = new Headers(
-      typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined,
-    );
-
-    if (init?.headers) {
-      new Headers(init.headers).forEach((value, key) => headers.set(key, value));
-    }
-
-    if (
-      isNewSupabaseApiKey(supabaseKey) &&
-      headers.get("Authorization") === `Bearer ${supabaseKey}`
-    ) {
-      headers.delete("Authorization");
-    }
-
-    headers.set("apikey", supabaseKey);
-    return fetch(input, { ...init, headers });
-  };
-}
-
 type SingleResult = { data: unknown; error: { message: string } | null };
 type TableQuery = {
   maybeSingle: () => Promise<SingleResult>;
@@ -106,6 +76,7 @@ export const Route = createFileRoute("/api/supabase-write")({
 
           const tableName = table as keyof Database["public"]["Tables"];
 
+          const allowedTables = new Set(["products", "customers", "prices"]);
           if (!table || !action) {
             return Response.json(
               { success: false, error: "table/action required" },
@@ -113,7 +84,14 @@ export const Route = createFileRoute("/api/supabase-write")({
             );
           }
 
-          const tableQuery = supabase.from(tableName) as unknown as TableRequestBuilder;
+          if (!allowedTables.has(table)) {
+            return Response.json(
+              { success: false, error: "Table is not available through this endpoint" },
+              { status: 403 },
+            );
+          }
+
+          const tableQuery = auth.supabase.from(tableName) as unknown as TableRequestBuilder;
 
           if (action === "insert") {
             let insertQuery = tableQuery.insert(payload as Record<string, unknown>);
