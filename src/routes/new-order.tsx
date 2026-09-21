@@ -69,6 +69,159 @@ const sources = [
   { icon: PenLine, label: "نص / خط اليد", hint: "نص مكتوب أو صورة مكتوبة بخط اليد" },
 ];
 
+
+
+type LocalTesseractWorker = {
+  recognize: (image: HTMLCanvasElement | string) => Promise<{ data: { text: string } }>;
+  terminate: () => Promise<void>;
+  setParameters?: (params: Record<string, string>) => Promise<unknown>;
+};
+
+type LocalTesseractApi = {
+  createWorker: (
+    langs?: string | string[],
+    oem?: number,
+    options?: { langPath?: string; logger?: (message: { status?: string; progress?: number }) => void },
+  ) => Promise<LocalTesseractWorker>;
+};
+
+declare global {
+  interface Window {
+    Tesseract?: LocalTesseractApi;
+  }
+}
+
+let tesseractLoader: Promise<LocalTesseractApi> | null = null;
+
+function loadLocalTesseract(): Promise<LocalTesseractApi> {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("محرك القراءة المحلي يعمل داخل المتصفح فقط."));
+  }
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+  if (tesseractLoader) return tesseractLoader;
+
+  tesseractLoader = new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[data-saerha-tesseract="1"]');
+    if (existing) {
+      existing.addEventListener("load", () => window.Tesseract ? resolve(window.Tesseract) : reject(new Error("تعذر تحميل محرك القراءة.")));
+      existing.addEventListener("error", () => reject(new Error("تعذر تحميل محرك القراءة المحلي.")));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    script.async = true;
+    script.dataset.saerhaTesseract = "1";
+    script.onload = () => window.Tesseract
+      ? resolve(window.Tesseract)
+      : reject(new Error("محرك القراءة المحلي لم يجهز."));
+    script.onerror = () => reject(new Error("تعذر تحميل محرك القراءة المحلي."));
+    document.head.appendChild(script);
+  });
+
+  return tesseractLoader;
+}
+
+async function prepareOcrImage(file: File): Promise<HTMLCanvasElement> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("تعذر قراءة الصورة."));
+    reader.onerror = () => reject(new Error("تعذر قراءة الصورة."));
+    reader.readAsDataURL(file);
+  });
+
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const element = new Image();
+    element.onload = () => resolve(element);
+    element.onerror = () => reject(new Error("تعذر فتح الصورة للقراءة."));
+    element.src = dataUrl;
+  });
+
+  const scale = Math.min(2.5, Math.max(1.5, 2200 / Math.max(image.naturalWidth, image.naturalHeight)));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("تعذر تجهيز الصورة للقراءة.");
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < pixels.data.length; i += 4) {
+    const gray = Math.round(
+      0.299 * pixels.data[i] + 0.587 * pixels.data[i + 1] + 0.114 * pixels.data[i + 2],
+    );
+    const boosted = Math.max(0, Math.min(255, (gray - 128) * 1.35 + 128));
+    pixels.data[i] = boosted;
+    pixels.data[i + 1] = boosted;
+    pixels.data[i + 2] = boosted;
+  }
+  context.putImageData(pixels, 0, 0);
+  return canvas;
+}
+
+function parseLocalOcrText(text: string) {
+  const units = "حبة|قطعة|علبة|كرتون|كرتونه|كرتون|متر|سم|مم|كجم|كغ|جم|غ|لتر|ل|مل|رول|لفة|باكيت|كيس|طقم|زوج|متر".split("|");
+  const unitPattern = units.join("|");
+  const lines = text
+    .split(/\\r?\\n/)
+    .map((line) => line.replace(/[|¦]+/g, " ").replace(/\\s+/g, " ").trim())
+    .filter((line) => line.length >= 2);
+
+  return lines.map((line, index) => {
+    let description = line;
+    let quantity = 0;
+    let unit = "";
+
+    const startMatch = line.match(new RegExp(`^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?\\s+(.+)$`, "i"));
+    const endMatch = line.match(new RegExp(`^(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?$`, "i"));
+
+    if (startMatch) {
+      quantity = Number(String(startMatch[1]).replace(/[٠-٩]/g, (c) => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(",", "."));
+      unit = startMatch[2] ?? "";
+      description = startMatch[3].trim();
+    } else if (endMatch) {
+      quantity = Number(String(endMatch[2]).replace(/[٠-٩]/g, (c) => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(",", "."));
+      unit = endMatch[3] ?? "";
+      description = endMatch[1].trim();
+    }
+
+    return {
+      id: `ocr-${Date.now()}-${index}`,
+      description,
+      raw_text: line,
+      quantity: Number.isFinite(quantity) ? quantity : 0,
+      unit,
+      confidence: 0.45,
+      notes: "تمت القراءة محليًا من الصورة؛ راجع السطر قبل اعتماد العرض.",
+    };
+  });
+}
+
+async function readImageLocally(file: File, onProgress?: (value: number) => void) {
+  const tesseract = await loadLocalTesseract();
+  const canvas = await prepareOcrImage(file);
+  onProgress?.(35);
+
+  const worker = await tesseract.createWorker(["ara", "eng"], 1, {
+    langPath: "https://tessdata.projectnaptha.com/4.0.0",
+    logger: (message) => {
+      if (typeof message.progress === "number") {
+        onProgress?.(35 + Math.round(message.progress * 55));
+      }
+    },
+  });
+
+  try {
+    const result = await worker.recognize(canvas);
+    const text = result.data.text.trim();
+    if (!text) throw new Error("لم يتم العثور على نص واضح في الصورة. جرّب صورة أوضح ومضاءة جيدًا.");
+    return { text, items: parseLocalOcrText(text) };
+  } finally {
+    await worker.terminate();
+  }
+}
+
 const PRODUCT_SELECT_FIELDS =
   "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, unit, description";
 
@@ -461,31 +614,48 @@ function NewOrder() {
         throw new Error("انتهت جلسة الدخول. سجّل الدخول ثم أعد المحاولة.");
       }
 
-      const supabaseUrl = import.meta.env["VITE_SUPABASE_URL"] || "https://ebtjwwrjhsebojurkvgy.supabase.co";
-      const response = await fetch(`${supabaseUrl}/functions/v1/analyze-order`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          image,
-          fileType: first.type || first.name,
-          text,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.error || "تعذر تحليل الطلبية.");
-
       let rawResult: Record<string, unknown>;
-      if (typeof data.result === "string") {
-        try {
+
+      try {
+        const supabaseUrl =
+          import.meta.env["VITE_SUPABASE_URL"] ||
+          "https://ebtjwwrjhsebojurkvgy.supabase.co";
+
+        const response = await fetch(`${supabaseUrl}/functions/v1/analyze-order`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            image,
+            fileType: first.type || first.name,
+            text,
+          }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data?.error || "تعذر تشغيل محرك القراءة الذكي.");
+
+        if (typeof data.result === "string") {
           rawResult = JSON.parse(data.result) as Record<string, unknown>;
-        } catch {
-          throw new Error("استجابة Gemini غير صالحة أو غير JSON.");
+        } else {
+          rawResult = (data.result ?? data) as Record<string, unknown>;
         }
-      } else {
-        rawResult = (data.result ?? data) as Record<string, unknown>;
+      } catch (serverError) {
+        // GitHub Pages is static, so the local OCR fallback guarantees that
+        // image reading still works even when the server AI endpoint is unavailable.
+        if (!image || !/^data:image\\//i.test(image)) {
+          throw serverError;
+        }
+
+        setAnalysisError("محرك الذكاء غير متاح الآن؛ انتقلت تلقائيًا إلى القراءة المحلية للصورة...");
+        setProgress(30);
+        const local = await readImageLocally(first, setProgress);
+        rawResult = {
+          items: local.items,
+          notes: `تمت قراءة الصورة محليًا. النص المستخرج: ${local.text}`,
+        };
       }
 
       const rawItems = Array.isArray(rawResult["items"])
@@ -501,32 +671,7 @@ function NewOrder() {
         notes: String(item["notes"] ?? "").trim(),
       }));
 
-      const matchedItems = normalizedItems.map((item) => {
-        const match = findLocalProductMatch(item.description || item.raw_text, products);
-        const matchConfidence = match?.score ?? 0;
-        const confidence = Math.min(
-          Number.isFinite(item.confidence) ? Math.max(0, item.confidence) : 0,
-          matchConfidence || (item.confidence || 0),
-        );
-        return {
-          id: item.id,
-          description: item.description,
-          quantity: Number.isFinite(item.quantity) && item.quantity > 0 ? item.quantity : 0,
-          unit: item.unit,
-          raw_text: item.raw_text,
-          confidence: match ? Math.max(confidence, matchConfidence) : item.confidence,
-          notes: item.notes,
-          product: match?.product ?? null,
-          matchReason: match
-            ? `مطابقة محلية مع المنتج: ${match.product.name_ar}`
-            : "لم يتم العثور على مطابقة تلقائية؛ اختر المنتج يدويًا.",
-          status: match && match.score >= 0.85 ? "HIGH_CONFIDENCE" : match ? "NEEDS_REVIEW" : "UNMATCHED",
-          rejected: false,
-          accepted: Boolean(match && match.score >= 0.85),
-        };
-      });
-
-      setAnalysisResult({
+            setAnalysisResult({
         items: matchedItems,
         notes: String(rawResult["notes"] ?? "").trim(),
       });
