@@ -194,7 +194,7 @@ async function shareWhatsApp(quote: Quote) {
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
 }
 
-function Quotes() {
+// CI verification for quote export flow.\nfunction Quotes() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [open, setOpen] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
