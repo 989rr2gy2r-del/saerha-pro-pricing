@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { getServerEnv } from "@/lib/server-env";
+import { authenticateStaffRequest } from "@/lib/server-auth";
 
 const PRIMARY_MODEL = "gemini-3.6-flash";
 const FALLBACK_MODEL = "gemini-3.5-flash-lite";
@@ -162,6 +163,11 @@ export const Route = createFileRoute("/api/analyze-order")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const auth = await authenticateStaffRequest(request);
+        if ("error" in auth) {
+          return Response.json({ success: false, error: auth.error }, { status: auth.status });
+        }
+
         try {
           const apiKey = getGeminiApiKey();
           if (!apiKey) {
@@ -331,7 +337,7 @@ export const Route = createFileRoute("/api/analyze-order")({
             return Response.json(
               {
                 success: false,
-                error: `Gemini HTTP ${primaryStatus}: ${primaryMessage || "Unknown Gemini error"}`,
+                error: "تعذر تحليل الطلب حاليًا. يرجى المحاولة مرة أخرى.",
               },
               { status: primaryStatus },
             );
