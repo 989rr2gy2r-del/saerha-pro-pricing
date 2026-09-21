@@ -17,7 +17,6 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
       new Headers(init.headers).forEach((value, key) => headers.set(key, value));
     }
 
-    // New Supabase API keys are opaque strings, not bearer JWTs.
     if (
       isNewSupabaseApiKey(supabaseKey) &&
       headers.get("Authorization") === `Bearer ${supabaseKey}`
@@ -31,15 +30,11 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 function createSupabaseClient() {
-  // Prefer Vite's browser-safe variables. The Vite config also bridges
-  // Lovable Cloud's server-side Supabase variables into these names at build time.
-  // Keep process.env as a server-side fallback for TanStack Start.
   const SUPABASE_URL =
     import.meta.env["VITE_SUPABASE_URL"] ||
     import.meta.env["SUPABASE_URL"] ||
     process.env["VITE_SUPABASE_URL"] ||
     process.env["SUPABASE_URL"] ||
-    // This is the public project identifier already committed in supabase/config.toml.
     "https://ebtjwwrjhsebojurkvgy.supabase.co";
 
   const SUPABASE_PUBLISHABLE_KEY =
@@ -54,7 +49,9 @@ function createSupabaseClient() {
     process.env["VITE_SUPABASE_ANON_KEY"] ||
     process.env["SUPABASE_ANON_KEY"] ||
     process.env["VITE_SUPABASE_KEY"] ||
-    process.env["SUPABASE_KEY"];
+    process.env["SUPABASE_KEY"] ||
+    // Public browser key: safe to ship in a static client build.
+    "sb_publishable_FyMLBNBnaxeeyEVciA1bLw_WB9czMv0";
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [
@@ -80,8 +77,6 @@ function createSupabaseClient() {
 
 let _supabase: ReturnType<typeof createSupabaseClient> | undefined;
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
 export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>, {
   get(_, prop, receiver) {
     if (!_supabase) _supabase = createSupabaseClient();
