@@ -49,8 +49,17 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           This page didn't load
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
+          Something went wrong while loading the application.
         </p>
+        <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-left text-xs text-destructive" dir="ltr">
+          <p className="font-semibold">{error instanceof Error ? error.message : String(error)}</p>
+          {error instanceof Error && error.stack ? (
+            <details className="mt-2">
+              <summary className="cursor-pointer">Technical details</summary>
+              <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap">{error.stack}</pre>
+            </details>
+          ) : null}
+        </div>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
