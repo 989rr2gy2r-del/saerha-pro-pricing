@@ -101,13 +101,7 @@ async function fetchGeminiWithRetry(
     console.info(`[Gemini OCR] ${model} attempt ${attempt + 1}/${maxAttempts}`);
 
     try {
-      const result = await fetchGeminiRequest(
-        apiKey,
-        model,
-        mimeType,
-        base64Data,
-        prompt,
-      );
+      const result = await fetchGeminiRequest(apiKey, model, mimeType, base64Data, prompt);
 
       if (result.response.ok) {
         return result;
@@ -233,9 +227,7 @@ export const Route = createFileRoute("/api/analyze-order")({
             );
           }
 
-          const match = image.match(
-            /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i,
-          );
+          const match = image.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i);
 
           if (!match) {
             return Response.json(
