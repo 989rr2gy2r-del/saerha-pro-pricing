@@ -2,7 +2,7 @@ export type UnitConversion = {
   from_unit: string;
   to_unit: string;
   multiplier: number;
-  product_id?: string | null;
+  product_id: string | null;
 };
 
 const UNIT_ALIASES: Record<string, string> = {
