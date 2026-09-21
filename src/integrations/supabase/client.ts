@@ -40,7 +40,7 @@ function createSupabaseClient() {
     process.env["VITE_SUPABASE_URL"] ||
     process.env["SUPABASE_URL"] ||
     // This is the public project identifier already committed in supabase/config.toml.
-    "https://kgthdneognrllfykavqp.supabase.co";
+    "https://ebtjwwrjhsebojurkvgy.supabase.co";
 
   const SUPABASE_PUBLISHABLE_KEY =
     import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||
@@ -61,7 +61,7 @@ function createSupabaseClient() {
       ...(!SUPABASE_URL ? ["SUPABASE_URL"] : []),
       ...(!SUPABASE_PUBLISHABLE_KEY ? ["SUPABASE_PUBLISHABLE_KEY"] : []),
     ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(", ")}. Connect Supabase in Lovable Cloud.`;
+    const message = `Missing Supabase environment variable(s): ${missing.join(", ")}. Configure the Supabase production connection.`;
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }
