@@ -2,7 +2,8 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { createFileRoute } from "@tanstack/react-router";
 import { FileSpreadsheet, MessageCircle, Plus, Search } from "lucide-react";
 import { jsPDF } from "jspdf";
-import * as XLSX from "xlsx";\nimport { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
+import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/badge";
@@ -80,7 +81,8 @@ const getCustomerName = (customers?: QuoteCustomer[] | null) =>
 function Quotes() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [open, setOpen] = useState<Quote | null>(null);
-  const [loading, setLoading] = useState(true);\n  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   const loadQuotes = async () => {
     setLoading(true);
