@@ -517,32 +517,6 @@ function NewOrder() {
         };
       });
 
-      const matchedItems = normalizedItems.map((item, index) => {
-        const result = matchResults[index];
-        const best = result?.best;
-        const product = best?.product ? (best.product as ProductRecord) : null;
-        const aiConfidence = Number(item.confidence);
-        const matchConfidence = Number(best?.score ?? 0);
-        const confidence = Number.isFinite(aiConfidence)
-          ? Math.min(1, Math.max(0, Math.min(aiConfidence, matchConfidence || aiConfidence)))
-          : matchConfidence;
-
-        return {
-          id: item.id,
-          description: item.description,
-          quantity: Number.isFinite(item.quantity) && item.quantity > 0 ? item.quantity : 0,
-          unit: item.unit,
-          raw_text: item.raw_text,
-          confidence,
-          notes: item.notes,
-          product,
-          matchReason: String(best?.reason ?? "لا توجد مطابقة كافية"),
-          status: best?.status === "HIGH_CONFIDENCE" ? "HIGH_CONFIDENCE" : product ? "NEEDS_REVIEW" : "UNMATCHED",
-          rejected: false,
-          accepted: Boolean(product) && best?.status === "HIGH_CONFIDENCE" && !result?.requiresReview,
-        } as ReviewItem;
-      });
-
       setAnalysisResult({
         items: matchedItems,
         notes: String(rawResult["notes"] ?? "").trim(),
