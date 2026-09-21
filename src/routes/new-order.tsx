@@ -99,6 +99,43 @@ function getPriceLookupKey(priceType: string): string {
   return map[priceType] ?? priceType;
 }
 
+function findLocalProductMatch(text: string, products: ProductRecord[]) {
+  const normalized = normalizeForMatch(text);
+  if (!normalized) return null;
+  const scored = products.map((product) => {
+    const fields = [
+      { value: product.sku, weight: 1.0 },
+      { value: product.name_ar, weight: 0.95 },
+      { value: product.name_en, weight: 0.9 },
+      { value: product.short_name, weight: 0.9 },
+      { value: product.brand, weight: 0.65 },
+      { value: product.model, weight: 0.65 },
+      { value: product.size, weight: 0.55 },
+      { value: product.description, weight: 0.45 },
+    ];
+    let score = 0;
+    for (const field of fields) {
+      if (!field.value) continue;
+      const candidate = normalizeForMatch(field.value);
+      if (!candidate) continue;
+      if (candidate === normalized) score = Math.max(score, field.weight);
+      else if (candidate.includes(normalized) || normalized.includes(candidate)) score = Math.max(score, field.weight * 0.9);
+    }
+    const tokens = normalized.split(" ").filter(Boolean);
+    if (tokens.length > 1) {
+      const haystack = normalizeForMatch([
+        product.sku, product.name_ar, product.name_en, product.short_name,
+        product.brand, product.model, product.size, product.description,
+      ].filter(Boolean).join(" "));
+      const overlap = tokens.filter((token) => haystack.includes(token)).length / tokens.length;
+      score = Math.max(score, overlap * 0.8);
+    }
+    return { product, score };
+  }).sort((a, b) => b.score - a.score);
+  const best = scored[0];
+  return best && best.score >= 0.65 ? best : null;
+}
+
 export const Route = createFileRoute("/new-order")({
   head: () => ({
     meta: [
@@ -415,7 +452,8 @@ function NewOrder() {
         throw new Error("انتهت جلسة الدخول. سجّل الدخول ثم أعد المحاولة.");
       }
 
-      const response = await fetch("/api/analyze-order", {
+      const supabaseUrl = import.meta.env["VITE_SUPABASE_URL"] || "https://ebtjwwrjhsebojurkvgy.supabase.co";
+      const response = await fetch(`${supabaseUrl}/functions/v1/analyze-order`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -454,32 +492,31 @@ function NewOrder() {
         notes: String(item["notes"] ?? "").trim(),
       }));
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const matchResponse = await fetch("/api/match-order", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(sessionData.session?.access_token
-            ? { Authorization: `Bearer ${sessionData.session.access_token}` }
-            : {}),
-        },
-        body: JSON.stringify({
-          items: normalizedItems.map((item) => ({
-            id: item.id,
-            description: item.description,
-            raw_text: item.raw_text,
-            quantity: item.quantity,
-            unit: item.unit,
-          })),
-        }),
+      const matchedItems = normalizedItems.map((item) => {
+        const match = findLocalProductMatch(item.description || item.raw_text, products);
+        const matchConfidence = match?.score ?? 0;
+        const confidence = Math.min(
+          Number.isFinite(item.confidence) ? Math.max(0, item.confidence) : 0,
+          matchConfidence || (item.confidence || 0),
+        );
+        return {
+          id: item.id,
+          description: item.description,
+          quantity: Number.isFinite(item.quantity) && item.quantity > 0 ? item.quantity : 0,
+          unit: item.unit,
+          raw_text: item.raw_text,
+          confidence: match ? Math.max(confidence, matchConfidence) : item.confidence,
+          notes: item.notes,
+          product: match?.product ?? null,
+          matchReason: match
+            ? `مطابقة محلية مع المنتج: ${match.product.name_ar}`
+            : "لم يتم العثور على مطابقة تلقائية؛ اختر المنتج يدويًا.",
+          status: match && match.score >= 0.85 ? "HIGH_CONFIDENCE" : match ? "NEEDS_REVIEW" : "UNMATCHED",
+          rejected: false,
+          accepted: Boolean(match && match.score >= 0.85),
+        };
       });
 
-      const matchData = await matchResponse.json();
-      if (!matchResponse.ok) {
-        throw new Error(matchData?.error || "تعذر مطابقة الأصناف مع قاعدة المنتجات.");
-      }
-
-      const matchResults = Array.isArray(matchData?.results) ? matchData.results : [];
       const matchedItems = normalizedItems.map((item, index) => {
         const result = matchResults[index];
         const best = result?.best;
