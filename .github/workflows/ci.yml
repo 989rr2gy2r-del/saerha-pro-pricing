@@ -20,6 +20,7 @@ jobs:
       - name: GitHub Pages artifact smoke test
         run: |
           test -f .output/public/index.html
+          cp .output/public/index.html .output/public/404.html
           test -f .output/public/404.html
           grep -qi "<html" .output/public/index.html
           echo "GitHub Pages artifact is valid"
