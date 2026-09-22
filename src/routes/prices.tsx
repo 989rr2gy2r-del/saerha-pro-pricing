@@ -120,10 +120,11 @@ function Prices() {
           const { data, error: pageError } = await supabase
             .from("prices")
             .select(
-              "id, product_id, price_type, customer_id, amount, currency, source, customers(name)",
+              "id, product_id, price_type, customer_id, amount, currency, source, valid_from, valid_to",
             )
             .order("product_id", { ascending: true })
             .order("price_type", { ascending: true })
+            .order("valid_from", { ascending: false })
             .range(from, from + pageSize - 1);
 
           if (pageError) throw new Error(pageError.message);
@@ -134,17 +135,42 @@ function Prices() {
         return rows;
       };
 
-      const [nextProducts, allPrices] = await Promise.all([
+      const loadAllCustomers = async () => {
+        const rows: Array<{ id: string; name: string | null }> = [];
+        for (let from = 0; ; from += pageSize) {
+          const { data, error: pageError } = await supabase
+            .from("customers")
+            .select("id, name")
+            .order("name", { ascending: true })
+            .range(from, from + pageSize - 1);
+
+          if (pageError) throw new Error(pageError.message);
+          const page = (data ?? []) as Array<{ id: string; name: string | null }>;
+          rows.push(...page);
+          if (page.length < pageSize) break;
+        }
+        return rows;
+      };
+
+      const [nextProducts, allPrices, allCustomers] = await Promise.all([
         loadAllProducts(),
         loadAllPrices(),
+        loadAllCustomers(),
       ]);
 
-      const nextMap: Record<string, PriceRecord[]> = {};
+      const customerNames = new Map(allCustomers.map((customer) => [customer.id, customer.name]));
 
+      const nextMap: Record<string, PriceRecord[]> = {};
       allPrices.forEach((row) => {
         const productId = String(row.product_id);
+        const normalizedRow: PriceRecord = {
+          ...row,
+          customers: row.customer_id
+            ? { name: customerNames.get(row.customer_id) ?? null }
+            : null,
+        };
         if (!nextMap[productId]) nextMap[productId] = [];
-        nextMap[productId].push(row);
+        nextMap[productId].push(normalizedRow);
       });
 
       setProducts(nextProducts);
