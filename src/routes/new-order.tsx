@@ -686,10 +686,14 @@ function NewOrder() {
         }
 
         const timedOut = serverError instanceof DOMException && serverError.name === "AbortError";
+        const serverMessage =
+          serverError instanceof Error ? serverError.message.trim() : "";
         setAnalysisError(
           timedOut
             ? "القراءة الذكية تأخرت قليلًا؛ جارٍ تشغيل القراءة المحلية الاحتياطية."
-            : "القراءة الذكية غير متاحة الآن؛ جارٍ تشغيل القراءة المحلية الاحتياطية.",
+            : serverMessage
+              ? `تعذر تشغيل القراءة الذكية: ${serverMessage} — جارٍ تشغيل القراءة المحلية الاحتياطية.`
+              : "تعذر تشغيل القراءة الذكية؛ جارٍ تشغيل القراءة المحلية الاحتياطية.",
         );
         setProgress(30);
         const local = (await localOcrPromise) ?? await readImageLocally(first, setProgress);
