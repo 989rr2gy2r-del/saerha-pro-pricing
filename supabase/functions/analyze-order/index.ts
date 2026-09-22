@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const MODELS = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"];
+const MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"];
 const MODEL_TIMEOUT_MS = 18000;
 const MAX_IMAGE_BASE64 = 12_000_000;
 
@@ -83,7 +83,10 @@ async function callGemini(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
         signal: controller.signal,
         body: JSON.stringify({
           contents: [{
@@ -97,51 +100,23 @@ async function callGemini(
           }],
           generationConfig: {
             responseMimeType: "application/json",
-            responseSchema: {
-              type: "object",
-              properties: {
-                items: {
-                  type: "array",
-                  maxItems: 100,
-                  items: {
-                    type: "object",
-                    properties: {
-                      description: { type: "string" },
-                      quantity: { type: "number" },
-                      unit: { type: "string" },
-                      raw_text: { type: "string" },
-                      confidence: { type: "number" },
-                      notes: { type: "string" },
-                    },
-                    required: ["description", "quantity", "unit", "raw_text", "confidence", "notes"],
-                    additionalProperties: false,
-                  },
-                },
-                notes: { type: "string" },
-              },
-              required: ["items", "notes"],
-              additionalProperties: false,
-            },
             maxOutputTokens: 4096,
-            ...(model.startsWith("gemini-3")
-              ? { thinkingConfig: { thinkingLevel: "low" } }
-              : {}),
           },
         }),
       },
     );
+
     const responseText = await response.text();
     if (!response.ok) {
-      const detail = responseText.slice(0, 240).replace(/\s+/g, " ");
+      const detail = responseText.slice(0, 500).replace(/\s+/g, " ");
       throw new Error(`Gemini ${model} HTTP ${response.status}: ${detail}`);
     }
-    const result = normalize(extractText(JSON.parse(responseText)));
-    return result;
+
+    return normalize(extractText(JSON.parse(responseText)));
   } finally {
     clearTimeout(timer);
   }
 }
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ success: false, error: "Method not allowed" }, 405);
@@ -195,20 +170,21 @@ Deno.serve(async (req) => {
 ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
 
     try {
-      // Run the fast and full models in parallel. The first valid response wins,
-      // so a slow first model no longer blocks the second one.
-      const result = await Promise.any(
-        MODELS.map((model) =>
-          callGemini(apiKey, model, mimeType, base64Data, prompt).catch((error) => {
-            console.warn(
-              `Gemini ${model} timed out or failed`,
-              error instanceof Error ? error.message : "unknown",
-            );
-            throw error;
-          }),
-        ),
-      );
-      return json({ success: true, result });
+      let lastError: unknown = null;
+      for (const model of MODELS) {
+        try {
+          const result = await callGemini(apiKey, model, mimeType, base64Data, prompt);
+          return json({ success: true, result });
+        } catch (error) {
+          lastError = error;
+          console.warn(
+            `Gemini ${model} failed`,
+            error instanceof Error ? error.message : "unknown",
+          );
+          if (error instanceof Error && /HTTP (401|403)/.test(error.message)) break;
+        }
+      }
+      throw lastError instanceof Error ? lastError : new Error("Gemini analysis failed");
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown";
       console.error("Gemini analysis failed", message);
