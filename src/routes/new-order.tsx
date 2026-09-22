@@ -485,16 +485,27 @@ function NewOrder() {
   };
 
   const loadProducts = async () => {
-    const { data, error } = await supabase
-      .from("products")
-      .select(PRODUCT_SELECT_FIELDS)
-      .order("name_ar", { ascending: true });
-    if (!error) {
-      setProducts((data ?? []) as ProductRecord[]);
-      const { data: aliasRows } = await supabase
+    try {
+      const pageSize = 1000;
+      const allProducts: ProductRecord[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("products")
+          .select(PRODUCT_SELECT_FIELDS)
+          .order("name_ar", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const page = (data ?? []) as ProductRecord[];
+        allProducts.push(...page);
+        if (page.length < pageSize) break;
+      }
+      setProducts(allProducts);
+
+      const { data: aliasRows, error: aliasError } = await supabase
         .from("product_aliases")
         .select("product_id, alias")
         .limit(20000);
+      if (aliasError) throw aliasError;
       const aliasMap: Record<string, string[]> = {};
       for (const row of aliasRows ?? []) {
         const alias = String(row.alias ?? "").trim();
@@ -502,6 +513,9 @@ function NewOrder() {
         aliasMap[row.product_id] = [...(aliasMap[row.product_id] ?? []), alias];
       }
       setProductAliases(aliasMap);
+    } catch {
+      setProducts([]);
+      setProductAliases({});
     }
   };
 
