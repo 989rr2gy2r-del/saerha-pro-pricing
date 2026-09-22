@@ -92,6 +92,7 @@ declare global {
 }
 
 let tesseractLoader: Promise<LocalTesseractApi> | null = null;
+let tesseractWorkerPromise: Promise<LocalTesseractWorker> | null = null;
 
 function loadLocalTesseract(): Promise<LocalTesseractApi> {
   if (typeof window === "undefined") {
@@ -234,28 +235,29 @@ function parseLocalOcrText(text: string) {
   });
 }
 
+async function getTesseractWorker(onProgress?: (value: number) => void) {
+  if (!tesseractWorkerPromise) {
+    const tesseract = await loadLocalTesseract();
+    tesseractWorkerPromise = tesseract.createWorker(["ara", "eng"], 1, {
+      langPath: "https://tessdata.projectnaptha.com/4.0.0",
+      logger: (message) => {
+        if (typeof message.progress === "number") {
+          onProgress?.(35 + Math.round(message.progress * 55));
+        }
+      },
+    });
+  }
+  return tesseractWorkerPromise;
+}
+
 async function readImageLocally(file: File, onProgress?: (value: number) => void) {
-  const tesseract = await loadLocalTesseract();
+  const worker = await getTesseractWorker(onProgress);
   const canvas = await prepareOcrImage(file);
   onProgress?.(35);
-
-  const worker = await tesseract.createWorker(["ara", "eng"], 1, {
-    langPath: "https://tessdata.projectnaptha.com/4.0.0",
-    logger: (message) => {
-      if (typeof message.progress === "number") {
-        onProgress?.(35 + Math.round(message.progress * 55));
-      }
-    },
-  });
-
-  try {
-    const result = await worker.recognize(canvas);
-    const text = result.data.text.trim();
-    if (!text) throw new Error("لم يتم العثور على نص واضح في الصورة. جرّب صورة أوضح ومضاءة جيدًا.");
-    return { text, items: parseLocalOcrText(text) };
-  } finally {
-    await worker.terminate();
-  }
+  const result = await worker.recognize(canvas);
+  const text = result.data.text.trim();
+  if (!text) throw new Error("لم يتم العثور على نص واضح في الصورة. جرّب صورة أوضح ومضاءة جيدًا.");
+  return { text, items: parseLocalOcrText(text) };
 }
 
 const PRODUCT_SELECT_FIELDS =
@@ -663,7 +665,7 @@ function NewOrder() {
             fileType: first.type || first.name,
             text,
           }),
-        }, 14000);
+        }, 6000);
 
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data?.error || "تعذر تشغيل محرك القراءة الذكي.");
@@ -683,8 +685,8 @@ function NewOrder() {
         const timedOut = serverError instanceof DOMException && serverError.name === "AbortError";
         setAnalysisError(
           timedOut
-            ? "استغرق التحليل الذكي وقتًا أطول من المتوقع؛ انتقلت تلقائيًا إلى القراءة المحلية."
-            : "تعذر تشغيل التحليل الذكي؛ انتقلت تلقائيًا إلى القراءة المحلية للصورة.",
+            ? "القراءة الذكية تأخرت؛ بدأنا القراءة المحلية مباشرة."
+            : "تعذر تشغيل القراءة الذكية؛ بدأنا القراءة المحلية مباشرة.",
         );
         setProgress(30);
         const local = await readImageLocally(first, setProgress);
