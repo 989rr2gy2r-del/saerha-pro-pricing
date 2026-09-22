@@ -313,7 +313,12 @@ function similarityScore(a: string, b: string): number {
   return tokenHits / Math.max(aTokens.length, bTokens.length);
 }
 
-function findLocalProductMatch(text: string, products: ProductRecord[], normalizedArabic = "") {
+function findLocalProductMatch(
+  text: string,
+  products: ProductRecord[],
+  normalizedArabic = "",
+  aliases: Record<string, string[]> = {},
+) {
   const queries = [normalizeForMatch(text), normalizeForMatch(normalizedArabic)].filter(Boolean);
   if (!queries.length) return null;
 
@@ -327,6 +332,7 @@ function findLocalProductMatch(text: string, products: ProductRecord[], normaliz
       { value: product.model, weight: 0.85 },
       { value: product.size, weight: 0.75 },
       { value: product.description, weight: 0.65 },
+      ...((aliases[product.id] ?? []).map((value) => ({ value, weight: 1.05 }))),
       { value: product.category_main, weight: 0.45 },
       { value: product.category_sub, weight: 0.45 },
       { value: product.category_third, weight: 0.4 },
@@ -388,6 +394,7 @@ function NewOrder() {
     Array<{ name: string; size: number; type: string; status: string }>
   >([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [productAliases, setProductAliases] = useState<Record<string, string[]>>({});
   const [progress, setProgress] = useState(0);
   const [lastAnalyzedKey, setLastAnalyzedKey] = useState<string>("");
   const [productSearches, setProductSearches] = useState<Record<string, string>>({});
@@ -428,6 +435,7 @@ function NewOrder() {
           product.product_group,
           product.description,
           product.unit,
+          ...(productAliases[product.id] ?? []),
         ]
           .filter(Boolean)
           .map((value) => normalizeForMatch(String(value)));
@@ -483,6 +491,17 @@ function NewOrder() {
       .order("name_ar", { ascending: true });
     if (!error) {
       setProducts((data ?? []) as ProductRecord[]);
+      const { data: aliasRows } = await supabase
+        .from("product_aliases")
+        .select("product_id, alias")
+        .limit(20000);
+      const aliasMap: Record<string, string[]> = {};
+      for (const row of aliasRows ?? []) {
+        const alias = String(row.alias ?? "").trim();
+        if (!alias) continue;
+        aliasMap[row.product_id] = [...(aliasMap[row.product_id] ?? []), alias];
+      }
+      setProductAliases(aliasMap);
     }
   };
 
@@ -847,6 +866,7 @@ function NewOrder() {
           item.description || item.raw_text,
           products,
           item.normalized_description_ar,
+          productAliases,
         );
         const confidence = match ? Math.max(item.confidence, match.score) : item.confidence;
         const status: MatchStatus = match
