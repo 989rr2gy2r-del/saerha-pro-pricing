@@ -7,7 +7,9 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
+const MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
+const MODEL_TIMEOUT_MS = 12000;
+const MAX_IMAGE_BASE64 = 8_000_000;
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -21,7 +23,6 @@ async function getUser(req: Request) {
   if (!auth.toLowerCase().startsWith("bearer ")) return null;
   const token = auth.slice(7).trim();
   if (!token) return null;
-
   const client = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -53,7 +54,12 @@ function normalize(value: unknown) {
 }
 
 function extractText(payload: any) {
-  let text = String(payload?.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim();
+  const parts = payload?.candidates?.[0]?.content?.parts ?? [];
+  let text = parts
+    .map((part: any) => typeof part?.text === "string" ? part.text : "")
+    .filter(Boolean)
+    .join("\n")
+    .trim();
   text = text.replace(/^\`\`\`json\s*/i, "").replace(/^\`\`\`\s*/i, "").replace(/\s*\`\`\`$/i, "").trim();
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
@@ -62,20 +68,31 @@ function extractText(payload: any) {
 }
 
 async function callGemini(apiKey: string, model: string, mimeType: string, base64Data: string, prompt: string) {
-  return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({
-      contents: [{
-        role: "user",
-        parts: [
-          { text: prompt },
-          ...(base64Data ? [{ inline_data: { mime_type: mimeType, data: base64Data } }] : []),
-        ],
-      }],
-      generationConfig: { responseMimeType: "application/json" },
-    }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+  try {
+    return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [{
+          role: "user",
+          parts: [
+            { text: prompt },
+            ...(base64Data ? [{ inline_data: { mime_type: mimeType, data: base64Data } }] : []),
+          ],
+        }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0,
+          maxOutputTokens: 4096,
+        },
+      }),
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 Deno.serve(async (req) => {
@@ -90,20 +107,13 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const { data: role } = await admin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
+    const { data: role } = await admin.from("user_roles").select("role").eq("user_id", user.id).maybeSingle();
     if (!role || !["admin", "sales"].includes(String(role.role))) {
       return json({ success: false, error: "غير مصرح لك بتحليل الطلبات." }, 403);
     }
 
     const apiKey = Deno.env.get("GEMINI_API_KEY");
-    if (!apiKey) {
-      return json({ success: false, error: "محرك القراءة الذكي غير مهيأ على الخادم." }, 503);
-    }
+    if (!apiKey) return json({ success: false, error: "محرك القراءة الذكي غير مهيأ على الخادم." }, 503);
 
     const body = await req.json();
     const image = typeof body?.image === "string" ? body.image : "";
@@ -117,6 +127,9 @@ Deno.serve(async (req) => {
       if (!match) return json({ success: false, error: "صيغة الصورة أو الملف غير مدعومة." }, 400);
       mimeType = match[1];
       base64Data = match[2];
+      if (base64Data.length > MAX_IMAGE_BASE64) {
+        return json({ success: false, error: "الصورة ما زالت كبيرة للتحليل السريع. جرّب صورة أصغر." }, 413);
+      }
     }
 
     const prompt = `أنت محرك قراءة طلبيات لمحل مواد كهربائية وصحية اسمه "سعّرها".
@@ -126,30 +139,26 @@ Deno.serve(async (req) => {
 لا تخترع صنفًا أو SKU أو سعرًا. لا تخمن الكمية. احتفظ بالنص الأصلي قدر الإمكان. confidence بين 0 و1.
 ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
 
-    let result: unknown = null;
-    const errors: string[] = [];
-
     for (const model of MODELS) {
       try {
         const response = await callGemini(apiKey, model, mimeType, base64Data, prompt);
         const bodyText = await response.text();
         if (!response.ok) {
-          errors.push(`${model}: HTTP ${response.status}`);
+          console.warn(`Gemini ${model} HTTP ${response.status}`);
           continue;
         }
-        result = extractText(JSON.parse(bodyText));
-        if (result) break;
+        try {
+          const result = normalize(extractText(JSON.parse(bodyText)));
+          return json({ success: true, result });
+        } catch (parseError) {
+          console.warn(`Gemini ${model} returned invalid JSON`, parseError instanceof Error ? parseError.message : "parse");
+        }
       } catch (error) {
-        errors.push(`${model}: ${error instanceof Error ? error.message : "parse error"}`);
+        console.warn(`Gemini ${model} timed out or failed`, error instanceof Error ? error.name : "unknown");
       }
     }
 
-    if (!result) {
-      console.error("Gemini analysis failed", errors);
-      return json({ success: false, error: "تعذر تحليل الطلبية بالذكاء الاصطناعي حاليًا. جرّب الصورة مرة أخرى أو استخدم القراءة المحلية." }, 503);
-    }
-
-    return json({ success: true, result: normalize(result) });
+    return json({ success: false, error: "تعذر تحليل الطلبية بسرعة كافية. ستتم القراءة المحلية تلقائيًا." }, 503);
   } catch (error) {
     console.error("analyze-order", error);
     return json({ success: false, error: "حدث خطأ أثناء قراءة الطلبية." }, 500);
