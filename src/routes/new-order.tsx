@@ -55,6 +55,9 @@ type ReviewItem = {
   status: MatchStatus;
   rejected: boolean;
   accepted: boolean;
+  priceAmount: number | null;
+  priceType: string | null;
+  priceLabel: string;
 };
 
 type OrderAnalysisResult = {
@@ -530,6 +533,62 @@ function NewOrder() {
     });
   };
 
+  const refreshPreviewPrices = async (items: ReviewItem[], selectedCustomerId = "") => {
+    const productIds = items.filter((item) => !item.rejected && item.product).map((item) => item.product!.id);
+    if (!productIds.length) return;
+    try {
+      let customerType = "retail";
+      if (selectedCustomerId) {
+        const { data } = await supabase.from("customers").select("customer_type").eq("id", selectedCustomerId).maybeSingle();
+        customerType = data?.customer_type ?? "retail";
+      }
+      const { data: priceRows, error } = await supabase
+        .from("prices")
+        .select("product_id, price_type, customer_id, amount, valid_from, valid_to")
+        .in("product_id", [...new Set(productIds)]);
+      if (error) throw error;
+      const now = Date.now();
+      setAnalysisResult((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: prev.items.map((item) => {
+            if (!item.product) return item;
+            const rows = (priceRows ?? []).filter((row) => {
+              const from = new Date(row.valid_from).getTime();
+              const to = row.valid_to ? new Date(row.valid_to).getTime() : null;
+              return row.product_id === item.product!.id && Number.isFinite(from) && from <= now &&
+                (!to || (Number.isFinite(to) && to > now)) && Number(row.amount) >= 0;
+            });
+            const preferredType =
+              customerType === "wholesale" || customerType === "contractor" || customerType === "government"
+                ? "reseller"
+                : "retail";
+            const chosen =
+              rows.find((row) => row.price_type === "customer_special" && row.customer_id === selectedCustomerId) ??
+              rows.find((row) => row.price_type === preferredType && !row.customer_id) ??
+              rows.find((row) => row.price_type === "retail" && !row.customer_id) ??
+              rows.find((row) => row.price_type === "reseller" && !row.customer_id);
+            return {
+              ...item,
+              priceAmount: chosen ? Number(chosen.amount) : null,
+              priceType: chosen?.price_type ?? null,
+              priceLabel: chosen ? getPriceLookupKey(chosen.price_type) : "لا يوجد سعر",
+            };
+          }),
+        };
+      });
+    } catch {
+      // Keep analysis usable if preview pricing fails.
+    }
+  };
+
+  useEffect(() => {
+    if (customerId && analysisResult?.items?.length) {
+      void refreshPreviewPrices(analysisResult.items, customerId);
+    }
+  }, [customerId]);
+
   const handleQuantityChange = (index: number, value: number) => {
     patchReviewItem(index, (item) => ({
       ...item,
@@ -539,6 +598,15 @@ function NewOrder() {
 
   const handleUnitChange = (index: number, value: string) => {
     patchReviewItem(index, (item) => ({ ...item, unit: value }));
+  };
+
+  const handlePriceChange = (index: number, value: number) => {
+    patchReviewItem(index, (item) => ({
+      ...item,
+      priceAmount: Number.isFinite(value) ? Math.max(0, value) : null,
+      priceType: "manual_quote",
+      priceLabel: "سعر يدوي",
+    }));
   };
 
   const handleSaveAlias = async (index: number) => {
@@ -737,6 +805,9 @@ function NewOrder() {
           status,
           rejected: false,
           accepted: false,
+          priceAmount: null,
+          priceType: null,
+          priceLabel: "جاري جلب السعر...",
         };
       });
 
@@ -745,6 +816,7 @@ function NewOrder() {
         items: matchedItems,
         notes: String(rawResult["notes"] ?? "").trim(),
       });
+      void refreshPreviewPrices(matchedItems, customerId);
       setProgress(100);
     } catch (error) {
       setAnalysisError((error as Error)?.message ?? "حدث خطأ أثناء تحليل الطلبية.");
@@ -826,6 +898,10 @@ function NewOrder() {
         const reseller = rows
           .filter((row) => row.price_type === "reseller" && !row.customer_id)
           .sort((a, b) => String(b.valid_from).localeCompare(String(a.valid_from)))[0];
+        const manualPrice =
+          item.priceType === "manual_quote" && Number.isFinite(Number(item.priceAmount)) && Number(item.priceAmount) >= 0
+            ? Number(item.priceAmount)
+            : null;
         const chosen = customerSpecial ?? preferred ?? retail ?? reseller ?? null;
         const requestedUnit = item.unit || item.product!.unit || "حبة";
         const conversion = convertQuantity(
@@ -840,16 +916,19 @@ function NewOrder() {
           }>,
           productId,
         );
-        if (!chosen || (conversion.reason && conversion.quantity === Number(item.quantity) && requestedUnit !== (item.product!.unit || requestedUnit))) {
+        if (
+          manualPrice === null &&
+          (!chosen || (conversion.reason && conversion.quantity === Number(item.quantity) && requestedUnit !== (item.product!.unit || requestedUnit)))
+        ) {
           return { ...item, priceAmount: null, priceType: null, priceLabel: "لا يوجد سعر مناسب", quantity: conversion.quantity, unit: item.product!.unit || requestedUnit };
         }
         return {
           ...item,
           quantity: conversion.quantity,
           unit: item.product!.unit || requestedUnit,
-          priceAmount: Number(chosen.amount),
-          priceType: chosen.price_type,
-          priceLabel: getPriceLookupKey(chosen.price_type),
+          priceAmount: manualPrice ?? Number(chosen!.amount),
+          priceType: manualPrice !== null ? "manual_quote" : chosen!.price_type,
+          priceLabel: manualPrice !== null ? "سعر يدوي" : getPriceLookupKey(chosen!.price_type),
         };
       });
 
@@ -904,7 +983,7 @@ function NewOrder() {
               line_total: Number(line.priceAmount ?? 0) * Number(line.quantity || 0),
               applied_price_type: (line.priceType ?? "retail") as
                 "retail" | "reseller" | "customer_special" | "manual_quote",
-              is_manual_price: false,
+              is_manual_price: line.priceType === "manual_quote",
               notes: `سعر ${line.priceLabel}`,
             },
           ];
@@ -1093,6 +1172,29 @@ function NewOrder() {
                                 handleQuantityChange(index, Number(event.target.value))
                               }
                               className="h-11"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>سعر الوحدة (د.ك)</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.001"
+                              value={item.priceAmount ?? ""}
+                              onChange={(event) => handlePriceChange(index, Number(event.target.value))}
+                              placeholder="جاري جلب السعر..."
+                              className="h-11 font-bold"
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                              {item.priceLabel === "سعر يدوي" ? "تم تعديل السعر يدويًا" : "مصدر السعر: " + item.priceLabel}
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>إجمالي السطر (د.ك)</Label>
+                            <Input
+                              value={item.priceAmount !== null ? (Number(item.priceAmount) * Number(item.quantity || 0)).toFixed(3) : ""}
+                              readOnly
+                              className="h-11 font-bold"
                             />
                           </div>
                           <div className="space-y-2 md:col-span-2">
