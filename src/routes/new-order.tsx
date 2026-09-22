@@ -647,6 +647,9 @@ function NewOrder() {
       }
 
       let rawResult: Record<string, unknown>;
+      const localOcrPromise = image
+        ? readImageLocally(first).catch(() => null)
+        : Promise.resolve(null);
 
       try {
         const supabaseUrl =
@@ -689,7 +692,7 @@ function NewOrder() {
             : "القراءة الذكية غير متاحة الآن؛ جارٍ تشغيل القراءة المحلية الاحتياطية.",
         );
         setProgress(30);
-        const local = await readImageLocally(first, setProgress);
+        const local = (await localOcrPromise) ?? await readImageLocally(first, setProgress);
         rawResult = {
           items: local.items,
           notes: `تمت قراءة الصورة محليًا. النص المستخرج: ${local.text}`,
