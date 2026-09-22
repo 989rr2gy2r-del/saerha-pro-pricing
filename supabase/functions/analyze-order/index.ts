@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 const MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
-const MODEL_TIMEOUT_MS = 12000;
+const MODEL_TIMEOUT_MS = 8000;
 const MAX_IMAGE_BASE64 = 8_000_000;
 
 function json(data: unknown, status = 200) {
@@ -67,29 +67,46 @@ function extractText(payload: any) {
   return JSON.parse(text);
 }
 
-async function callGemini(apiKey: string, model: string, mimeType: string, base64Data: string, prompt: string) {
+async function callGemini(
+  apiKey: string,
+  model: string,
+  mimeType: string,
+  base64Data: string,
+  prompt: string,
+) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
   try {
-    return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      signal: controller.signal,
-      body: JSON.stringify({
-        contents: [{
-          role: "user",
-          parts: [
-            { text: prompt },
-            ...(base64Data ? [{ inline_data: { mime_type: mimeType, data: base64Data } }] : []),
-          ],
-        }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0,
-          maxOutputTokens: 4096,
-        },
-      }),
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{
+            role: "user",
+            parts: [
+              { text: prompt },
+              ...(base64Data
+                ? [{ inline_data: { mime_type: mimeType, data: base64Data } }]
+                : []),
+            ],
+          }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0,
+            maxOutputTokens: 2048,
+          },
+        }),
+      },
+    );
+    const responseText = await response.text();
+    if (!response.ok) {
+      throw new Error(`Gemini ${model} HTTP ${response.status}`);
+    }
+    const result = normalize(extractText(JSON.parse(responseText)));
+    return result;
   } finally {
     clearTimeout(timer);
   }
@@ -139,26 +156,27 @@ Deno.serve(async (req) => {
 لا تخترع صنفًا أو SKU أو سعرًا. لا تخمن الكمية. احتفظ بالنص الأصلي قدر الإمكان. confidence بين 0 و1.
 ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
 
-    for (const model of MODELS) {
-      try {
-        const response = await callGemini(apiKey, model, mimeType, base64Data, prompt);
-        const bodyText = await response.text();
-        if (!response.ok) {
-          console.warn(`Gemini ${model} HTTP ${response.status}`);
-          continue;
-        }
-        try {
-          const result = normalize(extractText(JSON.parse(bodyText)));
-          return json({ success: true, result });
-        } catch (parseError) {
-          console.warn(`Gemini ${model} returned invalid JSON`, parseError instanceof Error ? parseError.message : "parse");
-        }
-      } catch (error) {
-        console.warn(`Gemini ${model} timed out or failed`, error instanceof Error ? error.name : "unknown");
-      }
+    try {
+      // Run the fast and full models in parallel. The first valid response wins,
+      // so a slow first model no longer blocks the second one.
+      const result = await Promise.any(
+        MODELS.map((model) =>
+          callGemini(apiKey, model, mimeType, base64Data, prompt).catch((error) => {
+            console.warn(
+              `Gemini ${model} timed out or failed`,
+              error instanceof Error ? error.message : "unknown",
+            );
+            throw error;
+          }),
+        ),
+      );
+      return json({ success: true, result });
+    } catch {
+      return json(
+        { success: false, error: "تعذر تحليل الطلبية بسرعة كافية. ستتم القراءة المحلية تلقائيًا." },
+        503,
+      );
     }
-
-    return json({ success: false, error: "تعذر تحليل الطلبية بسرعة كافية. ستتم القراءة المحلية تلقائيًا." }, 503);
   } catch (error) {
     console.error("analyze-order", error);
     return json({ success: false, error: "حدث خطأ أثناء قراءة الطلبية." }, 500);
