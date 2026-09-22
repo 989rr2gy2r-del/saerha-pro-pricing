@@ -42,6 +42,12 @@ function normalize(value: unknown) {
       const confidence = Number(row.confidence);
       return {
         description: typeof row.description === "string" ? row.description.trim() : "",
+        normalized_description_ar:
+          typeof row.normalized_description_ar === "string"
+            ? row.normalized_description_ar.trim()
+            : typeof row.arabic_name === "string"
+              ? row.arabic_name.trim()
+              : "",
         quantity: Number.isFinite(quantity) && quantity >= 0 ? quantity : 0,
         unit: typeof row.unit === "string" ? row.unit.trim() : "",
         raw_text: typeof row.raw_text === "string" ? row.raw_text.trim() : "",
@@ -162,11 +168,35 @@ Deno.serve(async (req) => {
       }
     }
 
-    const prompt = `أنت محرك OCR وفهم بصري متخصص في قراءة طلبيات العملاء لمحل مواد كهربائية وصحية اسمه "سعّرها".
-اقرأ الصورة سطرًا سطرًا من أعلى إلى أسفل. ميّز بين اسم الصنف والكمية والوحدة وأي كود ظاهر. إذا كان النص غير واضح، احتفظ به في raw_text ولا تخمّن. استخرج كل سطر يبدو كصنف حتى لو كانت الكتابة عربية أو إنجليزية أو مختلطة.
-أرجع JSON فقط بهذا الشكل:
-{"items":[{"description":"اسم الصنف كما ظهر","quantity":0,"unit":"الوحدة","raw_text":"النص الأصلي","confidence":0,"notes":"ملاحظات"}],"notes":"ملاحظات عامة"}
-لا تخترع صنفًا أو SKU أو سعرًا. لا تخمن الكمية. إذا لم تستطع قراءة الكمية فاجعلها 0. احتفظ بالنص الأصلي قدر الإمكان، ولا تدمج سطرين مختلفين في سطر واحد. confidence بين 0 و1.
+    const prompt = `أنت محرك OCR وفهم طلبيات احترافي لنظام "سعّرها" لمواد الكهرباء والصحية.
+
+اقرأ الطلبية سطرًا سطرًا من أعلى إلى أسفل، ولا تدمج سطرين مختلفين.
+لكل سطر أرجع:
+1) raw_text: النص الذي استطعت قراءته من الصورة كما هو قدر الإمكان.
+2) description: الاسم الإنجليزي/العربي المقروء بعد تصحيح أخطاء OCR الواضحة فقط.
+3) normalized_description_ar: الاسم التجاري المفهوم بالعربية، لأن هذا الحقل سيُستخدم لمطابقة قاعدة المنتجات.
+4) quantity: الكمية الرقمية فقط.
+5) unit: الوحدة مثل حبة، قطعة، رول، كرتون، دزينة، متر.
+6) confidence: ثقتك في قراءة السطر من 0 إلى 1.
+7) notes: أي كلمة أو جزء غير مؤكد.
+
+قواعد الفهم والترجمة:
+- إذا كان الطلب بالإنجليزية، افهمه ثم ترجم الوصف إلى عربية تجارية واضحة في normalized_description_ar.
+- لا تترجم أسماء الماركات أو الموديلات غير المؤكدة؛ احتفظ بها كما ظهرت.
+- افهم الاختصارات والأخطاء الإملائية الواضحة في سياق مواد الكهرباء والصحية، مثل:
+  Fuse = فيوز، Elbow = كوع، Tee = تي، Adapter = أدبتر، Coupling = وصلة/كوبلن، Male Adapter = أدبتر بسن خارجي، Female Adapter = أدبتر بسن داخلي، PVC = PVC، GI = حديد مجلفن.
+- حافظ على المقاسات والأرقام والألوان والأمبير والجهد والماركة والموديل.
+- "3 dozen" تعني quantity=3 وunit="دزينة"؛ لا تحولها إلى 36.
+- "1 Roll" تعني quantity=1 وunit="رول".
+- "pcs" تعني unit="قطعة".
+- إذا كانت كلمة غير واضحة فعلًا، لا تخترع لها معنى. اتركها في description كما قرأتها إن أمكن، وضع "غير واضح" في notes، ولا تبنِ عليها SKU.
+- إذا كان السطر كله غير مقروء، اجعل description وnormalized_description_ar فارغين، واحتفظ بما أمكن في raw_text، confidence منخفضًا.
+- لا تخترع SKU أو منتجًا أو سعرًا.
+- لا تُرجع رموزًا أو حروفًا عشوائية على أنها اسم منتج.
+- أرجع JSON فقط.
+
+الشكل المطلوب:
+{"items":[{"description":"","normalized_description_ar":"","quantity":0,"unit":"","raw_text":"","confidence":0,"notes":""}],"notes":""}
 ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
 
     try {
