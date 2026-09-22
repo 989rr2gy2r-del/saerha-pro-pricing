@@ -121,6 +121,42 @@ function loadLocalTesseract(): Promise<LocalTesseractApi> {
   return tesseractLoader;
 }
 
+async function prepareGeminiImage(file: File): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("تعذر قراءة الصورة."));
+    reader.onerror = () => reject(new Error("تعذر قراءة الصورة."));
+    reader.readAsDataURL(file);
+  });
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const element = new Image();
+    element.onload = () => resolve(element);
+    element.onerror = () => reject(new Error("تعذر فتح الصورة."));
+    element.src = dataUrl;
+  });
+  const maxSide = 1600;
+  const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("تعذر تجهيز الصورة للتحليل.");
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "medium";
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.78);
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 async function prepareOcrImage(file: File): Promise<HTMLCanvasElement> {
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -592,15 +628,9 @@ function NewOrder() {
           return `ورقة: ${sheetName}\n${csv}`;
         }).join("\n\n");
       } else {
-        const reader = new FileReader();
-        image = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => {
-            if (typeof reader.result === "string") resolve(reader.result);
-            else reject(new Error("تعذر قراءة الملف."));
-          };
-          reader.onerror = () => reject(new Error("تعذر قراءة الملف."));
-          reader.readAsDataURL(first);
-        });
+        setProgress(20);
+        image = await prepareGeminiImage(first);
+        setProgress(35);
       }
 
       if (!image && !text.trim()) {
@@ -621,7 +651,8 @@ function NewOrder() {
           import.meta.env["VITE_SUPABASE_URL"] ||
           "https://ebtjwwrjhsebojurkvgy.supabase.co";
 
-        const response = await fetch(`${supabaseUrl}/functions/v1/analyze-order`, {
+        setProgress(45);
+        const response = await fetchWithTimeout(`${supabaseUrl}/functions/v1/analyze-order`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -632,7 +663,7 @@ function NewOrder() {
             fileType: first.type || first.name,
             text,
           }),
-        });
+        }, 28000);
 
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data?.error || "تعذر تشغيل محرك القراءة الذكي.");
@@ -649,7 +680,12 @@ function NewOrder() {
           throw serverError;
         }
 
-        setAnalysisError("محرك الذكاء غير متاح الآن؛ انتقلت تلقائيًا إلى القراءة المحلية للصورة...");
+        const timedOut = serverError instanceof DOMException && serverError.name === "AbortError";
+        setAnalysisError(
+          timedOut
+            ? "استغرق التحليل الذكي وقتًا أطول من المتوقع؛ انتقلت تلقائيًا إلى القراءة المحلية."
+            : "تعذر تشغيل التحليل الذكي؛ انتقلت تلقائيًا إلى القراءة المحلية للصورة.",
+        );
         setProgress(30);
         const local = await readImageLocally(first, setProgress);
         rawResult = {
