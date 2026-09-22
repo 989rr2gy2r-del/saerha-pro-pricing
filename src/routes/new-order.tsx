@@ -665,7 +665,7 @@ function NewOrder() {
             fileType: first.type || first.name,
             text,
           }),
-        }, 6000);
+        }, 15000);
 
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data?.error || "تعذر تشغيل محرك القراءة الذكي.");
@@ -685,8 +685,8 @@ function NewOrder() {
         const timedOut = serverError instanceof DOMException && serverError.name === "AbortError";
         setAnalysisError(
           timedOut
-            ? "القراءة الذكية تأخرت؛ بدأنا القراءة المحلية مباشرة."
-            : "تعذر تشغيل القراءة الذكية؛ بدأنا القراءة المحلية مباشرة.",
+            ? "القراءة الذكية تأخرت قليلًا؛ جارٍ تشغيل القراءة المحلية الاحتياطية."
+            : "القراءة الذكية غير متاحة الآن؛ جارٍ تشغيل القراءة المحلية الاحتياطية.",
         );
         setProgress(30);
         const local = await readImageLocally(first, setProgress);
@@ -968,7 +968,7 @@ function NewOrder() {
                 </p>
               )}
               {analysisError && (
-                <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
                   {analysisError}
                 </p>
               )}
