@@ -49,7 +49,7 @@ function LoginPage() {
     }
   }
 
-  const features = [[Package, "إدارة المنتجات"], [ShieldCheck, "دقة في التسعير"], [Clock3, "سرعة في الإنجاز"], [BarChart3, "تقارير دقيقة"]];
+  const features: Array<[typeof Package, string]> = [[Package, "إدارة المنتجات"], [ShieldCheck, "دقة في التسعير"], [Clock3, "سرعة في الإنجاز"], [BarChart3, "تقارير دقيقة"]];
 
   return (
     <main dir="rtl" className="min-h-screen bg-slate-50">
