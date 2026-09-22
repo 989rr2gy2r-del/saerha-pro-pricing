@@ -484,7 +484,9 @@ function Quotes() {
         doc.setFontSize(6.5);
         doc.setTextColor(BLUE);
         doc.text("Mobile & Whatsapp", margin + 96, pillY + 6);
-      };et page = 1;
+      };
+
+      let page = 1;
       drawHeader();
       drawInfo();
       y = 242;
