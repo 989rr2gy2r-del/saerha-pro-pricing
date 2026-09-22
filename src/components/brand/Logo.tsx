@@ -1,15 +1,22 @@
 import { COMPANY, SYSTEM } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
-const logoSrc = `${import.meta.env.BASE_URL}al-awab-logo.jpg`;
+const logoSrc = `${import.meta.env.BASE_URL}al-awab-logo.jpg?v=20260922`;
 
-/** شعار شركة الأواب الرسمي — يُستخدم كما هو دون إعادة رسم أو تعديل. */
+/** الشعار الرسمي المرفوع من الشركة — يُعرض كصورة أصلية دون إعادة رسم. */
 export function AlAwabLogo({ className }: { className?: string }) {
   return (
     <img
       src={logoSrc}
       alt={COMPANY.nameAr}
-      className={cn("h-10 w-auto rounded-md bg-white object-contain p-0.5", className)}
+      width={75}
+      height={100}
+      loading="eager"
+      decoding="async"
+      className={cn(
+        "block h-14 w-auto shrink-0 rounded-md bg-white object-contain p-0",
+        className,
+      )}
     />
   );
 }
@@ -24,7 +31,7 @@ export function BrandLockup({
   const onDark = variant === "dark";
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <AlAwabLogo className="h-11 shrink-0" />
+      <AlAwabLogo className="h-14 shrink-0" />
       <div className="min-w-0">
         <div className="flex items-baseline gap-2">
           <span
