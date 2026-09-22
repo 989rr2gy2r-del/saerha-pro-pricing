@@ -239,48 +239,47 @@ function Quotes() {
 
       const drawHeader = () => {
         doc.setFillColor(ORANGE);
-        doc.rect(0, 0, pageWidth, 5, "F");
+        doc.rect(0, 0, pageWidth, 4, "F");
 
-        // English company block.
+        // Official invoice-style company header.
         doc.setFont("helvetica", "bold");
         doc.setFontSize(17);
         doc.setTextColor(ORANGE);
-        doc.text("AL-AWAB CO.", margin, 36);
+        doc.text("AL-AWAB CO.", margin, 31);
         doc.setFontSize(9.5);
         doc.setTextColor(BLUE);
-        doc.text("FOR WHOLESALE AND RETAIL TRADE", margin, 50);
+        doc.text("FOR WHOLESALE AND RETAIL TRADE", margin, 45);
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(6.7);
-        doc.text("Al-Mangaf - Block 3 - Street 7 - Building 64 - Behind", margin, 63);
-        doc.text("the Fire Department - Near the Teachers Association", margin, 74);
+        doc.setFontSize(6.5);
+        doc.text("Al-Mangaf - Block 3 - Street 7 - Building 64 - Behind", margin, 58);
+        doc.text("the Fire Department - Near the Teachers Association", margin, 69);
 
-        // Official logo asset — untouched; only placed inside a container.
-        doc.addImage(`data:image/png;base64,${logoBase64}`, "PNG", pageWidth / 2 - 36, 20, 72, 63);
+        // Official logo asset, preserved exactly.
+        doc.addImage(`data:image/png;base64,${logoBase64}`, "PNG", pageWidth / 2 - 31, 15, 62, 54);
 
-        // Arabic company block.
         doc.setFont("NotoNaskhArabic", "normal");
         doc.setFontSize(18);
         doc.setTextColor(ORANGE);
-        doc.text(processArabic("شركة الأواب"), right, 39, { align: "right" });
+        doc.text(processArabic("شركة الأواب"), right, 32, { align: "right" });
         doc.setFontSize(10.5);
         doc.setTextColor(BLUE);
-        doc.text(processArabic("لتجارة الجملة والتجزئة"), right, 54, { align: "right" });
-        doc.setFontSize(7.5);
-        doc.text(processArabic("المنقف - قطعة 3 - شارع 7 - عمارة 64"), right, 68, { align: "right" });
-        doc.text(processArabic("خلف المطافي - بالقرب من جمعية المعلمين"), right, 80, { align: "right" });
+        doc.text(processArabic("لتجارة الجملة والتجزئة"), right, 47, { align: "right" });
+        doc.setFontSize(7.2);
+        doc.text(processArabic("المنقف - قطعة 3 - شارع 7 - عمارة 64"), right, 61, { align: "right" });
+        doc.text(processArabic("خلف المطافي - بالقرب من جمعية المعلمين"), right, 72, { align: "right" });
 
-        // Blue bands and document title.
+        // The two blue bands intentionally match the company's invoice header.
         doc.setFillColor(BLUE);
-        doc.rect(margin, 92, 190, 20, "F");
-        doc.rect(pageWidth - margin - 190, 92, 190, 20, "F");
+        doc.rect(margin, 84, 185, 20, "F");
+        doc.rect(pageWidth - margin - 185, 84, 185, 20, "F");
+
         doc.setFont("NotoNaskhArabic", "normal");
         doc.setTextColor(BLUE);
-        doc.setFontSize(16);
-        doc.text(processArabic("عرض سعر"), pageWidth / 2, 106, { align: "center" });
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(8);
-        doc.setTextColor(BLUE);
-        doc.text("QUOTATION", pageWidth / 2, 117, { align: "center" });
+        doc.setFontSize(15);
+        doc.text(processArabic("فاتورة بيع"), pageWidth / 2, 99, { align: "center" });
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        doc.text("SALE INVOICE", pageWidth / 2, 112, { align: "center" });
       };
 
       const drawInfo = () => {
@@ -391,10 +390,11 @@ function Quotes() {
         return y + rowHeight;
       };
 
-      const drawTotalsAndFooter = (y: number) => {
+      const drawTotalsAndF      const drawTotalsAndFooter = (y: number) => {
         const boxW = 190;
         const rowH = 23;
         const boxX = margin;
+
         const totalRows = [
           ["الإجمالي قبل الخصم", subtotal],
           ["الخصم", discount],
@@ -425,23 +425,66 @@ function Quotes() {
         doc.setFontSize(10);
         doc.text(total.toFixed(3), boxX + 8, netY + 18);
 
-        drawCode39(quote.reference, pageWidth - margin - 170, y + 10, 170, 42);
+        // Barcode and explanatory text.
+        drawCode39(quote.reference, pageWidth - margin - 170, y + 8, 170, 42);
         drawText("المبلغ الإجمالي شامل الخصم والضريبة", pageWidth - margin - 85, y + 77, 7.5, "center");
+        drawText("تم إنشاء الفاتورة من الطلبية بعد مراجعة المنتج وسعره", pageWidth - margin - 85, y + 94, 7.5, "center");
 
-        if (quote.notes) {
-          drawText(String(quote.notes), right, y + 98, 8, "right");
-        }
+        // Official-style footer area: seller/receiver, page number, contact and product categories.
+        const footerY = pageHeight - 92;
+        doc.setDrawColor("#D4D9DE");
+        doc.line(margin, footerY - 18, pageWidth - margin, footerY - 18);
 
-        const footerY = pageHeight - 55;
-        doc.setDrawColor(GRID);
-        doc.line(margin, footerY - 14, pageWidth - margin, footerY - 14);
-        drawText("البائع: ______________________________", margin, footerY, 7.5, "left");
-        drawText("المستلم: ______________________________", right, footerY, 7.5, "right");
-        drawText("شركة الأواب لتجارة الجملة والتجزئة", pageWidth / 2, footerY + 17, 7, "center");
-      };
+        drawText("البائع: ........................................................", margin, footerY, 7.5, "left");
+        drawText("المستلم: ........................................................", right, footerY, 7.5, "right");
 
-      let y = 0;
-      let page = 1;
+        doc.setFont("NotoNaskhArabic", "normal");
+        doc.setFontSize(7);
+        doc.setTextColor(BLUE);
+        doc.text(processArabic("شركة الأواب لتجارة الجملة والتجزئة"), pageWidth / 2, footerY + 18, {
+          align: "center",
+        });
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.text(`${page}/1   ${quote.reference}`, pageWidth / 2, footerY + 31, {
+          align: "center",
+        });
+
+        const pillY = pageHeight - 42;
+        const pills = [
+          { x: margin, w: 78, label: "ULTRA", type: "ultra" },
+          { x: margin + 84, w: 142, label: "69940150 – 50203026", type: "whatsapp" },
+          { x: margin + 232, w: 92, label: "مواد بناء", type: "build" },
+          { x: margin + 330, w: 92, label: "مواد صحية", type: "health" },
+          { x: margin + 428, w: 92, label: "مواد كهربائية", type: "electric" },
+          { x: right - 66, w: 66, label: "turbo", type: "turbo" },
+        ];
+
+        pills.forEach((pill) => {
+          doc.setDrawColor("#4A86B8");
+          doc.setLineWidth(0.8);
+          doc.roundedRect(pill.x, pillY, pill.w, 18, 9, 9, "S");
+
+          if (pill.type === "ultra" || pill.type === "turbo") {
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(pill.type === "ultra" ? 10 : 11);
+            doc.setTextColor(BLUE);
+            doc.text(pill.label, pill.x + pill.w / 2, pillY + 12, { align: "center" });
+          } else {
+            doc.setFillColor(ORANGE);
+            doc.circle(pill.x + 12, pillY + 9, 7, "F");
+            doc.setFont("NotoNaskhArabic", "normal");
+            doc.setFontSize(6.8);
+            doc.setTextColor(BLUE);
+            doc.text(processArabic(pill.label), pill.x + 17, pillY + 12, { align: "left" });
+          }
+        });
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.5);
+        doc.setTextColor(BLUE);
+        doc.text("Mobile & Whatsapp", margin + 96, pillY + 6);
+      };et page = 1;
       drawHeader();
       drawInfo();
       y = 242;
