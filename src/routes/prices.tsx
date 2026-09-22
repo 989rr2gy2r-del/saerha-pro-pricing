@@ -93,30 +93,58 @@ function Prices() {
       setLoading(true);
       setError(null);
 
-      const [productsResult, pricesResult] = await Promise.all([
-        supabase
-          .from("products")
-          .select("id, sku, name_ar, name_en, short_name, unit, brand, category_main")
-          .order("sku", { ascending: true }),
-        supabase
-          .from("prices")
-          .select(
-            "id, product_id, price_type, customer_id, amount, currency, source, customers(name)",
-          )
-          .order("product_id", { ascending: true })
-          .order("price_type", { ascending: true }),
+      // Supabase returns a maximum of 1000 rows per request by default.
+      // Load all products and prices in pages so imported prices are not silently omitted.
+      const pageSize = 1000;
+
+      const loadAllProducts = async () => {
+        const rows: ProductRow[] = [];
+        for (let from = 0; ; from += pageSize) {
+          const { data, error: pageError } = await supabase
+            .from("products")
+            .select("id, sku, name_ar, name_en, short_name, unit, brand, category_main")
+            .order("sku", { ascending: true })
+            .range(from, from + pageSize - 1);
+
+          if (pageError) throw new Error(pageError.message);
+          const page = (data ?? []) as ProductRow[];
+          rows.push(...page);
+          if (page.length < pageSize) break;
+        }
+        return rows;
+      };
+
+      const loadAllPrices = async () => {
+        const rows: PriceRecord[] = [];
+        for (let from = 0; ; from += pageSize) {
+          const { data, error: pageError } = await supabase
+            .from("prices")
+            .select(
+              "id, product_id, price_type, customer_id, amount, currency, source, customers(name)",
+            )
+            .order("product_id", { ascending: true })
+            .order("price_type", { ascending: true })
+            .range(from, from + pageSize - 1);
+
+          if (pageError) throw new Error(pageError.message);
+          const page = (data ?? []) as PriceRecord[];
+          rows.push(...page);
+          if (page.length < pageSize) break;
+        }
+        return rows;
+      };
+
+      const [nextProducts, allPrices] = await Promise.all([
+        loadAllProducts(),
+        loadAllPrices(),
       ]);
 
-      if (productsResult.error) throw new Error(productsResult.error.message);
-      if (pricesResult.error) throw new Error(pricesResult.error.message);
-
-      const nextProducts = (productsResult.data ?? []) as ProductRow[];
       const nextMap: Record<string, PriceRecord[]> = {};
 
-      (pricesResult.data ?? []).forEach((row) => {
+      allPrices.forEach((row) => {
         const productId = String(row.product_id);
         if (!nextMap[productId]) nextMap[productId] = [];
-        nextMap[productId].push(row as PriceRecord);
+        nextMap[productId].push(row);
       });
 
       setProducts(nextProducts);
