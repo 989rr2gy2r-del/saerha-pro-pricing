@@ -574,38 +574,6 @@ export async function upsertPrice(input: {
   changed_by?: string | null;
   reason?: string;
 }) {
-  if (typeof window !== "undefined") {
-    const response = await fetch("/api/supabase-write", {
-      method: "POST",
-      headers: await getAuthenticatedApiHeaders(),
-      body: JSON.stringify({
-        table: "prices",
-        action: "upsert",
-        payload: {
-          product_id: input.product_id,
-          price_type: input.price_type,
-          customer_id: input.customer_id ?? null,
-          amount: input.amount,
-          currency: input.currency ?? "KWD",
-          source: input.source ?? "manual",
-          is_active: true,
-          valid_from: new Date().toISOString(),
-        },
-        filters: [
-          { column: "product_id", value: input.product_id },
-          { column: "price_type", value: input.price_type },
-          { column: "customer_id", value: input.customer_id ?? null },
-        ],
-        select:
-          "id, product_id, price_type, customer_id, amount, currency, source, valid_from, valid_to, is_active",
-      }),
-    });
-    const body = await response.json();
-    if (!response.ok || body?.success === false)
-      throw new Error(body?.error ?? "تعذر تحديث السعر.");
-    return body.data;
-  }
-
   if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
 
   let priceQuery = supabase
