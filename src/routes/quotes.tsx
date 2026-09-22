@@ -213,7 +213,7 @@ function Quotes() {
           "K":"wnnnnnnww","L":"nnwnnnnww","M":"wnwnnnnwn","N":"nnnnwnnww","O":"wnnnwnnwn",
           "P":"nnwnwnnwn","Q":"nnnnnnwww","R":"wnnnnnwwn","S":"nnwnnnwwn","T":"nnnnwnwwn",
           "U":"wwnnnnnnw","V":"nwwnnnnnw","W":"wwwnnnnnn","X":"nwwnwnnnn","Y":"wwnnwnnnn",
-          "Z":"nwwwnnnnn","-":"nwwnnnnnw"," ":"":""
+          "Z":"nwwwnnnnn","-":"nwwnnnnnw"," ":"nwwnwnwnn"
         };
         const normalized = raw.toUpperCase().replace(/[^0-9A-Z\- ]/g, "");
         const text = `*${normalized}*`;
