@@ -1,7 +1,7 @@
 import { COMPANY, SYSTEM } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
-const logoSrc = "/al-awab-logo.svg";
+const logoSrc = `${import.meta.env.BASE_URL}al-awab-logo.svg`;
 
 /** شعار شركة الأواب الرسمي — أصل ثابت داخل المشروع حتى يظهر في GitHub Pages والصفحات الداخلية. */
 export function AlAwabLogo({ className }: { className?: string }) {
