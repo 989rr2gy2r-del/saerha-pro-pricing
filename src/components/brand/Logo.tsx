@@ -2,8 +2,7 @@ import { COMPANY, SYSTEM } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
 // الشعار الرسمي المرفوع من الشركة، محفوظ كما هو في المستودع.
-const logoSrc =
-  "https://raw.githubusercontent.com/989rr2gy2r-del/saerha-pro-pricing/e16c19e6156aa29c0a32550d27468737035b727d/public/al-awab-logo.svg";
+const logoSrc = `${import.meta.env.BASE_URL}al-awab-logo.jpg`;
 
 export function AlAwabLogo({ className }: { className?: string }) {
   return (
@@ -11,11 +10,11 @@ export function AlAwabLogo({ className }: { className?: string }) {
       src={logoSrc}
       alt={COMPANY.nameAr}
       width={90}
-      height={120}
+      height={90}
       loading="eager"
       decoding="async"
       className={cn(
-        "block h-20 w-[90px] shrink-0 rounded-md bg-white object-contain",
+        "block h-20 w-20 shrink-0 bg-white object-contain",
         className,
       )}
     />
@@ -32,7 +31,7 @@ export function BrandLockup({
   const onDark = variant === "dark";
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <AlAwabLogo className="h-20 w-[90px] shrink-0" />
+      <AlAwabLogo className="h-20 w-20 shrink-0" />
       <div className="min-w-0">
         <div className="flex items-baseline gap-2">
           <span
