@@ -272,6 +272,11 @@ function normalizeForMatch(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[٠-٩]/g, (char) => "٠١٢٣٤٥٦٧٨٩".indexOf(char).toString())
     .replace(/[أآإ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/ء/g, "")
+    .replace(/ـ/g, "")
     .replace(/[ة]/g, "ة")
     .replace(/[`~!@#$%^&*()_+=\]{}\\|;:'",<>/?]/g, " ")
     .replace(/[_/\\-]+/g, " ")
@@ -381,30 +386,55 @@ function NewOrder() {
       return productOptions.slice(0, 25);
     }
 
-    return productOptions.filter(({ value }) => {
-      const product = products.find((entry) => entry.id === value);
-      if (!product) return false;
+    const queryTokens = normalizedQuery.split(" ").filter(Boolean);
 
-      const haystack = [
-        product.sku,
-        product.name_ar,
-        product.name_en,
-        product.short_name,
-        product.brand,
-        product.model,
-        product.size,
-        product.category_main,
-        product.category_sub,
-        product.category_third,
-        product.product_group,
-        product.description,
-        product.unit,
-      ]
-        .filter(Boolean)
-        .join(" ");
+    return productOptions
+      .map((option) => {
+        const product = products.find((entry) => entry.id === option.value);
+        if (!product) return null;
 
-      return normalizeForMatch(haystack).includes(normalizedQuery);
-    });
+        const fields = [
+          product.sku,
+          product.name_ar,
+          product.name_en,
+          product.short_name,
+          product.brand,
+          product.model,
+          product.size,
+          product.category_main,
+          product.category_sub,
+          product.category_third,
+          product.product_group,
+          product.description,
+          product.unit,
+        ]
+          .filter(Boolean)
+          .map((value) => normalizeForMatch(String(value)));
+
+        const haystack = fields.join(" ");
+        if (!haystack) return null;
+
+        // Very sensitive partial search:
+        // "ف" -> every field containing ف
+        // "في" -> every field containing في
+        // "فيو" -> every field containing فيو
+        // "فيوز" -> every field containing فيوز
+        // Multiple words must all occur somewhere in the product data.
+        const matches = queryTokens.every((token) => haystack.includes(token));
+        if (!matches) return null;
+
+        const exactField = fields.some((field) => field === normalizedQuery);
+        const startsField = fields.some((field) => field.startsWith(normalizedQuery));
+        const containsField = fields.some((field) => field.includes(normalizedQuery));
+
+        return {
+          option,
+          score: exactField ? 3 : startsField ? 2 : containsField ? 1 : 0,
+        };
+      })
+      .filter((entry): entry is { option: (typeof productOptions)[number]; score: number } => Boolean(entry))
+      .sort((a, b) => b.score - a.score || a.option.label.localeCompare(b.option.label, "ar"))
+      .map((entry) => entry.option);
   };
 
   const loadCustomers = async () => {
@@ -1177,7 +1207,7 @@ function NewOrder() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>سعر الوحدة (د.ك)</Label>
+                            <Label>السعر (د.ك)</Label>
                             <Input
                               type="number"
                               min={0}
@@ -1192,7 +1222,7 @@ function NewOrder() {
                             </p>
                           </div>
                           <div className="space-y-2">
-                            <Label>إجمالي السطر (د.ك)</Label>
+                            <Label>الإجمالي (د.ك)</Label>
                             <Input
                               value={item.priceAmount !== null ? (Number(item.priceAmount) * Number(item.quantity || 0)).toFixed(3) : ""}
                               readOnly
