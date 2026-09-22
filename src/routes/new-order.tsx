@@ -522,7 +522,7 @@ function NewOrder() {
     }
     patchReviewItem(index, (item) => {
       const nextStatus: MatchStatus = selected ? "HIGH_CONFIDENCE" : "UNMATCHED";
-      return {
+      const nextItem = {
         ...item,
         product: selected,
         accepted: Boolean(selected),
@@ -530,6 +530,8 @@ function NewOrder() {
         status: nextStatus,
         matchReason: selected ? "تم اختيار منتج يدويًا من قاعدة المنتجات" : "لم يتم اختيار منتج",
       };
+      if (selected) void refreshPreviewPrices([nextItem], customerId);
+      return nextItem;
     });
   };
 
