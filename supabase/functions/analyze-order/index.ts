@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 const MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
-const MODEL_TIMEOUT_MS = 8000;
+const MODEL_TIMEOUT_MS = 12000;
 const MAX_IMAGE_BASE64 = 8_000_000;
 
 function json(data: unknown, status = 200) {
@@ -103,7 +103,8 @@ async function callGemini(
     );
     const responseText = await response.text();
     if (!response.ok) {
-      throw new Error(`Gemini ${model} HTTP ${response.status}`);
+      const detail = responseText.slice(0, 240).replace(/\s+/g, " ");
+      throw new Error(`Gemini ${model} HTTP ${response.status}: ${detail}`);
     }
     const result = normalize(extractText(JSON.parse(responseText)));
     return result;
@@ -173,7 +174,7 @@ ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
       return json({ success: true, result });
     } catch {
       return json(
-        { success: false, error: "تعذر تحليل الطلبية بسرعة كافية. ستتم القراءة المحلية تلقائيًا." },
+        { success: false, error: "محرك القراءة الذكي لم يُكمل التحليل ضمن المهلة. ستتم القراءة المحلية تلقائيًا." },
         503,
       );
     }
