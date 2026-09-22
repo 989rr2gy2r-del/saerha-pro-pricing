@@ -390,7 +390,7 @@ function Quotes() {
         return y + rowHeight;
       };
 
-      const drawTotalsAndF      const drawTotalsAndFooter = (y: number) => {
+      const drawTotalsAndFooter = (y: number) => {
         const boxW = 190;
         const rowH = 23;
         const boxX = margin;
