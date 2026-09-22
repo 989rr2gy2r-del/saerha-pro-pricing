@@ -799,16 +799,21 @@ function NewOrder() {
           ? "reseller"
           : "retail";
 
-      const today = new Date().toISOString().slice(0, 10);
+      const now = new Date();
       const quoteLines = validItems.map((item) => {
         const productId = item.product!.id;
-        const rows = (priceRows ?? []).filter(
-          (row) =>
+        const rows = (priceRows ?? []).filter((row) => {
+          const validFrom = new Date(row.valid_from);
+          const validTo = row.valid_to ? new Date(row.valid_to) : null;
+          return (
             row.product_id === productId &&
-            row.valid_from <= today &&
-            (!row.valid_to || row.valid_to > today) &&
-            Number(row.amount) >= 0,
-        );
+            !Number.isNaN(validFrom.getTime()) &&
+            validFrom.getTime() <= now.getTime() &&
+            (!validTo ||
+              (!Number.isNaN(validTo.getTime()) && validTo.getTime() > now.getTime())) &&
+            Number(row.amount) >= 0
+          );
+        });
         const customerSpecial = rows
           .filter((row) => row.price_type === "customer_special" && row.customer_id === customerId)
           .sort((a, b) => String(b.valid_from).localeCompare(String(a.valid_from)))[0];
