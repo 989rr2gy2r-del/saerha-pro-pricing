@@ -7,9 +7,9 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
-const MODEL_TIMEOUT_MS = 12000;
-const MAX_IMAGE_BASE64 = 8_000_000;
+const MODELS = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"];
+const MODEL_TIMEOUT_MS = 18000;
+const MAX_IMAGE_BASE64 = 12_000_000;
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -64,6 +64,8 @@ function extractText(payload: any) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start >= 0 && end > start) text = text.slice(start, end + 1);
+  // Gemini may return a JSON object wrapped in markdown or with a stray BOM.
+  text = text.replace(/^\\uFEFF/, "").trim();
   return JSON.parse(text);
 }
 
@@ -95,8 +97,32 @@ async function callGemini(
           }],
           generationConfig: {
             responseMimeType: "application/json",
-            temperature: 0,
-            maxOutputTokens: 2048,
+            responseSchema: {
+              type: "object",
+              properties: {
+                items: {
+                  type: "array",
+                  maxItems: 100,
+                  items: {
+                    type: "object",
+                    properties: {
+                      description: { type: "string" },
+                      quantity: { type: "number" },
+                      unit: { type: "string" },
+                      raw_text: { type: "string" },
+                      confidence: { type: "number" },
+                      notes: { type: "string" },
+                    },
+                    required: ["description", "quantity", "unit", "raw_text", "confidence", "notes"],
+                    additionalProperties: false,
+                  },
+                },
+                notes: { type: "string" },
+              },
+              required: ["items", "notes"],
+              additionalProperties: false,
+            },
+            maxOutputTokens: 4096,
           },
         }),
       },
@@ -130,8 +156,16 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "غير مصرح لك بتحليل الطلبات." }, 403);
     }
 
-    const apiKey = Deno.env.get("GEMINI_API_KEY");
-    if (!apiKey) return json({ success: false, error: "محرك القراءة الذكي غير مهيأ على الخادم." }, 503);
+    const apiKey =
+      Deno.env.get("GEMINI_API_KEY") ||
+      Deno.env.get("GOOGLE_API_KEY") ||
+      Deno.env.get("GOOGLE_GENERATIVE_AI_API_KEY");
+    if (!apiKey) {
+      return json(
+        { success: false, error: "مفتاح Gemini غير موجود في إعدادات الخادم (GEMINI_API_KEY)." },
+        503,
+      );
+    }
 
     const body = await req.json();
     const image = typeof body?.image === "string" ? body.image : "";
@@ -150,11 +184,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    const prompt = `أنت محرك قراءة طلبيات لمحل مواد كهربائية وصحية اسمه "سعّرها".
-اقرأ الطلبية بدقة واستخرج الأصناف والبيانات الظاهرة فقط.
+    const prompt = `أنت محرك OCR وفهم بصري متخصص في قراءة طلبيات العملاء لمحل مواد كهربائية وصحية اسمه "سعّرها".
+اقرأ الصورة سطرًا سطرًا من أعلى إلى أسفل. ميّز بين اسم الصنف والكمية والوحدة وأي كود ظاهر. إذا كان النص غير واضح، احتفظ به في raw_text ولا تخمّن. استخرج كل سطر يبدو كصنف حتى لو كانت الكتابة عربية أو إنجليزية أو مختلطة.
 أرجع JSON فقط بهذا الشكل:
 {"items":[{"description":"اسم الصنف كما ظهر","quantity":0,"unit":"الوحدة","raw_text":"النص الأصلي","confidence":0,"notes":"ملاحظات"}],"notes":"ملاحظات عامة"}
-لا تخترع صنفًا أو SKU أو سعرًا. لا تخمن الكمية. احتفظ بالنص الأصلي قدر الإمكان. confidence بين 0 و1.
+لا تخترع صنفًا أو SKU أو سعرًا. لا تخمن الكمية. إذا لم تستطع قراءة الكمية فاجعلها 0. احتفظ بالنص الأصلي قدر الإمكان، ولا تدمج سطرين مختلفين في سطر واحد. confidence بين 0 و1.
 ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
 
     try {
@@ -172,9 +206,19 @@ ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
         ),
       );
       return json({ success: true, result });
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown";
+      console.error("Gemini analysis failed", message);
+      const statusMatch = message.match(/HTTP (\\d{3})/);
+      const upstreamStatus = statusMatch ? Number(statusMatch[1]) : 0;
+      const userMessage =
+        upstreamStatus === 401 || upstreamStatus === 403
+          ? "مفتاح Gemini مرفوض أو غير صالح على الخادم. تم تفعيل القراءة المحلية الاحتياطية."
+          : upstreamStatus === 429
+            ? "تم تجاوز حد Gemini مؤقتًا. ستتم القراءة المحلية الاحتياطية."
+            : "محرك القراءة الذكي لم يُكمل التحليل ضمن المهلة. ستتم القراءة المحلية الاحتياطية.";
       return json(
-        { success: false, error: "محرك القراءة الذكي لم يُكمل التحليل ضمن المهلة. ستتم القراءة المحلية تلقائيًا." },
+        { success: false, error: userMessage, code: upstreamStatus || "GEMINI_FAILED" },
         503,
       );
     }
