@@ -364,186 +364,117 @@ function normalizePrice(value: unknown): number | null {
 export async function importProductsAndPrices(
   rows: ProductImportRow[],
 ): Promise<ProductImportSummary> {
-
-
   if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
 
-  const summary: ProductImportSummary = {
-    new: 0,
-    updated: 0,
-    priceChanged: 0,
-    duplicate: 0,
-    error: 0,
-  };
+  const summary: ProductImportSummary = { new: 0, updated: 0, priceChanged: 0, duplicate: 0, error: 0 };
   const seen = new Set<string>();
+  const cleanRows: Array<{ row: ProductImportRow; sku: string; nameAr: string; nameEn: string }> = [];
 
   for (const row of rows) {
-    const status: "active" | "inactive" = row.status === "inactive" ? "inactive" : "active";
-    const sku = normalizeImportString(row.sku || row.nameAr || row.nameEn)
-      .replace(/\s+/g, " ")
-      .trim();
+    const sku = normalizeImportString(row.sku || row.nameAr || row.nameEn).replace(/\s+/g, " ").trim();
     const nameAr = normalizeImportString(row.nameAr || row.nameEn);
     const nameEn = normalizeImportString(row.nameEn || row.nameAr);
-
     if (!sku || (!nameAr && !nameEn)) {
       summary.error += 1;
       continue;
     }
-
-    const normalizedSku = sku.toLowerCase();
-    if (seen.has(normalizedSku)) {
+    const key = sku.toLowerCase();
+    if (seen.has(key)) {
       summary.duplicate += 1;
       continue;
     }
-    seen.add(normalizedSku);
+    seen.add(key);
+    cleanRows.push({ row, sku, nameAr, nameEn });
+  }
 
-    const { data: existingProduct, error: existingProductError } = await supabase
+  const chunkSize = 250;
+  const existingSkuSet = new Set<string>();
+  for (let i = 0; i < cleanRows.length; i += chunkSize) {
+    const skus = cleanRows.slice(i, i + chunkSize).map((entry) => entry.sku);
+    const { data, error } = await supabase.from("products").select("sku").in("sku", skus);
+    if (error) throw new Error(error.message);
+    for (const item of data ?? []) existingSkuSet.add(String(item.sku).toLowerCase());
+  }
+
+  const productBySku = new Map<string, string>();
+  for (let i = 0; i < cleanRows.length; i += chunkSize) {
+    const batch = cleanRows.slice(i, i + chunkSize);
+    const payload = batch.map(({ row, sku, nameAr, nameEn }) => ({
+      sku,
+      name_ar: nameAr || nameEn || "منتج",
+      name_en: nameEn || "",
+      short_name: normalizeImportString(row.shortName || row.nameAr || row.nameEn || ""),
+      brand: normalizeImportString(row.brand || ""),
+      category_main: normalizeImportString(row.category1 || ""),
+      category_sub: normalizeImportString(row.category2 || ""),
+      category_third: normalizeImportString(row.category3 || ""),
+      product_group: normalizeImportString(row.group || ""),
+      model: normalizeImportString(row.model || ""),
+      size: normalizeImportString(row.size || ""),
+      color: normalizeImportString(row.color || ""),
+      description: normalizeImportString(row.description || ""),
+      unit: normalizeImportString(row.unit || "حبة"),
+      status: row.status === "inactive" ? "inactive" : "active",
+    }));
+
+    const { data, error } = await supabase
       .from("products")
-      .select("id")
-      .eq("sku", sku)
-      .maybeSingle();
+      .upsert(payload as Database["public"]["Tables"]["products"]["Insert"][], { onConflict: "sku" })
+      .select("id, sku");
+    if (error) throw new Error(error.message);
 
-    if (existingProductError) throw new Error(existingProductError.message);
+    for (const item of data ?? []) productBySku.set(String(item.sku).toLowerCase(), String(item.id));
+  }
 
-    let productId = existingProduct?.id;
+  summary.new = cleanRows.filter(({ sku }) => !existingSkuSet.has(sku.toLowerCase())).length;
+  summary.updated = cleanRows.length - summary.new;
 
-    if (existingProduct) {
-      const payload = {
-        name_ar: normalizeImportString(row.nameAr || nameAr || nameEn),
-        name_en: nameEn || "",
-        short_name: normalizeImportString(row.shortName || row.nameAr || row.nameEn || ""),
-        brand: normalizeImportString(row.brand || ""),
-        category_main: normalizeImportString(row.category1 || ""),
-        category_sub: normalizeImportString(row.category2 || ""),
-        category_third: normalizeImportString(row.category3 || ""),
-        product_group: normalizeImportString(row.group || ""),
-        model: normalizeImportString(row.model || ""),
-        size: normalizeImportString(row.size || ""),
-        color: normalizeImportString(row.color || ""),
-        description: normalizeImportString(row.description || ""),
-        unit: normalizeImportString(row.unit || "حبة"),
-        status: status as ProductStatus,
-      };
-
-      const { error: updateError } = await supabase
-        .from("products")
-        .update(payload as Database["public"]["Tables"]["products"]["Update"])
-        .eq("id", String(existingProduct.id));
-      if (updateError) throw new Error(updateError.message);
-      summary.updated += 1;
-    } else {
-      const payload = {
-        sku,
-        name_ar: nameAr || nameEn || "منتج",
-        name_en: nameEn || "",
-        short_name: normalizeImportString(row.shortName || row.nameAr || row.nameEn || ""),
-        brand: normalizeImportString(row.brand || ""),
-        category_main: normalizeImportString(row.category1 || ""),
-        category_sub: normalizeImportString(row.category2 || ""),
-        category_third: normalizeImportString(row.category3 || ""),
-        product_group: normalizeImportString(row.group || ""),
-        model: normalizeImportString(row.model || ""),
-        size: normalizeImportString(row.size || ""),
-        color: normalizeImportString(row.color || ""),
-        description: normalizeImportString(row.description || ""),
-        unit: normalizeImportString(row.unit || "حبة"),
-        status: status as ProductStatus,
-      };
-
-      const { data: insertedProduct, error: insertError } = await supabase
-        .from("products")
-        .insert(payload as Database["public"]["Tables"]["products"]["Insert"])
-        .select("id")
-        .single();
-      if (insertError) throw new Error(insertError.message);
-      productId = insertedProduct.id;
-      summary.new += 1;
-    }
-
+  const priceRows: Array<Database["public"]["Tables"]["prices"]["Insert"]> = [];
+  for (const { row, sku } of cleanRows) {
+    const productId = productBySku.get(sku.toLowerCase());
     if (!productId) {
       summary.error += 1;
       continue;
     }
 
-    const priceChecks: Array<{
-      type: "retail" | "reseller" | "customer_special";
-      amount: unknown;
-      customerName?: string | null;
-    }> = [
-      { type: "retail", amount: row.retailPrice },
-      { type: "reseller", amount: row.resellerPrice },
-      {
-        type: "customer_special",
-        amount: row.customerSpecialPrice,
-        customerName: row.customerName ?? null,
-      },
-    ];
-
-    for (const priceCheck of priceChecks) {
-      const numericValue = normalizePrice(priceCheck.amount);
-      if (numericValue === null) continue;
-
-      if (priceCheck.type === "customer_special") {
-        const customerName = normalizeImportString(priceCheck.customerName || "");
-        if (!customerName) continue;
-
-        const { data: customerRow, error: customerError } = await supabase
-          .from("customers")
-          .select("id")
-          .ilike("name", customerName)
-          .maybeSingle();
-
-        if (customerError) throw new Error(customerError.message);
-        if (!customerRow) continue;
-
-        await upsertPrice({
-          product_id: productId,
-          price_type: "customer_special",
-          customer_id: customerRow.id,
-          amount: numericValue,
-          currency: normalizeImportString(row.currency || "KWD") || "KWD",
-          source: "excel_import",
-          reason: "Excel import customer price sync",
-        });
-        summary.priceChanged += 1;
-        continue;
-      }
-
-      const { data: existingPrice, error: existingPriceError } = await supabase
-        .from("prices")
-        .select("id, amount")
-        .eq("product_id", productId)
-        .eq("price_type", priceCheck.type)
-        .is("customer_id", null)
-        .maybeSingle();
-
-      if (existingPriceError) throw new Error(existingPriceError.message);
-
-      if (existingPrice) {
-        const before = Number(existingPrice.amount ?? 0);
-        if (Math.abs(before - numericValue) > 0.0001) {
-          await upsertPrice({
-            product_id: productId,
-            price_type: priceCheck.type,
-            amount: numericValue,
-            currency: normalizeImportString(row.currency || "KWD") || "KWD",
-            source: "excel_import",
-            reason: "Excel import base price update",
-          });
-          summary.priceChanged += 1;
-        }
-      } else {
-        await upsertPrice({
-          product_id: productId,
-          price_type: priceCheck.type,
-          amount: numericValue,
-          currency: normalizeImportString(row.currency || "KWD") || "KWD",
-          source: "excel_import",
-          reason: "Excel import base price insert",
-        });
-        summary.priceChanged += 1;
-      }
+    for (const [priceType, rawAmount] of [
+      ["retail", row.retailPrice],
+      ["reseller", row.resellerPrice],
+    ] as const) {
+      const amount = normalizePrice(rawAmount);
+      if (amount === null) continue;
+      priceRows.push({
+        product_id: productId,
+        price_type: priceType,
+        customer_id: null,
+        amount,
+        currency: normalizeImportString(row.currency || "KWD") || "KWD",
+        source: "excel_import",
+        is_active: true,
+        valid_from: new Date().toISOString(),
+      });
     }
+  }
+
+  // This import is a controlled bulk sync: replace base retail/reseller prices
+  // for the imported products, then insert the imported price snapshot in batches.
+  const productIds = [...new Set(priceRows.map((row) => String(row.product_id)))];
+  for (let i = 0; i < productIds.length; i += chunkSize) {
+    const ids = productIds.slice(i, i + chunkSize);
+    const { error } = await supabase
+      .from("prices")
+      .delete()
+      .in("product_id", ids)
+      .in("price_type", ["retail", "reseller"])
+      .is("customer_id", null);
+    if (error) throw new Error(error.message);
+  }
+
+  for (let i = 0; i < priceRows.length; i += chunkSize) {
+    const batch = priceRows.slice(i, i + chunkSize);
+    const { error } = await supabase.from("prices").insert(batch);
+    if (error) throw new Error(error.message);
+    summary.priceChanged += batch.length;
   }
 
   return summary;
