@@ -110,27 +110,167 @@ function Quotes() {
     );
   }, [quotes, search]);
 
-  const downloadPdf = (quote: Quote) => {
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const customer = getCustomerList(quote.customers)[0] ?? { name: "عميل", company: "" };
-    doc.setFontSize(18);
-    doc.text("عرض سعر", 40, 50);
-    doc.setFontSize(10);
-    doc.text(`رقم العرض: ${quote.reference}`, 40, 75);
-    doc.text(`العميل: ${customer.name ?? ""} - ${customer.company ?? ""}`, 40, 95);
-    doc.text(`التاريخ: ${quote.issue_date}`, 40, 115);
-    doc.text(`تاريخ الانتهاء: ${quote.expiry_date ?? ""}`, 40, 135);
-    doc.text(`العملة: KWD`, 40, 155);
-    let y = 190;
-    quote.quotation_items?.forEach((item: QuoteItem, idx: number) => {
-      doc.text(`${idx + 1}. ${item.product_name}`, 40, y);
-      doc.text(`${item.quantity} ${item.unit ?? "حبة"}`, 250, y);
-      doc.text(`${Number(item.unit_price ?? 0).toFixed(3)}`, 330, y);
-      doc.text(`${Number(item.discount_amount ?? 0).toFixed(3)}`, 410, y);
-      doc.text(`${Number(item.line_total ?? 0).toFixed(3)}`, 500, y);
+  const downloadPdf = async (quote: Quote) => {
+    try {
+      const fontResponse = await fetch(
+        `${import.meta.env.BASE_URL}fonts/NotoNaskhArabic-Regular.ttf`,
+      );
+      if (!fontResponse.ok) {
+        throw new Error("تعذر تحميل خط PDF العربي");
+      }
+
+      const fontBytes = new Uint8Array(await fontResponse.arrayBuffer());
+      let fontBase64 = "";
+      const chunkSize = 0x8000;
+      for (let i = 0; i < fontBytes.length; i += chunkSize) {
+        fontBase64 += String.fromCharCode(...fontBytes.subarray(i, i + chunkSize));
+      }
+      fontBase64 = btoa(fontBase64);
+
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      doc.addFileToVFS("NotoNaskhArabic-Regular.ttf", fontBase64);
+      doc.addFont("NotoNaskhArabic-Regular.ttf", "NotoNaskhArabic", "normal");
+      doc.setFont("NotoNaskhArabic", "normal");
+      doc.setLanguage("ar-KW");
+      doc.setR2L(false);
+
+      const processArabic = (value: string) =>
+        typeof (doc as jsPDF & { processArabic?: (text: string) => string }).processArabic ===
+        "function"
+          ? (doc as jsPDF & { processArabic: (text: string) => string }).processArabic(value)
+          : value;
+
+      const customer = getCustomerList(quote.customers)[0] ?? {
+        name: "عميل",
+        company: "",
+      };
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const right = pageWidth - 40;
+      let y = 48;
+
+      const addArabic = (
+        value: string,
+        x: number,
+        size: number,
+        options?: { align?: "left" | "center" | "right"; maxWidth?: number },
+      ) => {
+        doc.setFont("NotoNaskhArabic", "normal");
+        doc.setFontSize(size);
+        const text = processArabic(value);
+        doc.text(text, x, y, {
+          align: options?.align ?? "right",
+          maxWidth: options?.maxWidth,
+        });
+      };
+
+      doc.setFontSize(20);
+      doc.text(processArabic("عرض سعر"), pageWidth / 2, y, { align: "center" });
+      y += 28;
+      doc.setFontSize(12);
+      doc.text(processArabic("شركة الأواب لتجارة الجملة والتجزئة"), pageWidth / 2, y, {
+        align: "center",
+      });
+      y += 24;
+
+      doc.setFontSize(10);
+      addArabic(`رقم العرض: ${quote.reference}`, right, 10);
       y += 18;
-    });
-    doc.save(`${quote.reference}.pdf`);
+      addArabic(
+        `العميل: ${customer.name ?? ""}${customer.company ? ` — ${customer.company}` : ""}`,
+        right,
+        10,
+      );
+      y += 18;
+      addArabic(`التاريخ: ${quote.issue_date ?? ""}`, right, 10);
+      y += 18;
+      addArabic(`تاريخ الانتهاء: ${quote.expiry_date ?? ""}`, right, 10);
+      y += 18;
+      addArabic("العملة: دينار كويتي (KWD)", right, 10);
+      y += 22;
+
+      doc.setDrawColor(180);
+      doc.line(40, y, pageWidth - 40, y);
+      y += 22;
+
+      const columns = {
+        product: 555,
+        quantity: 300,
+        unitPrice: 225,
+        discount: 145,
+        total: 65,
+      };
+
+      doc.setFontSize(10);
+      doc.text(processArabic("المنتج"), columns.product, y, { align: "right" });
+      doc.text(processArabic("الكمية"), columns.quantity, y, { align: "center" });
+      doc.text(processArabic("سعر الوحدة"), columns.unitPrice, y, { align: "center" });
+      doc.text(processArabic("الخصم"), columns.discount, y, { align: "center" });
+      doc.text(processArabic("الإجمالي"), columns.total, y, { align: "center" });
+      y += 18;
+      doc.line(40, y, pageWidth - 40, y);
+      y += 20;
+
+      const ensureSpace = (height: number) => {
+        if (y + height > pageHeight - 55) {
+          doc.addPage();
+          doc.setFont("NotoNaskhArabic", "normal");
+          doc.setR2L(false);
+          y = 48;
+        }
+      };
+
+      quote.quotation_items?.forEach((item: QuoteItem, idx: number) => {
+        const productName = processArabic(String(item.product_name ?? ""));
+        const productLines = doc.splitTextToSize(productName, 205);
+        const rowHeight = Math.max(22, productLines.length * 15 + 8);
+        ensureSpace(rowHeight);
+
+        doc.setFontSize(9.5);
+        doc.text(productLines, columns.product, y, {
+          align: "right",
+          maxWidth: 205,
+        });
+        doc.text(String(item.quantity ?? 0), columns.quantity, y, { align: "center" });
+        doc.text(Number(item.unit_price ?? 0).toFixed(3), columns.unitPrice, y, {
+          align: "center",
+        });
+        doc.text(Number(item.discount_amount ?? 0).toFixed(3), columns.discount, y, {
+          align: "center",
+        });
+        doc.text(Number(item.line_total ?? 0).toFixed(3), columns.total, y, {
+          align: "center",
+        });
+
+        y += rowHeight;
+        doc.setDrawColor(225);
+        doc.line(40, y - 7, pageWidth - 40, y - 7);
+        y += 7;
+      });
+
+      ensureSpace(70);
+      y += 12;
+      doc.setFontSize(11);
+      doc.text(processArabic(`الإجمالي: ${Number(quote.total ?? 0).toFixed(3)} KWD`), right, y, {
+        align: "right",
+      });
+
+      if (quote.notes) {
+        y += 22;
+        doc.setFontSize(9);
+        doc.text(processArabic(String(quote.notes)), right, y, {
+          align: "right",
+          maxWidth: pageWidth - 80,
+        });
+      }
+
+      doc.setFontSize(8);
+      doc.text("Saerha — AL-AWAB", pageWidth / 2, pageHeight - 25, { align: "center" });
+      doc.save(`${quote.reference}.pdf`);
+    } catch (error) {
+      console.error("PDF export failed", error);
+      window.alert("تعذر إنشاء ملف PDF. حاول مرة أخرى.");
+    }
   };
 
   return (
@@ -217,7 +357,7 @@ function Quotes() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => downloadPdf(q)}>PDF</Button>
+                        <Button variant="ghost" size="sm" onClick={() => void downloadPdf(q)}>PDF</Button>
                         <Button variant="ghost" size="sm" onClick={() => downloadExcel(q)}>
                           <FileSpreadsheet className="ml-1 h-4 w-4" /> Excel
                         </Button>
@@ -243,7 +383,7 @@ function Quotes() {
           {open && (
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => downloadPdf(open)}>PDF</Button>
+                <Button size="sm" onClick={() => void downloadPdf(open)}>PDF</Button>
                 <Button size="sm" variant="outline" onClick={() => downloadExcel(open)}>
                   <FileSpreadsheet className="ml-1 h-4 w-4" /> Excel
                 </Button>
