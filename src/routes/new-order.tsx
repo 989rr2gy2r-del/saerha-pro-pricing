@@ -1184,6 +1184,28 @@ function NewOrder() {
                           </div>
                         </div>
 
+                        <div className="mb-4 rounded-lg border bg-muted/30 p-3">
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">النص المقروء</Label>
+                              <p className="mt-1 text-sm font-medium" dir="auto">
+                                {item.description || item.raw_text || "غير واضح"}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">الفهم والترجمة العربية</Label>
+                              <p className="mt-1 text-sm font-bold text-primary" dir="rtl">
+                                {item.normalized_description_ar || "غير واضح — يحتاج مراجعة"}
+                              </p>
+                            </div>
+                          </div>
+                          {item.raw_text && item.raw_text !== item.description && (
+                            <p className="mt-2 text-[10px] text-muted-foreground" dir="auto">
+                              النص الأصلي: {item.raw_text}
+                            </p>
+                          )}
+                        </div>
+
                         <div className="grid gap-3 md:grid-cols-2">
                           <div className="space-y-2">
                             <Label>المنتج المقترح</Label>
