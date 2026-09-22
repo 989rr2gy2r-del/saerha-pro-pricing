@@ -487,9 +487,9 @@ function Quotes() {
       };
 
       let page = 1;
+      let y = 242;
       drawHeader();
       drawInfo();
-      y = 242;
       y = drawTableHeader(y);
       const items = quote.quotation_items ?? [];
 
