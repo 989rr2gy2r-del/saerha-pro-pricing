@@ -112,13 +112,14 @@ function Quotes() {
 
   const downloadPdf = async (quote: Quote) => {
     try {
-      const [fontResponse, logoResponse] = await Promise.all([
+      const [fontResponse, headerResponse, footerResponse] = await Promise.all([
         fetch(`${import.meta.env.BASE_URL}fonts/NotoNaskhArabic-Regular.ttf`),
-        fetch(`${import.meta.env.BASE_URL}al-awab-logo.jpg`),
+        fetch(`${import.meta.env.BASE_URL}invoice-header.png`),
+        fetch(`${import.meta.env.BASE_URL}invoice-footer.png`),
       ]);
 
-      if (!fontResponse.ok || !logoResponse.ok) {
-        throw new Error("تعذر تحميل موارد الفاتورة");
+      if (!fontResponse.ok || !headerResponse.ok || !footerResponse.ok) {
+        throw new Error("تعذر تحميل موارد الفاتورة الرسمية");
       }
 
       const toBase64 = async (response: Response) => {
@@ -131,9 +132,10 @@ function Quotes() {
         return btoa(binary);
       };
 
-      const [fontBase64, logoBase64] = await Promise.all([
+      const [fontBase64, headerBase64, footerBase64] = await Promise.all([
         toBase64(fontResponse),
-        toBase64(logoResponse),
+        toBase64(headerResponse),
+        toBase64(footerResponse),
       ]);
 
       const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -237,51 +239,20 @@ function Quotes() {
         drawText(normalized, x + width / 2, y + height + 12, 7.5, "center");
       };
 
+      const contentWidth = pageWidth - margin * 2;
+      const headerHeight = contentWidth * (180 / 830);
+      const footerHeight = contentWidth * (164 / 830);
+      const footerY = pageHeight - footerHeight;
+
       const drawHeader = () => {
-        doc.setFillColor(ORANGE);
-        doc.rect(0, 0, pageWidth, 4, "F");
-
-        // Official invoice-style company header.
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(17);
-        doc.setTextColor(ORANGE);
-        doc.text("AL-AWAB CO.", margin, 31);
-        doc.setFontSize(9.5);
-        doc.setTextColor(BLUE);
-        doc.text("FOR WHOLESALE AND RETAIL TRADE", margin, 45);
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(6.5);
-        doc.text("Al-Mangaf - Block 3 - Street 7 - Building 64 - Behind", margin, 58);
-        doc.text("the Fire Department - Near the Teachers Association", margin, 69);
-
-        // Official logo asset, preserved exactly.
-        doc.addImage(`data:image/png;base64,${logoBase64}`, "PNG", pageWidth / 2 - 31, 15, 62, 54);
-
-        doc.setFont("NotoNaskhArabic", "normal");
-        doc.setFontSize(18);
-        doc.setTextColor(ORANGE);
-        doc.text(processArabic("شركة الأواب"), right, 32, { align: "right" });
-        doc.setFontSize(10.5);
-        doc.setTextColor(BLUE);
-        doc.text(processArabic("لتجارة الجملة والتجزئة"), right, 47, { align: "right" });
-        doc.setFontSize(7.2);
-        doc.text(processArabic("المنقف - قطعة 3 - شارع 7 - عمارة 64"), right, 61, { align: "right" });
-        doc.text(processArabic("خلف المطافي - بالقرب من جمعية المعلمين"), right, 72, { align: "right" });
-
-        // The two blue bands intentionally match the company's invoice header.
-        doc.setFillColor(BLUE);
-        doc.rect(margin, 84, 185, 20, "F");
-        doc.rect(pageWidth - margin - 185, 84, 185, 20, "F");
-
-        doc.setFont("NotoNaskhArabic", "normal");
-        doc.setTextColor(BLUE);
-        doc.setFontSize(15);
-        doc.text(processArabic("فاتورة بيع"), pageWidth / 2, 99, { align: "center" });
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8.5);
-        doc.text("SALE INVOICE", pageWidth / 2, 112, { align: "center" });
+        // Official company header image: source of truth, preserved without crop or distortion.
+        doc.addImage(`data:image/png;base64,${headerBase64}`, "PNG", margin, 0, contentWidth, headerHeight);
       };
 
+      const drawFooter = () => {
+        // Official company footer image: source of truth, preserved without crop or distortion.
+        doc.addImage(`data:image/png;base64,${footerBase64}`, "PNG", margin, footerY, contentWidth, footerHeight);
+      };
       const drawInfo = () => {
         const top = 132;
         const row = 25;
@@ -390,7 +361,7 @@ function Quotes() {
         return y + rowHeight;
       };
 
-      const drawTotalsAndFooter = (y: number) => {
+      const drawTotals = (y: number) => {
         const boxW = 190;
         const rowH = 23;
         const boxX = margin;
@@ -425,67 +396,10 @@ function Quotes() {
         doc.setFontSize(10);
         doc.text(total.toFixed(3), boxX + 8, netY + 18);
 
-        // Barcode and explanatory text.
         drawCode39(quote.reference, pageWidth - margin - 170, y + 8, 170, 42);
         drawText("المبلغ الإجمالي شامل الخصم والضريبة", pageWidth - margin - 85, y + 77, 7.5, "center");
         drawText("تم إنشاء الفاتورة من الطلبية بعد مراجعة المنتج وسعره", pageWidth - margin - 85, y + 94, 7.5, "center");
-
-        // Official-style footer area: seller/receiver, page number, contact and product categories.
-        const footerY = pageHeight - 92;
-        doc.setDrawColor("#D4D9DE");
-        doc.line(margin, footerY - 18, pageWidth - margin, footerY - 18);
-
-        drawText("البائع: ........................................................", margin, footerY, 7.5, "left");
-        drawText("المستلم: ........................................................", right, footerY, 7.5, "right");
-
-        doc.setFont("NotoNaskhArabic", "normal");
-        doc.setFontSize(7);
-        doc.setTextColor(BLUE);
-        doc.text(processArabic("شركة الأواب لتجارة الجملة والتجزئة"), pageWidth / 2, footerY + 18, {
-          align: "center",
-        });
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(7);
-        doc.text(`${page}/1   ${quote.reference}`, pageWidth / 2, footerY + 31, {
-          align: "center",
-        });
-
-        const pillY = pageHeight - 42;
-        const pills = [
-          { x: margin, w: 78, label: "ULTRA", type: "ultra" },
-          { x: margin + 84, w: 142, label: "69940150 – 50203026", type: "whatsapp" },
-          { x: margin + 232, w: 92, label: "مواد بناء", type: "build" },
-          { x: margin + 330, w: 92, label: "مواد صحية", type: "health" },
-          { x: margin + 428, w: 92, label: "مواد كهربائية", type: "electric" },
-          { x: right - 66, w: 66, label: "turbo", type: "turbo" },
-        ];
-
-        pills.forEach((pill) => {
-          doc.setDrawColor("#4A86B8");
-          doc.setLineWidth(0.8);
-          doc.roundedRect(pill.x, pillY, pill.w, 18, 9, 9, "S");
-
-          if (pill.type === "ultra" || pill.type === "turbo") {
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(pill.type === "ultra" ? 10 : 11);
-            doc.setTextColor(BLUE);
-            doc.text(pill.label, pill.x + pill.w / 2, pillY + 12, { align: "center" });
-          } else {
-            doc.setFillColor(ORANGE);
-            doc.circle(pill.x + 12, pillY + 9, 7, "F");
-            doc.setFont("NotoNaskhArabic", "normal");
-            doc.setFontSize(6.8);
-            doc.setTextColor(BLUE);
-            doc.text(processArabic(pill.label), pill.x + 17, pillY + 12, { align: "left" });
-          }
-        });
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(6.5);
-        doc.setTextColor(BLUE);
-        doc.text("Mobile & Whatsapp", margin + 96, pillY + 6);
       };
-
       let page = 1;
       let y = 242;
       drawHeader();
@@ -494,8 +408,8 @@ function Quotes() {
       const items = quote.quotation_items ?? [];
 
       items.forEach((item, index) => {
-        if (y + 26 > pageHeight - 135) {
-          drawText(`صفحة ${page}`, right, pageHeight - 25, 7, "right");
+        if (y + 26 > footerY - 10) {
+          drawFooter();
           doc.addPage();
           page += 1;
           drawHeader();
@@ -505,8 +419,8 @@ function Quotes() {
         y = drawTableRow(y, item, index);
       });
 
-      if (y + 145 > pageHeight - 35) {
-        drawText(`صفحة ${page}`, right, pageHeight - 25, 7, "right");
+      if (y + 145 > footerY - 10) {
+        drawFooter();
         doc.addPage();
         page += 1;
         drawHeader();
@@ -514,8 +428,8 @@ function Quotes() {
         y = drawTableHeader(y);
       }
 
-      drawTotalsAndFooter(y + 14);
-      drawText(`صفحة ${page}`, right, pageHeight - 25, 7, "right");
+      drawTotals(y + 14);
+      drawFooter();
 
       doc.save(`${quote.reference}.pdf`);
     } catch (error) {
