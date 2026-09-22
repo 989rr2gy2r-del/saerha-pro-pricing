@@ -1,9 +1,9 @@
 import { COMPANY, SYSTEM } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
-const logoSrc = `${import.meta.env.BASE_URL}al-awab-logo.svg`;
+const logoSrc = `${import.meta.env.BASE_URL}al-awab-logo.jpg`;
 
-/** شعار شركة الأواب الرسمي — أصل ثابت داخل المشروع حتى يظهر في GitHub Pages والصفحات الداخلية. */
+/** شعار شركة الأواب الرسمي — يُستخدم كما هو دون إعادة رسم أو تعديل. */
 export function AlAwabLogo({ className }: { className?: string }) {
   return (
     <img
@@ -27,19 +27,23 @@ export function BrandLockup({
       <AlAwabLogo className="h-11 shrink-0" />
       <div className="min-w-0">
         <div className="flex items-baseline gap-2">
-          <span className={cn(
-            "truncate text-xl font-extrabold leading-tight",
-            onDark ? "text-primary-foreground" : "text-primary",
-          )}>
+          <span
+            className={cn(
+              "truncate text-xl font-extrabold leading-tight",
+              onDark ? "text-primary-foreground" : "text-primary",
+            )}
+          >
             {SYSTEM.nameAr}
           </span>
           <span className="text-[11px] font-bold text-accent">{SYSTEM.taglineAr}</span>
         </div>
         {showOwner && (
-          <p className={cn(
-            "truncate text-[11px] leading-tight",
-            onDark ? "text-primary-foreground/70" : "text-muted-foreground",
-          )}>
+          <p
+            className={cn(
+              "truncate text-[11px] leading-tight",
+              onDark ? "text-primary-foreground/70" : "text-muted-foreground",
+            )}
+          >
             {SYSTEM.ownerLineAr}
           </p>
         )}
