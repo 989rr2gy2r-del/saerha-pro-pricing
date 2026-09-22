@@ -134,7 +134,7 @@ async function prepareGeminiImage(file: File): Promise<string> {
     element.onerror = () => reject(new Error("تعذر فتح الصورة."));
     element.src = dataUrl;
   });
-  const maxSide = 1600;
+  const maxSide = 1280;
   const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
@@ -144,7 +144,7 @@ async function prepareGeminiImage(file: File): Promise<string> {
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "medium";
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.78);
+  return canvas.toDataURL("image/jpeg", 0.72);
 }
 
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number) {
@@ -663,7 +663,7 @@ function NewOrder() {
             fileType: first.type || first.name,
             text,
           }),
-        }, 28000);
+        }, 14000);
 
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data?.error || "تعذر تشغيل محرك القراءة الذكي.");
