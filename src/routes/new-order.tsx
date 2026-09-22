@@ -45,6 +45,7 @@ type MatchStatus = "HIGH_CONFIDENCE" | "NEEDS_REVIEW" | "UNMATCHED";
 type ReviewItem = {
   id: string;
   description: string;
+  normalized_description_ar: string;
   quantity: number;
   unit: string;
   raw_text: string;
@@ -299,41 +300,61 @@ function getPriceLookupKey(priceType: string): string {
   return map[priceType] ?? priceType;
 }
 
-function findLocalProductMatch(text: string, products: ProductRecord[]) {
-  const normalized = normalizeForMatch(text);
-  if (!normalized) return null;
+function similarityScore(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (a.includes(b) || b.includes(a)) return Math.min(a.length, b.length) / Math.max(a.length, b.length) * 0.95;
+  const aTokens = a.split(" ").filter(Boolean);
+  const bTokens = b.split(" ").filter(Boolean);
+  if (!aTokens.length || !bTokens.length) return 0;
+  const tokenHits = aTokens.filter((token) =>
+    bTokens.some((candidate) => candidate === token || candidate.includes(token) || token.includes(candidate)),
+  ).length;
+  return tokenHits / Math.max(aTokens.length, bTokens.length);
+}
+
+function findLocalProductMatch(text: string, products: ProductRecord[], normalizedArabic = "") {
+  const queries = [normalizeForMatch(text), normalizeForMatch(normalizedArabic)].filter(Boolean);
+  if (!queries.length) return null;
+
   const scored = products.map((product) => {
     const fields = [
-      { value: product.sku, weight: 1.0 },
-      { value: product.name_ar, weight: 0.95 },
-      { value: product.name_en, weight: 0.9 },
-      { value: product.short_name, weight: 0.9 },
-      { value: product.brand, weight: 0.65 },
-      { value: product.model, weight: 0.65 },
-      { value: product.size, weight: 0.55 },
-      { value: product.description, weight: 0.45 },
+      { value: product.sku, weight: 1.25 },
+      { value: product.name_ar, weight: 1.15 },
+      { value: product.name_en, weight: 1.1 },
+      { value: product.short_name, weight: 1.1 },
+      { value: product.brand, weight: 0.8 },
+      { value: product.model, weight: 0.85 },
+      { value: product.size, weight: 0.75 },
+      { value: product.description, weight: 0.65 },
+      { value: product.category_main, weight: 0.45 },
+      { value: product.category_sub, weight: 0.45 },
+      { value: product.category_third, weight: 0.4 },
+      { value: product.product_group, weight: 0.4 },
     ];
-    let score = 0;
-    for (const field of fields) {
-      if (!field.value) continue;
-      const candidate = normalizeForMatch(field.value);
-      if (!candidate) continue;
-      if (candidate === normalized) score = Math.max(score, field.weight);
-      else if (candidate.includes(normalized) || normalized.includes(candidate)) score = Math.max(score, field.weight * 0.9);
+    let best = 0;
+    for (const query of queries) {
+      for (const field of fields) {
+        if (!field.value) continue;
+        const candidate = normalizeForMatch(String(field.value));
+        if (!candidate) continue;
+        const score = similarityScore(query, candidate) * field.weight;
+        best = Math.max(best, score);
+      }
+
+      const queryTokens = query.split(" ").filter(Boolean);
+      if (queryTokens.length > 1) {
+        const haystack = normalizeForMatch(fields.map((field) => field.value).filter(Boolean).join(" "));
+        const overlap = queryTokens.filter((token) => haystack.includes(token)).length / queryTokens.length;
+        best = Math.max(best, overlap * 0.9);
+      }
     }
-    const tokens = normalized.split(" ").filter(Boolean);
-    if (tokens.length > 1) {
-      const haystack = normalizeForMatch([
-        product.sku, product.name_ar, product.name_en, product.short_name,
-        product.brand, product.model, product.size, product.description,
-      ].filter(Boolean).join(" "));
-      const overlap = tokens.filter((token) => haystack.includes(token)).length / tokens.length;
-      score = Math.max(score, overlap * 0.8);
-    }
-    return { product, score };
+    return { product, score: Math.min(best, 1.25) };
   }).sort((a, b) => b.score - a.score);
+
   const best = scored[0];
-  return best && best.score >= 0.65 ? best : null;
+  if (!best || best.score < 0.58) return null;
+  return best;
 }
 
 export const Route = createFileRoute("/new-order")({
@@ -809,6 +830,9 @@ function NewOrder() {
       const normalizedItems = rawItems.map((item, index: number) => ({
         id: `${Date.now()}-${index}`,
         description: String(item["description"] ?? item["raw_text"] ?? "").trim(),
+        normalized_description_ar: String(
+          item["normalized_description_ar"] ?? item["arabic_name"] ?? item["description"] ?? item["raw_text"] ?? "",
+        ).trim(),
         raw_text: String(item["raw_text"] ?? item["description"] ?? "").trim(),
         quantity: Number(item["quantity"] ?? 0),
         unit: String(item["unit"] ?? "").trim(),
@@ -819,7 +843,11 @@ function NewOrder() {
             // Match each extracted line against the products loaded from Supabase.
       // Keep the review state explicit so the user can confirm or correct every match.
       const matchedItems: ReviewItem[] = normalizedItems.map((item) => {
-        const match = findLocalProductMatch(item.description || item.raw_text, products);
+        const match = findLocalProductMatch(
+          item.description || item.raw_text,
+          products,
+          item.normalized_description_ar,
+        );
         const confidence = match ? Math.max(item.confidence, match.score) : item.confidence;
         const status: MatchStatus = match
           ? confidence >= 0.85
