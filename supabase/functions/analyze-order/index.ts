@@ -123,6 +123,9 @@ async function callGemini(
               additionalProperties: false,
             },
             maxOutputTokens: 4096,
+            ...(model.startsWith("gemini-3")
+              ? { thinkingConfig: { thinkingLevel: "low" } }
+              : {}),
           },
         }),
       },
@@ -209,7 +212,7 @@ ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown";
       console.error("Gemini analysis failed", message);
-      const statusMatch = message.match(/HTTP (\\d{3})/);
+      const statusMatch = message.match(/HTTP (\d{3})/);
       const upstreamStatus = statusMatch ? Number(statusMatch[1]) : 0;
       const userMessage =
         upstreamStatus === 401 || upstreamStatus === 403
