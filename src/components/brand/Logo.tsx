@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 // الشعار الرسمي المرفوع من الشركة، محفوظ كما هو في المستودع.
 const logoSrc =
-  "https://raw.githubusercontent.com/989rr2gy2r-del/saerha-pro-pricing/08b8956aca02cc9bf0f4c5d4f095f2f0f45e6ee6/public/al-awab-logo.jpg";
+  "https://raw.githubusercontent.com/989rr2gy2r-del/saerha-pro-pricing/e16c19e6156aa29c0a32550d27468737035b727d/public/al-awab-logo.svg";
 
 export function AlAwabLogo({ className }: { className?: string }) {
   return (
