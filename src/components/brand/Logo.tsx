@@ -2,6 +2,9 @@ import { COMPANY, SYSTEM } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
 // الشعار الرسمي المرفوع من الشركة، محفوظ كما هو في المستودع.
+// STRICT BRAND RULE: use the untouched official company logo asset only.
+// Never redraw, regenerate, crop, recolor, stretch, or replace this image.
+// Layout/CSS may control placement and containment only.
 const logoSrc = `${import.meta.env.BASE_URL}al-awab-logo.jpg`;
 
 export function AlAwabLogo({ className }: { className?: string }) {
@@ -14,7 +17,7 @@ export function AlAwabLogo({ className }: { className?: string }) {
       loading="eager"
       decoding="async"
       className={cn(
-        "block h-20 w-20 shrink-0 bg-white object-contain",
+        "block h-20 w-[60px] shrink-0 bg-transparent object-contain object-center",
         className,
       )}
     />
@@ -31,7 +34,7 @@ export function BrandLockup({
   const onDark = variant === "dark";
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <AlAwabLogo className="h-20 w-20 shrink-0" />
+      <AlAwabLogo className="h-20 w-[60px] shrink-0" />
       <div className="min-w-0">
         <div className="flex items-baseline gap-2">
           <span
