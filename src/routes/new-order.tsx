@@ -204,8 +204,35 @@ async function prepareOcrImage(file: File): Promise<HTMLCanvasElement> {
   return canvas;
 }
 
+function translateCommonEnglish(text: string): string {
+  let value = String(text ?? "").trim();
+  const replacements: Array<[RegExp, string]> = [
+    [/\\bpvc\\b/gi, "PVC"],
+    [/\\bpipe\\b/gi, "أنبوب"],
+    [/\\bcapling\\b|\\bcoupling\\b/gi, "وصلة"],
+    [/\\bdouble\\b/gi, "دبل"],
+    [/\\bmelbus\\b/gi, "ملبوش"],
+    [/\\bgi\\b/gi, "GI"],
+    [/\\bbox\\b/gi, "علبة"],
+    [/\\bbar\\b/gi, "بار"],
+    [/\\btape\\b/gi, "شريط"],
+    [/\\bconnector\\b/gi, "موصل"],
+    [/\\bwire\\b/gi, "سلك"],
+    [/\\bred\\b/gi, "أحمر"],
+    [/\\bblack\\b/gi, "أسود"],
+    [/\\byellow\\b/gi, "أصفر"],
+    [/\\bgreen\\b/gi, "أخضر"],
+    [/\\bgermany\\b/gi, "ألماني"],
+    [/\\bdozen\\b/gi, "دزينة"],
+    [/\\bmm\\b/gi, "ملم"],
+    [/\\bamps?\\b/gi, "أمبير"],
+  ];
+  for (const [pattern, replacement] of replacements) value = value.replace(pattern, replacement);
+  return value.replace(/\\s+/g, " ").trim();
+}
+
 function parseLocalOcrText(text: string) {
-  const units = "حبة|قطعة|علبة|كرتون|كرتونه|كرتون|متر|سم|مم|كجم|كغ|جم|غ|لتر|ل|مل|رول|لفة|باكيت|كيس|طقم|زوج|متر".split("|");
+  const units = "حبة|قطعة|علبة|كرتون|كرتونه|كرتون|متر|سم|مم|كجم|كغ|جم|غ|لتر|ل|مل|رول|لفة|باكيت|كيس|طقم|زوج|rolls?|pcs?|pieces?|pc|dozen|box|boxes|bag|set".split("|");
   const unitPattern = units.join("|");
   const lines = text
     .split(/\r?\n/)
@@ -214,7 +241,7 @@ function parseLocalOcrText(text: string) {
 
   return lines.map((line, index) => {
     let description = line;
-    let quantity = 0;
+    let quantity: number | null = null;
     let unit = "";
 
     const startMatch = line.match(new RegExp(`^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?\\s+(.+)$`, "i"));
@@ -222,19 +249,20 @@ function parseLocalOcrText(text: string) {
 
     if (startMatch) {
       quantity = Number(String(startMatch[1] ?? "").replace(/[٠-٩]/g, (c: string) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(",", "."));
-      unit = startMatch[2] ?? "";
+      unit = normalizeUnitValue(startMatch[2] ?? "");
       description = startMatch[3].trim();
     } else if (endMatch) {
       quantity = Number(String(endMatch[2] ?? "").replace(/[٠-٩]/g, (c: string) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(",", "."));
-      unit = endMatch[3] ?? "";
+      unit = normalizeUnitValue(endMatch[3] ?? "");
       description = endMatch[1].trim();
     }
 
     return {
       id: `ocr-${Date.now()}-${index}`,
       description,
+      normalized_description_ar: /[A-Za-z]/.test(description) ? translateCommonEnglish(description) : description,
       raw_text: line,
-      quantity: Number.isFinite(quantity) ? quantity : 0,
+      quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : null,
       unit,
       confidence: 0.45,
       notes: "تمت القراءة محليًا من الصورة؛ راجع السطر قبل اعتماد العرض.",
