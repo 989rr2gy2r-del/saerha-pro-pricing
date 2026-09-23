@@ -14,6 +14,8 @@ const UNIT_ALIASES: Record<string, string> = {
   "لتر": "l", "لترات": "l", "liter": "l", "litre": "l", "l": "l",
   "مل": "ml", "مليلتر": "ml", "milliliter": "ml", "ml": "ml",
   "متر": "m", "امتار": "m", "meter": "m", "metre": "m", "m": "m",
+  "رول": "roll", "لفة": "roll", "roll": "roll", "rolls": "roll",
+  "باكيت": "pkt", "باكيتات": "pkt", "pkt": "pkt", "packet": "pkt", "pack": "pkt",
   "سم": "cm", "سنتيمتر": "cm", "cm": "cm",
   "مم": "mm", "مليمتر": "mm", "mm": "mm",
 };
