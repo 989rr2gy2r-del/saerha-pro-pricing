@@ -257,12 +257,17 @@ function parseLocalOcrText(text: string) {
       description = endMatch[1].trim();
     }
 
+    const safeQuantity =
+      typeof quantity === "number" && Number.isFinite(quantity) && quantity > 0
+        ? quantity
+        : null;
+
     return {
       id: `ocr-${Date.now()}-${index}`,
       description,
       normalized_description_ar: /[A-Za-z]/.test(description) ? translateCommonEnglish(description) : description,
       raw_text: line,
-      quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : null,
+      quantity: safeQuantity,
       unit,
       confidence: 0.45,
       notes: "تمت القراءة محليًا من الصورة؛ راجع السطر قبل اعتماد العرض.",
