@@ -473,7 +473,7 @@ function NewOrder() {
     [products],
   );
 
-  const MAX_RENDERED_PRODUCT_RESULTS = 80;
+  const MAX_RENDERED_PRODUCT_RESULTS = 150;
 
   const filterProductOptions = (query: string) => {
     const normalizedQuery = normalizeForMatch(query);
@@ -729,46 +729,92 @@ function NewOrder() {
   };
 
   const refreshPreviewPrices = async (items: ReviewItem[], selectedCustomerId = "") => {
-    const productIds = items.filter((item) => !item.rejected && item.product).map((item) => item.product!.id);
+    const pricedItems = items.filter((item) => !item.rejected && item.product);
+    const productIds = pricedItems.map((item) => item.product!.id);
     if (!productIds.length) return;
+
     try {
       let customerType = "retail";
       if (selectedCustomerId) {
-        const { data } = await (supabase as any).from("customers").select("customer_type").eq("id", selectedCustomerId).maybeSingle();
+        const { data } = await (supabase as any)
+          .from("customers")
+          .select("customer_type")
+          .eq("id", selectedCustomerId)
+          .maybeSingle();
         customerType = data?.customer_type ?? "retail";
       }
+
       const uniqueProductIds = [...new Set(productIds)];
-      const [{ data: priceRows, error }, { data: conversionRows, error: conversionError }] =
-        await Promise.all([
-          supabase
-            .from("prices")
-            .select("product_id, price_type, customer_id, amount, valid_from, valid_to, is_active")
-            .in("product_id", uniqueProductIds),
-          (supabase as any)
-            .from("unit_conversions")
-            .select("from_unit, to_unit, multiplier, product_id")
-            .or("product_id.is.null,product_id.in.(" + uniqueProductIds.join(",") + ")"),
-        ]);
-      if (error) throw error;
-      if (conversionError) throw conversionError;
+      const { data: priceRows, error: priceError } = await supabase
+        .from("prices")
+        .select("product_id, price_type, customer_id, amount, valid_from, valid_to, is_active")
+        .in("product_id", uniqueProductIds);
+      if (priceError) throw priceError;
+
       const now = Date.now();
+      const preferredType =
+        customerType === "wholesale" || customerType === "contractor" || customerType === "government"
+          ? "reseller"
+          : "retail";
+
+      // Only query conversions when at least one requested unit differs from
+      // the product base unit. This keeps normal/base-unit pricing independent
+      // of the optional conversion table.
+      const needsConversion = pricedItems.some((item) => {
+        const requested = (item.unit || item.product!.unit || "حبة").trim().toLowerCase();
+        const base = (item.product!.unit || requested).trim().toLowerCase();
+        return requested !== base;
+      });
+
+      let conversionRows: Array<{
+        from_unit: string;
+        to_unit: string;
+        multiplier: number;
+        product_id: string | null;
+      }> = [];
+
+      if (needsConversion) {
+        const [{ data: productConversions, error: productConversionError }, { data: globalConversions, error: globalConversionError }] =
+          await Promise.all([
+            (supabase as any)
+              .from("unit_conversions")
+              .select("from_unit, to_unit, multiplier, product_id")
+              .in("product_id", uniqueProductIds),
+            (supabase as any)
+              .from("unit_conversions")
+              .select("from_unit, to_unit, multiplier, product_id")
+              .is("product_id", null),
+          ]);
+        if (productConversionError) throw productConversionError;
+        if (globalConversionError) throw globalConversionError;
+        conversionRows = [
+          ...((globalConversions ?? []) as typeof conversionRows),
+          ...((productConversions ?? []) as typeof conversionRows),
+        ];
+      }
+
       setAnalysisResult((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
           items: prev.items.map((item) => {
-            if (!item.product) return item;
-            const rows = (priceRows ?? []).filter((row) => {
-              const from = new Date(row.valid_from).getTime();
-              const to = row.valid_to ? new Date(row.valid_to).getTime() : null;
-              return row.product_id === item.product!.id && row.is_active !== false &&
-                Number.isFinite(from) && from <= now &&
-                (!to || (Number.isFinite(to) && to > now)) && Number(row.amount) >= 0;
-            });
-            const preferredType =
-              customerType === "wholesale" || customerType === "contractor" || customerType === "government"
-                ? "reseller"
-                : "retail";
+            if (!item.product || item.rejected) return item;
+
+            const rows = (priceRows ?? [])
+              .filter((row) => {
+                const from = new Date(row.valid_from).getTime();
+                const to = row.valid_to ? new Date(row.valid_to).getTime() : null;
+                return (
+                  row.product_id === item.product!.id &&
+                  row.is_active !== false &&
+                  Number.isFinite(from) &&
+                  from <= now &&
+                  (!to || (Number.isFinite(to) && to > now)) &&
+                  Number(row.amount) >= 0
+                );
+              })
+              .sort((a, b) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime());
+
             const chosen =
               rows.find((row) => row.price_type === "customer_special" && row.customer_id === selectedCustomerId) ??
               rows.find((row) => row.price_type === preferredType && !row.customer_id) ??
@@ -779,36 +825,44 @@ function NewOrder() {
               return {
                 ...item,
                 priceAmount: null,
+                basePriceAmount: null,
+                basePriceUnit: item.product!.unit ?? "",
                 priceType: null,
                 priceLabel: "لا يوجد سعر فعال",
               };
             }
 
-            const requestedUnit = item.unit || item.product!.unit || "حبة";
-            const baseUnit = item.product!.unit || requestedUnit;
+            const basePrice = Number(chosen.amount);
+            const requestedUnit = (item.unit || item.product!.unit || "حبة").trim();
+            const baseUnit = (item.product!.unit || requestedUnit).trim();
+            const sameUnit = requestedUnit.toLowerCase() === baseUnit.toLowerCase();
+
+            if (sameUnit) {
+              return {
+                ...item,
+                priceAmount: Number.isFinite(basePrice) ? basePrice : null,
+                basePriceAmount: Number.isFinite(basePrice) ? basePrice : null,
+                basePriceUnit: baseUnit,
+                priceType: chosen.price_type,
+                priceLabel: getPriceLookupKey(chosen.price_type),
+              };
+            }
+
             const conversion = convertQuantity(
               1,
               requestedUnit,
               baseUnit,
-              (conversionRows ?? []) as unknown as Array<{
-                from_unit: string;
-                to_unit: string;
-                multiplier: number;
-                product_id: string | null;
-              }>,
+              conversionRows,
               item.product!.id,
             );
 
-            if (
-              requestedUnit.trim() &&
-              baseUnit.trim() &&
-              !conversion.converted &&
-              requestedUnit.trim().toLowerCase() !== baseUnit.trim().toLowerCase()
-            ) {
+            if (!conversion.converted) {
               return {
                 ...item,
                 priceAmount: null,
-                priceType: null,
+                basePriceAmount: Number.isFinite(basePrice) ? basePrice : null,
+                basePriceUnit: baseUnit,
+                priceType: chosen.price_type,
                 priceLabel: conversion.reason ?? "لا توجد تحويلة للوحدة المطلوبة",
                 notes: [item.notes, conversion.reason ?? "لا توجد تحويلة للوحدة المطلوبة"]
                   .filter(Boolean)
@@ -816,26 +870,45 @@ function NewOrder() {
               };
             }
 
-            const requestedUnitPrice = Number(chosen.amount) * conversion.multiplier;
+            const requestedUnitPrice = basePrice * conversion.multiplier;
             return {
               ...item,
               priceAmount: Number.isFinite(requestedUnitPrice) ? requestedUnitPrice : null,
+              basePriceAmount: Number.isFinite(basePrice) ? basePrice : null,
+              basePriceUnit: baseUnit,
               priceType: chosen.price_type,
               priceLabel: getPriceLookupKey(chosen.price_type),
             };
           }),
         };
       });
-    } catch {
-      // Keep analysis usable if preview pricing fails.
+    } catch (error) {
+      console.error("Saerha preview pricing failed", error);
+      setAnalysisResult((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: prev.items.map((item) =>
+            item.product && !item.rejected
+              ? {
+                  ...item,
+                  priceAmount: null,
+                  priceType: null,
+                  priceLabel: "تعذر جلب السعر — أعد المحاولة",
+                }
+              : item,
+          ),
+        };
+      });
+      setAnalysisError("تعذر جلب الأسعار من قاعدة البيانات. لم يتم اختراع أي سعر.");
     }
   };
 
   useEffect(() => {
-    if (customerId && analysisResult?.items?.length) {
+    if (analysisResult?.items?.length) {
       void refreshPreviewPrices(analysisResult.items, customerId);
     }
-  }, [customerId]);
+  }, [customerId, analysisResult?.items?.length]);
 
   const handleQuantityChange = (index: number, value: number) => {
     patchReviewItem(index, (item) => ({
@@ -845,7 +918,11 @@ function NewOrder() {
   };
 
   const handleUnitChange = (index: number, value: string) => {
-    patchReviewItem(index, (item) => ({ ...item, unit: value }));
+    const current = analysisResult?.items[index];
+    if (!current) return;
+    const nextItem = { ...current, unit: value };
+    patchReviewItem(index, () => nextItem);
+    if (nextItem.product) void refreshPreviewPrices([nextItem], customerId);
   };
 
   const handlePriceChange = (index: number, value: number) => {
@@ -1425,7 +1502,11 @@ function NewOrder() {
                                               }
                                               placeholder="ابحث بالاسم أو الكود أو الماركة..."
                                               className="h-9"
+                                              onPointerDown={(event) => event.stopPropagation()}
+                                              onMouseDown={(event) => event.stopPropagation()}
+                                              onFocus={(event) => event.stopPropagation()}
                                               onKeyDown={(event) => {
+                                                event.stopPropagation();
                                                 if (event.key === "Escape") {
                                                   event.preventDefault();
                                                   setProductSearches((previous) => ({
