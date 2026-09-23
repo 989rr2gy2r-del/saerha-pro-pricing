@@ -281,7 +281,6 @@ ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
           diagnostic: { attempts },
         }, 503);
       }
-    }
   } catch (error) {
     console.error("analyze-order", error);
     return json({ success: false, error: "حدث خطأ أثناء قراءة الطلبية." }, 500);
