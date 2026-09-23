@@ -283,34 +283,6 @@ ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
         }, 503);
       }
     }
-      const lastAttempt = attempts.at(-1);
-      const lastError = lastAttempt?.error || "Gemini analysis failed";
-      const upstreamStatus = lastAttempt?.upstreamStatus ?? null;
-      return json(
-        {
-          success: false,
-          error: lastError,
-          code: upstreamStatus || "GEMINI_FAILED",
-          diagnostic: {
-            attempts,
-            lastError,
-          },
-        },
-        503,
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown";
-      console.error("Gemini analysis failed", message);
-      return json(
-        {
-          success: false,
-          error: message.slice(0, 800),
-          code: "GEMINI_RUNTIME_ERROR",
-          diagnostic: { attempts, lastError: message.slice(0, 800) },
-        },
-        503,
-      );
-    }
   } catch (error) {
     console.error("analyze-order", error);
     return json({ success: false, error: "حدث خطأ أثناء قراءة الطلبية." }, 500);
