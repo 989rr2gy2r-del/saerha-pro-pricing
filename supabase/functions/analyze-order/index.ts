@@ -236,7 +236,7 @@ ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
       return json(
         {
           success: false,
-          error: "Gemini analysis failed.",
+          error: lastError,
           code: upstreamStatus || "GEMINI_FAILED",
           diagnostic: {
             attempts,
@@ -251,7 +251,7 @@ ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
       return json(
         {
           success: false,
-          error: "Gemini analysis failed.",
+          error: message.slice(0, 800),
           code: "GEMINI_RUNTIME_ERROR",
           diagnostic: { attempts, lastError: message.slice(0, 800) },
         },
