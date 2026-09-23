@@ -242,24 +242,47 @@ ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
 
     const attempts: Array<{ model: string; error: string; upstreamStatus: number | null }> = [];
     try {
-      for (const model of MODELS) {
-        try {
-          const result = await callGemini(apiKey, model.id, model.timeoutMs, mimeType, base64Data, prompt);
+      try {
+        const result = await callGemini(apiKey, MODELS[0].id, MODELS[0].timeoutMs, mimeType, base64Data, prompt);
+        const confidences = result.items.map((item) => item.confidence).filter((value) => value > 0);
+        const averageConfidence = confidences.length
+          ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length
+          : 0;
+        if (result.items.length > 0 && averageConfidence >= 0.78) {
           return json({ success: true, result });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "unknown";
-          const statusMatch = message.match(/HTTP (\d{3})/);
-          const upstreamStatus = statusMatch ? Number(statusMatch[1]) : null;
-          attempts.push({
-            model: model.id,
-            error: message.slice(0, 800),
-            upstreamStatus,
-          });
-          console.warn(`Gemini ${model.id} failed`, message);
-          if (error instanceof Error && /HTTP (401|403)/.test(error.message)) break;
         }
+        // A structurally valid but uncertain result gets one quality pass.
+        const reviewed = await callGemini(
+          apiKey,
+          MODELS[1].id,
+          MODELS[1].timeoutMs,
+          mimeType,
+          base64Data,
+          prompt + "\n\nهذه مراجعة ثانية للحالة غير المؤكدة. لا تخترع أي معلومة؛ ركز على قراءة الصفوف والكمية والوحدة بدقة.",
+        );
+        return json({ success: true, result: reviewed });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "unknown";
+        const statusMatch = message.match(/HTTP (\d{3})/);
+        const upstreamStatus = statusMatch ? Number(statusMatch[1]) : null;
+        attempts.push({
+          model: MODELS[0].id,
+          error: message.slice(0, 800),
+          upstreamStatus,
+        });
+        console.warn(`Gemini ${MODELS[0].id} failed`, message);
+        return json({
+          success: false,
+          error: /AbortError|aborted|signal has been aborted/i.test(message)
+            ? "انتهت مهلة القراءة الذكية. سيتم تشغيل القراءة الاحتياطية."
+            : message.slice(0, 800),
+          code: /AbortError|aborted|signal has been aborted/i.test(message)
+            ? "GEMINI_TIMEOUT"
+            : upstreamStatus || "GEMINI_FAILED",
+          diagnostic: { attempts },
+        }, 503);
       }
-
+    }
       const lastAttempt = attempts.at(-1);
       const lastError = lastAttempt?.error || "Gemini analysis failed";
       const upstreamStatus = lastAttempt?.upstreamStatus ?? null;
