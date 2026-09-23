@@ -798,7 +798,7 @@ function NewOrder() {
         return {
           ...prev,
           items: prev.items.map((item) => {
-            if (!item.product || item.rejected) return item;
+            if (!item.product || item.rejected || item.priceType === "manual_quote") return item;
 
             const rows = (priceRows ?? [])
               .filter((row) => {
@@ -1022,6 +1022,22 @@ function NewOrder() {
           const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
           return `ورقة: ${sheetName}\n${csv}`;
         }).join("\n\n");
+      } else if (first.type === "application/pdf" || /\.pdf$/i.test(first.name)) {
+        setProgress(20);
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () =>
+            typeof reader.result === "string"
+              ? resolve(reader.result)
+              : reject(new Error("تعذر قراءة ملف PDF."));
+          reader.onerror = () => reject(new Error("تعذر قراءة ملف PDF."));
+          reader.readAsDataURL(first);
+        });
+        if (!/^data:application\/pdf;base64,/i.test(dataUrl)) {
+          throw new Error("تعذر تجهيز ملف PDF للتحليل.");
+        }
+        image = dataUrl;
+        setProgress(35);
       } else {
         setProgress(20);
         image = await prepareGeminiImage(first);
@@ -1257,6 +1273,17 @@ function NewOrder() {
             : null;
         const chosen = customerSpecial ?? preferred ?? retail ?? reseller ?? null;
         const requestedUnit = item.unit || item.product!.unit || "حبة";
+        if (manualPrice !== null) {
+          return {
+            ...item,
+            quantity: Number(item.quantity),
+            unit: requestedUnit,
+            priceAmount: manualPrice,
+            priceType: "manual_quote",
+            priceLabel: "سعر يدوي",
+          };
+        }
+
         const conversion = convertQuantity(
           Number(item.quantity),
           requestedUnit,
@@ -1270,18 +1297,27 @@ function NewOrder() {
           productId,
         );
         if (
-          manualPrice === null &&
-          (!chosen || (conversion.reason && conversion.quantity === Number(item.quantity) && requestedUnit !== (item.product!.unit || requestedUnit)))
+          !chosen ||
+          (conversion.reason &&
+            conversion.quantity === Number(item.quantity) &&
+            requestedUnit !== (item.product!.unit || requestedUnit))
         ) {
-          return { ...item, priceAmount: null, priceType: null, priceLabel: "لا يوجد سعر مناسب", quantity: conversion.quantity, unit: item.product!.unit || requestedUnit };
+          return {
+            ...item,
+            priceAmount: null,
+            priceType: null,
+            priceLabel: "لا يوجد سعر مناسب",
+            quantity: conversion.quantity,
+            unit: item.product!.unit || requestedUnit,
+          };
         }
         return {
           ...item,
           quantity: conversion.quantity,
           unit: item.product!.unit || requestedUnit,
-          priceAmount: manualPrice ?? Number(chosen!.amount),
-          priceType: manualPrice !== null ? "manual_quote" : chosen!.price_type,
-          priceLabel: manualPrice !== null ? "سعر يدوي" : getPriceLookupKey(chosen!.price_type),
+          priceAmount: Number(chosen.amount),
+          priceType: chosen.price_type,
+          priceLabel: getPriceLookupKey(chosen.price_type),
         };
       });
 
