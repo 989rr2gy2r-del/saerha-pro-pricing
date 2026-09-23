@@ -93,7 +93,7 @@ function Quotes() {
         "id, reference, issue_date, expiry_date, price_type, discount_amount, tax_amount, subtotal, total, currency, status, notes, customers(name, company, phone), quotation_items(id, product_name, sku, quantity, unit, unit_price, discount_amount, line_total)",
       )
       .order("issue_date", { ascending: false });
-    if (!error) setQuotes((data ?? []) as Quote[]);
+    if (!error) setQuotes((data ?? []) as unknown as Quote[]);
     setLoading(false);
   };
 
@@ -125,7 +125,7 @@ function Quotes() {
     );
   }, [quotes, search]);
 
-  const downloadPdf = async (quote: Quote) => {
+  const downloadExcel = (quote: Quote) => {\n    const rows = (quote.quotation_items ?? []).map((item) => ({ SKU: item.sku ?? "", Product: item.product_name ?? "", Quantity: item.quantity ?? 0, Unit: item.unit ?? "", UnitPrice: item.unit_price ?? 0, Discount: item.discount_amount ?? 0, Total: item.line_total ?? 0 }));\n    const workbook = XLSX.utils.book_new();\n    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), "Quotation");\n    XLSX.writeFile(workbook, `${quote.reference}.xlsx`);\n  };\n\n  const openWhatsApp = async (quote: Quote) => {\n    const phone = getCustomerList(quote.customers)[0]?.phone?.replace(/\\D/g, "");\n    const message = `عرض سعر ${quote.reference} بإجمالي ${Number(quote.total ?? 0).toFixed(3)} KWD`;\n    const url = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`;\n    window.open(url, "_blank", "noopener,noreferrer");\n  };\n\n  const downloadPdf = async (quote: Quote) => {
     try {
       const [fontResponse, headerResponse, footerResponse] = await Promise.all([
         fetch(`${import.meta.env.BASE_URL}fonts/NotoNaskhArabic-Regular.ttf`),
