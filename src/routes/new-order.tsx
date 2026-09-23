@@ -218,11 +218,11 @@ function parseLocalOcrText(text: string) {
     const endMatch = line.match(new RegExp(`^(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?$`, "i"));
 
     if (startMatch) {
-      quantity = Number(String(startMatch[1] ?? "").replace(/[٠-٩]/g, (c) => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(",", "."));
+      quantity = Number(String(startMatch[1] ?? "").replace(/[٠-٩]/g, (c: string) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(",", "."));
       unit = startMatch[2] ?? "";
       description = startMatch[3].trim();
     } else if (endMatch) {
-      quantity = Number(String(endMatch[2] ?? "").replace(/[٠-٩]/g, (c) => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(",", "."));
+      quantity = Number(String(endMatch[2] ?? "").replace(/[٠-٩]/g, (c: string) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(",", "."));
       unit = endMatch[3] ?? "";
       description = endMatch[1].trim();
     }
@@ -966,12 +966,12 @@ function NewOrder() {
       const productIds = validItems.map((item) => item.product!.id);
       const [{ data: priceRows, error: priceError }, { data: conversionRows, error: conversionError }] =
         await Promise.all([
-          supabase
+          (supabase as any)
             .from("prices")
             .select("id, product_id, price_type, customer_id, amount, currency, source, valid_from, valid_to")
             .in("product_id", productIds)
             .order("valid_from", { ascending: false }),
-          supabase
+          (supabase as any)
             .from("unit_conversions")
             .select("from_unit, to_unit, multiplier, product_id")
             .or(`product_id.is.null,product_id.in.(${productIds.join(",")})`),
@@ -1023,7 +1023,7 @@ function NewOrder() {
           Number(item.quantity),
           requestedUnit,
           item.product!.unit || requestedUnit,
-          (conversionRows ?? []) as Array<{
+          (conversionRows ?? []) as unknown as Array<{
             from_unit: string;
             to_unit: string;
             multiplier: number;
