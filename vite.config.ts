@@ -43,7 +43,7 @@ export default defineConfig({
     },
   },
   vite: {
-    base: process.env.GITHUB_ACTIONS === "true" ? "/saerha-pro-pricing/" : "/",
+    base: process.env["GITHUB_ACTIONS"] === "true" ? "/saerha-pro-pricing/" : "/",
     define: supabaseClientEnv,
   },
 });
