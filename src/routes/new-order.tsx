@@ -57,6 +57,8 @@ type ReviewItem = {
   rejected: boolean;
   accepted: boolean;
   priceAmount: number | null;
+  basePriceAmount?: number | null;
+  basePriceUnit?: string;
   priceType: string | null;
   priceLabel: string;
 };
