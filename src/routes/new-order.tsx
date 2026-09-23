@@ -177,27 +177,21 @@ async function prepareOcrImage(file: File): Promise<HTMLCanvasElement> {
     element.src = dataUrl;
   });
 
-  const scale = Math.min(2.5, Math.max(1.5, 2200 / Math.max(image.naturalWidth, image.naturalHeight)));
+  // Keep the local OCR canvas bounded. Upscaling a phone photo to 6K+ pixels
+  // makes Tesseract dramatically slower without improving normal order OCR.
+  const scale = Math.min(1.5, 1800 / Math.max(image.naturalWidth, image.naturalHeight));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
   canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
   const context = canvas.getContext("2d");
   if (!context) throw new Error("تعذر تجهيز الصورة للقراءة.");
   context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
+  context.imageSmoothingQuality = "medium";
+  // Let the browser do grayscale/contrast during drawing instead of copying
+  // and rewriting every pixel with getImageData/putImageData.
+  context.filter = "grayscale(1) contrast(1.25)";
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-  const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-  for (let i = 0; i < pixels.data.length; i += 4) {
-    const gray = Math.round(
-      0.299 * pixels.data[i] + 0.587 * pixels.data[i + 1] + 0.114 * pixels.data[i + 2],
-    );
-    const boosted = Math.max(0, Math.min(255, (gray - 128) * 1.35 + 128));
-    pixels.data[i] = boosted;
-    pixels.data[i + 1] = boosted;
-    pixels.data[i + 2] = boosted;
-  }
-  context.putImageData(pixels, 0, 0);
+  context.filter = "none";
   return canvas;
 }
 
@@ -929,7 +923,7 @@ function NewOrder() {
             fileType: first.type || first.name,
             text,
           }),
-        }, 30000);
+        }, 15000);
 
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data?.error || "تعذر تشغيل محرك القراءة الذكي.");
