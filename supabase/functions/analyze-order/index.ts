@@ -8,8 +8,8 @@ const corsHeaders = {
 };
 
 const MODELS = [
-  { id: "gemini-3.5-flash-lite", timeoutMs: 10000 },
-  { id: "gemini-3.6-flash", timeoutMs: 12000 },
+  { id: "gemini-3.5-flash-lite", timeoutMs: 25000 },
+  { id: "gemini-3.6-flash", timeoutMs: 30000 },
 ];
 
 const MAX_IMAGE_BASE64 = 12_000_000;
