@@ -48,7 +48,7 @@ export const Route = createFileRoute("/api/match-order" as any)({
               text,
               products,
               aliases,
-              (product) => product.id,
+              (product) => (product as { id: string }).id,
             );
             const best = candidates[0] ?? null;
             return {
