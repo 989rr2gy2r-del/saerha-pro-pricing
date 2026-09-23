@@ -402,7 +402,7 @@ function findLocalProductMatch(
   // For Arabic source text, never let an AI-normalized phrase add brand/model/color
   // details that were not present in the original line. For non-Arabic input we
   // can use the normalized Arabic translation to search the Arabic catalog.
-  const rawContainsArabic = /[\\u0600-\\u06FF]/.test(String(text ?? ""));
+  const rawContainsArabic = /[\u0600-\u06FF]/.test(String(text ?? ""));
   const queries = rawContainsArabic
     ? [rawQuery].filter(Boolean)
     : [rawQuery, translatedQuery].filter(Boolean);
