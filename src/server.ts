@@ -34,9 +34,9 @@ function isH3SwallowedErrorBody(body: string): boolean {
 }
 
 export default {
-  async fetch(request: Request, env: unknown, ctx: unknown) {
+  async fetch(request: Request, env: unknown) {
     try {
-      const response = await handler.fetch(request, env, ctx);
+      const response = await handler.fetch(request, env);
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
       console.error(error);
