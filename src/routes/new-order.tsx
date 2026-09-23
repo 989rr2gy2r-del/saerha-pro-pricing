@@ -549,7 +549,7 @@ function NewOrder() {
     const userId = sessionData.session?.user?.id;
     if (!userId) return;
 
-    const { error } = await supabase.from("ai_corrections").insert({
+    const { error } = await (supabase as any).from("ai_corrections").insert({
       product_id: item.product.id,
       raw_text: rawText,
       normalized_text: normalizedText,
@@ -559,7 +559,7 @@ function NewOrder() {
     if (error) throw error;
 
     if (addAlias) {
-      const { error: aliasError } = await supabase.from("product_aliases").upsert(
+      const { error: aliasError } = await (supabase as any).from("product_aliases").upsert(
         {
           product_id: item.product.id,
           alias: rawText,
@@ -646,7 +646,7 @@ function NewOrder() {
     try {
       let customerType = "retail";
       if (selectedCustomerId) {
-        const { data } = await supabase.from("customers").select("customer_type").eq("id", selectedCustomerId).maybeSingle();
+        const { data } = await (supabase as any).from("customers").select("customer_type").eq("id", selectedCustomerId).maybeSingle();
         customerType = data?.customer_type ?? "retail";
       }
       const { data: priceRows, error } = await supabase
@@ -1104,7 +1104,7 @@ function NewOrder() {
           ];
         });
 
-      const { error: itemsError } = await supabase.from("quotation_items").insert(itemRows);
+      const { error: itemsError } = await (supabase as any).from("quotation_items").insert(itemRows);
       if (itemsError) throw itemsError;
 
       setAnalysisError("");
