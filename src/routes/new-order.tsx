@@ -906,6 +906,7 @@ function NewOrder() {
       }
 
       let rawResult: Record<string, unknown>;
+      let fallbackNotice = "";
       try {
         const supabaseUrl =
           import.meta.env["VITE_SUPABASE_URL"] ||
@@ -943,13 +944,13 @@ function NewOrder() {
         const timedOut = serverError instanceof DOMException && serverError.name === "AbortError";
         const serverMessage =
           serverError instanceof Error ? serverError.message.trim() : "";
-        setAnalysisError(
+        fallbackNotice =
           timedOut
             ? "القراءة الذكية تأخرت قليلًا؛ جارٍ تشغيل القراءة المحلية الاحتياطية."
             : serverMessage
               ? `تعذر تشغيل القراءة الذكية: ${serverMessage} — جارٍ تشغيل القراءة المحلية الاحتياطية.`
-              : "تعذر تشغيل القراءة الذكية؛ جارٍ تشغيل القراءة المحلية الاحتياطية.",
-        );
+              : "تعذر تشغيل القراءة الذكية؛ جارٍ تشغيل القراءة المحلية الاحتياطية.";
+        setAnalysisError(fallbackNotice);
         setProgress(30);
         // Do not start local OCR while Gemini is running. On mobile this
         // competes for CPU/network and makes the primary smart-reading path slower.
@@ -1023,7 +1024,7 @@ function NewOrder() {
         };
       });
 
-      setAnalysisError("");
+      setAnalysisError(fallbackNotice);
       setAnalysisResult({
         items: matchedItems,
         notes: String(rawResult["notes"] ?? "").trim(),
