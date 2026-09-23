@@ -492,35 +492,52 @@ function NewOrder() {
   }> => {
     try {
       const pageSize = 1000;
+      // Fetch the 4,583-product catalog in parallel pages instead of waiting
+      // for five sequential network round trips. If the catalog grows beyond
+      // 5,000 rows, continue in another parallel batch.
       const allProducts: ProductRecord[] = [];
-      for (let from = 0; ; from += pageSize) {
-        const { data, error } = await supabase
-          .from("products")
-          .select(PRODUCT_SELECT_FIELDS)
-          .order("name_ar", { ascending: true })
-          .range(from, from + pageSize - 1);
-        if (error) throw error;
-        const page = (data ?? []) as ProductRecord[];
-        allProducts.push(...page);
-        if (page.length < pageSize) break;
+      let from = 0;
+      while (true) {
+        const offsets = Array.from({ length: 5 }, (_, index) => from + index * pageSize);
+        const [pages, aliasResult] = await Promise.all([
+          Promise.all(
+            offsets.map(async (offset) => {
+              const { data, error } = await supabase
+                .from("products")
+                .select(PRODUCT_SELECT_FIELDS)
+                .order("name_ar", { ascending: true })
+                .range(offset, offset + pageSize - 1);
+              if (error) throw error;
+              return (data ?? []) as ProductRecord[];
+            }),
+          ),
+          from === 0
+            ? supabase.from("product_aliases").select("product_id, alias").limit(20000)
+            : Promise.resolve({ data: null, error: null }),
+        ]);
+
+        for (const page of pages) allProducts.push(...page);
+
+        if (pages.every((page) => page.length < pageSize)) {
+          const aliasRows = aliasResult.data ?? [];
+          const aliasError = aliasResult.error;
+          if (aliasError) throw aliasError;
+
+          const aliasMap: Record<string, string[]> = {};
+          for (const row of aliasRows ?? []) {
+            const alias = String(row.alias ?? "").trim();
+            if (!alias) continue;
+            aliasMap[row.product_id] = [...(aliasMap[row.product_id] ?? []), alias];
+          }
+
+          setProducts(allProducts);
+          setProductAliases(aliasMap);
+          return { products: allProducts, aliases: aliasMap };
+        }
+
+        from += pages.length * pageSize;
       }
 
-      const { data: aliasRows, error: aliasError } = await supabase
-        .from("product_aliases")
-        .select("product_id, alias")
-        .limit(20000);
-      if (aliasError) throw aliasError;
-
-      const aliasMap: Record<string, string[]> = {};
-      for (const row of aliasRows ?? []) {
-        const alias = String(row.alias ?? "").trim();
-        if (!alias) continue;
-        aliasMap[row.product_id] = [...(aliasMap[row.product_id] ?? []), alias];
-      }
-
-      setProducts(allProducts);
-      setProductAliases(aliasMap);
-      return { products: allProducts, aliases: aliasMap };
     } catch {
       setProducts([]);
       setProductAliases({});
