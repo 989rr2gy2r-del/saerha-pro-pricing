@@ -470,7 +470,7 @@ function NewOrder() {
     [products],
   );
 
-  const filterProductOptions = (query: string) => {
+  const MAX_RENDERED_PRODUCT_RESULTS = 80;\n\n  const filterProductOptions = (query: string) => {
     const normalizedQuery = normalizeForMatch(query);
     if (!normalizedQuery) {
       return productOptions.slice(0, 25);
@@ -1427,6 +1427,8 @@ function NewOrder() {
                                   const filtered = filterProductOptions(
                                     productSearches[item.id] ?? "",
                                   );
+                                  const visible = filtered.slice(0, MAX_RENDERED_PRODUCT_RESULTS);
+                                  const hasMore = filtered.length > visible.length;
 
                                   if (!filtered.length) {
                                     return (
@@ -1436,11 +1438,20 @@ function NewOrder() {
                                     );
                                   }
 
-                                  return filtered.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ));
+                                  return (
+                                    <>
+                                      {visible.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                      {hasMore && (
+                                        <div className="border-t px-3 py-2 text-center text-[11px] text-muted-foreground">
+                                          عرض {visible.length} من {filtered.length} نتيجة — ضيّق البحث بمزيد من الأحرف أو الكود.
+                                        </div>
+                                      )}
+                                    </>
+                                  );
                                 })()}
                               </SelectContent>
                             </Select>
@@ -1481,11 +1492,15 @@ function NewOrder() {
                               step="0.001"
                               value={item.priceAmount ?? ""}
                               onChange={(event) => handlePriceChange(index, Number(event.target.value))}
-                              placeholder="جاري جلب السعر..."
+                              placeholder={item.priceAmount === null ? "غير متاح بهذه الوحدة" : "جاري جلب السعر..."}
                               className="h-11 font-bold"
                             />
                             <p className="text-[10px] text-muted-foreground">
-                              {item.priceLabel === "سعر يدوي" ? "تم تعديل السعر يدويًا" : "مصدر السعر: " + item.priceLabel}
+                              {item.priceLabel === "سعر يدوي"
+                                ? "تم تعديل السعر يدويًا"
+                                : item.priceAmount === null && item.product?.unit
+                                  ? `لا يمكن تطبيق سعر ${item.product.unit} على ${item.unit || "الوحدة المطلوبة"} بدون تحويل.`
+                                  : "مصدر السعر: " + item.priceLabel}
                             </p>
                           </div>
                           <div className="space-y-2">
