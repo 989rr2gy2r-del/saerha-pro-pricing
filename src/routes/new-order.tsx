@@ -496,6 +496,7 @@ function NewOrder() {
       // for five sequential network round trips. If the catalog grows beyond
       // 5,000 rows, continue in another parallel batch.
       const allProducts: ProductRecord[] = [];
+      const aliasMap: Record<string, string[]> = {};
       let from = 0;
       while (true) {
         const offsets = Array.from({ length: 5 }, (_, index) => from + index * pageSize);
@@ -523,7 +524,6 @@ function NewOrder() {
           const aliasError = aliasResult.error;
           if (aliasError) throw aliasError;
 
-          const aliasMap: Record<string, string[]> = {};
           for (const row of aliasRows ?? []) {
             const alias = String(row.alias ?? "").trim();
             if (!alias) continue;
