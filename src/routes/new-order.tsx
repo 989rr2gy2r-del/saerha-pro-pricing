@@ -1498,8 +1498,8 @@ function NewOrder() {
                             <p className="text-[10px] text-muted-foreground">
                               {item.priceLabel === "سعر يدوي"
                                 ? "تم تعديل السعر يدويًا"
-                                : item.priceAmount === null && item.product?.unit
-                                  ? `لا يمكن تطبيق سعر ${item.product.unit} على ${item.unit || "الوحدة المطلوبة"} بدون تحويل.`
+                                : item.priceAmount === null && item.basePriceAmount != null
+                                  ? `سعر الأساس: ${Number(item.basePriceAmount).toFixed(3)} د.ك / ${item.basePriceUnit || item.product?.unit || "الوحدة الأساسية"} — يلزم تحويل للوحدة المطلوبة.`
                                   : "مصدر السعر: " + item.priceLabel}
                             </p>
                           </div>
