@@ -93,7 +93,7 @@ export const Route = createFileRoute("/api/price-order" as any)({
             );
           }
 
-          const { data: customer, error: customerError } = await auth.supabase
+          const { data: customer, error: customerError } = await (auth.supabase as any)
             .from("customers")
             .select("id, customer_type")
             .eq("id", customerId)
@@ -124,13 +124,13 @@ export const Route = createFileRoute("/api/price-order" as any)({
 
           const [{ data: products, error: productsError }, { data: prices, error: pricesError }, { data: conversions, error: conversionsError }] =
             await Promise.all([
-              (auth.supabase as any).from("products").select(PRODUCT_SELECT).in("id", productIds),
-              auth.supabase
+              ((auth.supabase as any) as any).from("products").select(PRODUCT_SELECT).in("id", productIds),
+              (auth.supabase as any)
                 .from("prices")
                 .select(PRICE_SELECT)
                 .in("product_id", productIds)
                 .order("valid_from", { ascending: false }),
-              auth.supabase
+              (auth.supabase as any)
                 .from("unit_conversions")
                 .select("from_unit, to_unit, multiplier, product_id")
                 .or("product_id.is.null,product_id.in.(" + productIds.join(",") + ")"),
@@ -160,7 +160,7 @@ export const Route = createFileRoute("/api/price-order" as any)({
             const rawQuantity = Number(item?.quantity ?? 0);
             const conversion = convertQuantity(
               rawQuantity,
-              requestedUnit || baseUnit,
+              requestedUnit || baseUnit || "",
               baseUnit,
               (conversions ?? []) as Array<{
                 from_unit: string;
