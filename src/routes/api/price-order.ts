@@ -72,7 +72,7 @@ function choosePrice(
   };
 }
 
-export const Route = createFileRoute("/api/price-order")({
+export const Route = createFileRoute("/api/price-order" as any)({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -124,7 +124,7 @@ export const Route = createFileRoute("/api/price-order")({
 
           const [{ data: products, error: productsError }, { data: prices, error: pricesError }, { data: conversions, error: conversionsError }] =
             await Promise.all([
-              auth.supabase.from("products").select(PRODUCT_SELECT).in("id", productIds),
+              (auth.supabase as any).from("products").select(PRODUCT_SELECT).in("id", productIds),
               auth.supabase
                 .from("prices")
                 .select(PRICE_SELECT)
