@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { authenticateStaffRequest } from "@/lib/server-auth";
 
-export const Route = createFileRoute("/api/record-correction")({
+export const Route = createFileRoute("/api/record-correction" as any)({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -32,7 +32,7 @@ export const Route = createFileRoute("/api/record-correction")({
             return Response.json({ success: false, error: "نوع التصحيح غير صالح." }, { status: 400 });
           }
 
-          const { error: correctionError } = await auth.supabase.from("ai_corrections").insert({
+          const { error: correctionError } = await (auth.supabase as any).from("ai_corrections").insert({
             raw_text: rawText,
             normalized_text: normalizedText,
             product_id: productId,
@@ -52,7 +52,7 @@ export const Route = createFileRoute("/api/record-correction")({
               .maybeSingle();
 
             if (!existing) {
-              const { error: aliasError } = await auth.supabase.from("product_aliases").insert({
+              const { error: aliasError } = await (auth.supabase as any).from("product_aliases").insert({
                 product_id: productId,
                 alias: rawText,
                 normalized_alias: normalizedText,
