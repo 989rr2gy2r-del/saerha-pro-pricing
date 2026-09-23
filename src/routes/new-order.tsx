@@ -739,7 +739,7 @@ function NewOrder() {
             .from("prices")
             .select("product_id, price_type, customer_id, amount, valid_from, valid_to, is_active")
             .in("product_id", uniqueProductIds),
-          supabase
+          (supabase as any)
             .from("unit_conversions")
             .select("from_unit, to_unit, multiplier, product_id")
             .or("product_id.is.null,product_id.in.(" + uniqueProductIds.join(",") + ")"),
