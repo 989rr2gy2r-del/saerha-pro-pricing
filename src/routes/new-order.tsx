@@ -1074,7 +1074,7 @@ function NewOrder() {
             fileType: first.type || first.name,
             text,
           }),
-        }, 45000);
+        }, 75000);
 
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data?.error || "تعذر تشغيل محرك القراءة الذكي.");
