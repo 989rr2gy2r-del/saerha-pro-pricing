@@ -397,7 +397,15 @@ function findLocalProductMatch(
   normalizedArabic = "",
   aliases: Record<string, string[]> = {},
 ) {
-  const queries = [normalizeForMatch(text), normalizeForMatch(normalizedArabic)].filter(Boolean);
+  const rawQuery = normalizeForMatch(text);
+  const translatedQuery = normalizeForMatch(normalizedArabic);
+  // For Arabic source text, never let an AI-normalized phrase add brand/model/color
+  // details that were not present in the original line. For non-Arabic input we
+  // can use the normalized Arabic translation to search the Arabic catalog.
+  const rawContainsArabic = /[\\u0600-\\u06FF]/.test(String(text ?? ""));
+  const queries = rawContainsArabic
+    ? [rawQuery].filter(Boolean)
+    : [rawQuery, translatedQuery].filter(Boolean);
   if (!queries.length) return null;
 
   const prepared = products.map((product) => prepareProductForMatch(product, aliases));
@@ -437,23 +445,55 @@ function findLocalProductMatch(
 
   const scored = candidates.map((entry) => {
     let best = 0;
+    let bestCoverage = 0;
     for (const query of queries) {
+      const queryTokens = query.split(" ").filter(Boolean);
       for (const field of entry.fields) {
         const score = similarityScore(query, field.value) * field.weight;
         best = Math.max(best, score);
+
+        if (queryTokens.length > 1) {
+          const matchedTokens = queryTokens.filter((token) =>
+            field.value.split(" ").some(
+              (candidate) => candidate === token || candidate.includes(token) || token.includes(candidate),
+            ),
+          ).length;
+          bestCoverage = Math.max(bestCoverage, matchedTokens / queryTokens.length);
+        } else if (queryTokens.length === 1 && field.value.includes(queryTokens[0])) {
+          bestCoverage = Math.max(bestCoverage, 1);
+        }
       }
 
-      const queryTokens = query.split(" ").filter(Boolean);
       if (queryTokens.length > 1) {
         const overlap = queryTokens.filter((token) => entry.haystack.includes(token)).length / queryTokens.length;
         best = Math.max(best, overlap * 0.9);
+        bestCoverage = Math.max(
+          bestCoverage,
+          overlap,
+        );
       }
     }
-    return { product: entry.product, score: Math.min(best, 1.25) };
+    return {
+      product: entry.product,
+      score: Math.min(best, 1.25),
+      coverage: bestCoverage,
+    };
   }).sort((a, b) => b.score - a.score);
 
   const best = scored[0];
-  if (!best || best.score < 0.78) return null;
+  const second = scored[1];
+  // Do not auto-pick a product from a generic/ambiguous phrase. This is critical
+  // for lines such as "مفتاح رباعي" where the catalog contains many valid
+  // four-way switches with different brands/models/colors.
+  if (
+    !best ||
+    best.score < 0.88 ||
+    (queries.some((query) => query.split(" ").filter(Boolean).length > 1) && best.coverage < 0.75) ||
+    (second && best.score - second.score < 0.08)
+  ) {
+    return null;
+  }
+
   return { ...best, score: Math.min(1, best.score) };
 }
 
