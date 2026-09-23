@@ -1,6 +1,6 @@
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { createFileRoute } from "@tanstack/react-router";
-import { Info, Pencil, ShieldCheck } from "lucide-react";
+import { Info, Pencil, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { upsertPrice } from "@/lib/db/saerha-data";
+import { deletePrice, upsertPrice } from "@/lib/db/saerha-data";
 import { supabase } from "@/integrations/supabase/client";
 import { PRICE_TYPES } from "@/lib/mock-data";
 
@@ -228,6 +228,22 @@ function Prices() {
     }
   };
 
+  const handleDeletePrice = async (row: PriceRecord) => {
+    const product = products.find((item) => item.id === row.product_id);
+    const customerName = row.customers?.name ? ` للعميل "${row.customers.name}"` : "";
+    if (!window.confirm(`هل تريد حذف ${priceTypeLabel[row.price_type] ?? "السعر"}${customerName} للصنف "${product?.name_ar ?? "المنتج"}"؟`)) return;
+    try {
+      setSavingKey(row.id);
+      setError(null);
+      await deletePrice(row.id);
+      await loadData();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "تعذر حذف السعر");
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
   const totals = useMemo(
     () => ({
       retail: products.filter((product) =>
@@ -358,6 +374,19 @@ function Prices() {
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
+                             {retail && (
+                               <Button
+                                 type="button"
+                                 variant="ghost"
+                                 size="icon"
+                                 className="h-7 w-7 text-destructive"
+                                 onClick={() => void handleDeletePrice(retail)}
+                                 disabled={savingKey === retail.id}
+                                 title="حذف سعر التجزئة"
+                               >
+                                 <Trash2 className="h-3.5 w-3.5" />
+                               </Button>
+                             )}
                           </div>
                         </TableCell>
                         <TableCell className="align-top">
@@ -378,6 +407,19 @@ function Prices() {
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
+                             {reseller && (
+                               <Button
+                                 type="button"
+                                 variant="ghost"
+                                 size="icon"
+                                 className="h-7 w-7 text-destructive"
+                                 onClick={() => void handleDeletePrice(reseller)}
+                                 disabled={savingKey === reseller.id}
+                                 title="حذف سعر الموزع"
+                               >
+                                 <Trash2 className="h-3.5 w-3.5" />
+                               </Button>
+                             )}
                           </div>
                         </TableCell>
                         <TableCell className="align-top">
@@ -391,6 +433,28 @@ function Prices() {
                                     {formatCurrency(row.amount)}
                                   </span>
                                   {row.customers?.name ? ` · ${row.customers.name}` : ""}
+
+                                  <Button
+
+                                    type="button"
+
+                                    variant="ghost"
+
+                                    size="icon"
+
+                                    className="ml-1 h-7 w-7 text-destructive"
+
+                                    onClick={() => void handleDeletePrice(row)}
+
+                                    disabled={savingKey === row.id}
+
+                                    title="حذف السعر الخاص"
+
+                                  >
+
+                                    <Trash2 className="h-3.5 w-3.5" />
+
+                                  </Button>
                                 </div>
                               ))}
                             </div>
