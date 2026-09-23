@@ -4,7 +4,8 @@ import { rankProductMatches } from "@/lib/matching/product-matcher";
 
 type InputItem = { id?: string; description?: string; raw_text?: string; quantity?: number; unit?: string };
 
-// @ts-expect-error TanStack's generated route map does not include server-only API routes during standalone typecheck.\nexport const Route = createFileRoute("/api/match-order")({
+// @ts-expect-error TanStack's generated route map does not include server-only API routes during standalone typecheck.
+export const Route = createFileRoute("/api/match-order")({
   server: {
     handlers: {
       POST: async ({ request }) => {
