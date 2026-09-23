@@ -242,7 +242,6 @@ ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
 
     const attempts: Array<{ model: string; error: string; upstreamStatus: number | null }> = [];
     try {
-      try {
         const result = await callGemini(apiKey, MODELS[0].id, MODELS[0].timeoutMs, mimeType, base64Data, prompt);
         const confidences = result.items.map((item) => item.confidence).filter((value) => value > 0);
         const averageConfidence = confidences.length
