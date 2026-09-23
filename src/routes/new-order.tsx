@@ -1729,6 +1729,67 @@ function NewOrder() {
                                   إغلاق التعديل
                                 </Button>
                               </div>
+                              <div className="mb-3 rounded-lg border bg-background p-3">
+                                <Label className="text-xs font-bold">بحث واختيار الصنف من قاعدة البيانات</Label>
+                                <Input
+                                  value={productSearches[item.id] ?? ""}
+                                  onChange={(event) =>
+                                    setProductSearches((previous) => ({
+                                      ...previous,
+                                      [item.id]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="اكتب الاسم أو الكود أو الماركة أو الموديل..."
+                                  className="mt-2 h-10"
+                                  dir="rtl"
+                                />
+                                <div className="mt-2 max-h-56 overflow-y-auto rounded-md border">
+                                  {(() => {
+                                    const search = productSearches[item.id] ?? "";
+                                    const filtered = filterProductOptions(search);
+                                    const visible = filtered.slice(0, 60);
+                                    if (!products.length) {
+                                      return (
+                                        <div className="px-3 py-3 text-sm text-destructive">
+                                          لم يتم تحميل قاعدة الأصناف. أعد تحميل الصفحة ثم جرّب مرة أخرى.
+                                        </div>
+                                      );
+                                    }
+                                    if (!filtered.length) {
+                                      return (
+                                        <div className="px-3 py-3 text-sm text-muted-foreground">
+                                          لا توجد نتائج مطابقة. جرّب جزءًا من الاسم أو الكود.
+                                        </div>
+                                      );
+                                    }
+                                    return visible.map((option) => (
+                                      <button
+                                        key={option.value}
+                                        type="button"
+                                        className="block w-full border-b px-3 py-2 text-right text-xs hover:bg-muted last:border-b-0"
+                                        onClick={() => {
+                                          handleProductSelect(index, option.value);
+                                          setProductSearches((previous) => ({
+                                            ...previous,
+                                            [item.id]: option.label,
+                                          }));
+                                        }}
+                                      >
+                                        <span className="font-bold">{option.label}</span>
+                                      </button>
+                                    ));
+                                  })()}
+                                </div>
+                                {(() => {
+                                  const count = filterProductOptions(productSearches[item.id] ?? "").length;
+                                  return count > 60 ? (
+                                    <p className="mt-1 text-[10px] text-muted-foreground">
+                                      عرض أول 60 من {count} نتيجة — ضيّق البحث للحصول على الصنف المطلوب.
+                                    </p>
+                                  ) : null;
+                                })()}
+                              </div>
+
                               <div className="flex flex-wrap gap-2">
                                 <Button
                                   size="sm"
