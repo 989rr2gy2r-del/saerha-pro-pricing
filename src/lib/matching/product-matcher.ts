@@ -123,7 +123,7 @@ export function rankProductMatches<T extends {
     let score = exact ? 1 : alias ? 0.98 : 0.45 * bestToken + 0.4 * bestCharacter + 0.15 * attributes;
     score = Math.max(0, Math.min(1, score));
 
-    const status = score >= 0.88 ? "HIGH_CONFIDENCE" : "NEEDS_REVIEW";
+    const status: MatchCandidate<T>["status"] = score >= 0.88 ? "HIGH_CONFIDENCE" : "NEEDS_REVIEW";
     const reason = exact
       ? "مطابقة مباشرة للاسم أو SKU"
       : alias
