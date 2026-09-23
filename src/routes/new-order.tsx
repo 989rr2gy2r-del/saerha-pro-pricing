@@ -486,7 +486,10 @@ function NewOrder() {
     }
   };
 
-  const loadProducts = async () => {
+  const loadProducts = async (): Promise<{
+    products: ProductRecord[];
+    aliases: Record<string, string[]>;
+  }> => {
     try {
       const pageSize = 1000;
       const allProducts: ProductRecord[] = [];
@@ -501,23 +504,27 @@ function NewOrder() {
         allProducts.push(...page);
         if (page.length < pageSize) break;
       }
-      setProducts(allProducts);
 
       const { data: aliasRows, error: aliasError } = await supabase
         .from("product_aliases")
         .select("product_id, alias")
         .limit(20000);
       if (aliasError) throw aliasError;
+
       const aliasMap: Record<string, string[]> = {};
       for (const row of aliasRows ?? []) {
         const alias = String(row.alias ?? "").trim();
         if (!alias) continue;
         aliasMap[row.product_id] = [...(aliasMap[row.product_id] ?? []), alias];
       }
+
+      setProducts(allProducts);
       setProductAliases(aliasMap);
+      return { products: allProducts, aliases: aliasMap };
     } catch {
       setProducts([]);
       setProductAliases({});
+      return { products: [], aliases: {} };
     }
   };
 
@@ -832,7 +839,7 @@ function NewOrder() {
       try {
         const supabaseUrl =
           import.meta.env["VITE_SUPABASE_URL"] ||
-          "https://ebtjwwrjhsebojurkvgy.(supabase as any).co";
+          "https://ebtjwwrjhsebojurkvgy.supabase.co";
 
         setProgress(45);
         const response = await fetchWithTimeout(`${supabaseUrl}/functions/v1/analyze-order`, {
@@ -899,12 +906,27 @@ function NewOrder() {
 
             // Match each extracted line against the products loaded from Supabase.
       // Keep the review state explicit so the user can confirm or correct every match.
+      // Product loading runs on page mount and can still be in flight when the
+      // user uploads a file immediately. Ensure matching always uses a fully
+      // loaded Supabase product catalog instead of an empty/stale React state.
+      let matchingProducts = products;
+      let matchingAliases = productAliases;
+      if (!matchingProducts.length) {
+        const loaded = await loadProducts();
+        matchingProducts = loaded.products;
+        matchingAliases = loaded.aliases;
+      }
+
+      if (!matchingProducts.length) {
+        throw new Error("تعذر تحميل قاعدة المنتجات من Supabase؛ لا يمكن إجراء المطابقة بأمان.");
+      }
+
       const matchedItems: ReviewItem[] = normalizedItems.map((item) => {
         const match = findLocalProductMatch(
           item.description || item.raw_text,
-          products,
+          matchingProducts,
           item.normalized_description_ar,
-          productAliases,
+          matchingAliases,
         );
         const confidence = match ? Math.max(item.confidence, match.score) : item.confidence;
         const status: MatchStatus = match
