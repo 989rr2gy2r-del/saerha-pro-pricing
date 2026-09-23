@@ -8,8 +8,8 @@ const corsHeaders = {
 };
 
 const MODELS = [
-  { id: "gemini-3.5-flash-lite", timeoutMs: 25000 },
-  { id: "gemini-3.6-flash", timeoutMs: 30000 },
+  { id: "gemini-3.5-flash-lite", timeoutMs: 15000 },
+  { id: "gemini-3.6-flash", timeoutMs: 18000 },
 ];
 
 const MAX_IMAGE_BASE64 = 12_000_000;
@@ -51,7 +51,7 @@ function normalize(value: unknown) {
             : typeof row.arabic_name === "string"
               ? row.arabic_name.trim()
               : "",
-        quantity: Number.isFinite(quantity) && quantity >= 0 ? quantity : 0,
+        quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : null,
         unit: typeof row.unit === "string" ? row.unit.trim() : "",
         raw_text: typeof row.raw_text === "string" ? row.raw_text.trim() : "",
         confidence: Number.isFinite(confidence) ? Math.min(1, Math.max(0, confidence)) : 0,
@@ -110,6 +110,29 @@ async function callGemini(
           }],
           generationConfig: {
             responseMimeType: "application/json",
+            responseSchema: {
+              type: "object",
+              properties: {
+                items: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      description: { type: "string" },
+                      normalized_description_ar: { type: "string" },
+                      quantity: { type: ["number", "null"] },
+                      unit: { type: "string" },
+                      raw_text: { type: "string" },
+                      confidence: { type: "number", minimum: 0, maximum: 1 },
+                      notes: { type: "string" },
+                    },
+                    required: ["description", "normalized_description_ar", "quantity", "unit", "raw_text", "confidence", "notes"],
+                  },
+                },
+                notes: { type: "string" },
+              },
+              required: ["items", "notes"],
+            },
             thinkingConfig: { thinkingLevel: "minimal" },
             maxOutputTokens: 4096,
           },
