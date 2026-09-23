@@ -210,35 +210,51 @@ Deno.serve(async (req) => {
 {"items":[{"description":"","normalized_description_ar":"","quantity":0,"unit":"","raw_text":"","confidence":0,"notes":""}],"notes":""}
 ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
 
+    const attempts: Array<{ model: string; error: string; upstreamStatus: number | null }> = [];
     try {
-      let lastError: unknown = null;
       for (const model of MODELS) {
         try {
           const result = await callGemini(apiKey, model.id, model.timeoutMs, mimeType, base64Data, prompt);
           return json({ success: true, result });
         } catch (error) {
-          lastError = error;
-          console.warn(
-            `Gemini ${model} failed`,
-            error instanceof Error ? error.message : "unknown",
-          );
+          const message = error instanceof Error ? error.message : "unknown";
+          const statusMatch = message.match(/HTTP (\d{3})/);
+          const upstreamStatus = statusMatch ? Number(statusMatch[1]) : null;
+          attempts.push({
+            model: model.id,
+            error: message.slice(0, 800),
+            upstreamStatus,
+          });
+          console.warn(`Gemini ${model.id} failed`, message);
           if (error instanceof Error && /HTTP (401|403)/.test(error.message)) break;
         }
       }
-      throw lastError instanceof Error ? lastError : new Error("Gemini analysis failed");
+
+      const lastAttempt = attempts.at(-1);
+      const lastError = lastAttempt?.error || "Gemini analysis failed";
+      const upstreamStatus = lastAttempt?.upstreamStatus ?? null;
+      return json(
+        {
+          success: false,
+          error: "Gemini analysis failed.",
+          code: upstreamStatus || "GEMINI_FAILED",
+          diagnostic: {
+            attempts,
+            lastError,
+          },
+        },
+        503,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown";
       console.error("Gemini analysis failed", message);
-      const statusMatch = message.match(/HTTP (\d{3})/);
-      const upstreamStatus = statusMatch ? Number(statusMatch[1]) : 0;
-      const userMessage =
-        upstreamStatus === 401 || upstreamStatus === 403
-          ? "مفتاح Gemini مرفوض أو غير صالح على الخادم. تم تفعيل القراءة المحلية الاحتياطية."
-          : upstreamStatus === 429
-            ? "تم تجاوز حد Gemini مؤقتًا. ستتم القراءة المحلية الاحتياطية."
-            : "محرك القراءة الذكي لم يُكمل التحليل ضمن المهلة. ستتم القراءة المحلية الاحتياطية.";
       return json(
-        { success: false, error: userMessage, code: upstreamStatus || "GEMINI_FAILED" },
+        {
+          success: false,
+          error: "Gemini analysis failed.",
+          code: "GEMINI_RUNTIME_ERROR",
+          diagnostic: { attempts, lastError: message.slice(0, 800) },
+        },
         503,
       );
     }
