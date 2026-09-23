@@ -53,7 +53,7 @@ type ReviewItem = {
   id: string;
   description: string;
   normalized_description_ar: string;
-  quantity: number;
+  quantity: number | null;
   unit: string;
   raw_text: string;
   confidence: number;
@@ -317,22 +317,6 @@ function normalizeUnitValue(value: string | null | undefined): string {
   return aliases[normalized] ?? String(value ?? "").trim();
 }
 
-function extractQuantityFromRawText(rawText: string): number {
-  const raw = String(rawText ?? "")
-    .replace(/[٠-٩]/g, (char) => String("٠١٢٣٤٥٦٧٨٩".indexOf(char)))
-    .replace(/،/g, ",");
-  const unitPattern = "(?:pcs?|pieces?|pc|qty|quantity|حبة|قطعة|كرتون|كرتونه|كرتونة|box|boxes|roll|رول|لفة|لف|meter|metre|m|متر|دزينة|dozen|bag|كيس|set|طقم)";
-  const withUnit = [...raw.matchAll(new RegExp("(\\d+(?:[.,]\\d+)?)\\s*" + unitPattern + "\\b", "gi"))];
-  if (withUnit.length) {
-    const value = Number(String(withUnit.at(-1)?.[1] ?? "").replace(",", "."));
-    if (Number.isFinite(value)) return value;
-  }
-  const values = [...raw.matchAll(/\d+(?:[.,]\d+)?/g)]
-    .map((match) => Number(String(match[0]).replace(",", ".")))
-    .filter((value) => Number.isFinite(value));
-  return values.length >= 2 ? values[values.length - 1] : values[0] ?? 0;
-}
-
 function getPriceLookupKey(priceType: string): string {
   const map: Record<string, string> = {
     retail: "Retail",
@@ -469,8 +453,8 @@ function findLocalProductMatch(
   }).sort((a, b) => b.score - a.score);
 
   const best = scored[0];
-  if (!best || best.score < 0.58) return null;
-  return best;
+  if (!best || best.score < 0.78) return null;
+  return { ...best, score: Math.min(1, best.score) };
 }
 
 export const Route = createFileRoute("/new-order")({
@@ -994,7 +978,7 @@ function NewOrder() {
   const handleQuantityChange = (index: number, value: number) => {
     patchReviewItem(index, (item) => ({
       ...item,
-      quantity: Number.isFinite(value) ? Math.max(0, value) : 0,
+      quantity: Number.isFinite(value) && value > 0 ? value : null,
     }));
   };
 
@@ -1203,9 +1187,8 @@ function NewOrder() {
         ).trim(),
         raw_text: String(item["raw_text"] ?? item["description"] ?? "").trim(),
         quantity: (() => {
-          const aiQuantity = Number(item["quantity"] ?? 0);
-          if (Number.isFinite(aiQuantity) && aiQuantity > 0) return aiQuantity;
-          return extractQuantityFromRawText(String(item["raw_text"] ?? item["description"] ?? ""));
+          const value = Number(item["quantity"]);
+          return Number.isFinite(value) && value > 0 ? value : null;
         })(),
         unit: normalizeUnitValue(String(item["unit"] ?? "").trim()),
         confidence: (() => {
@@ -1239,10 +1222,9 @@ function NewOrder() {
           item.normalized_description_ar,
           matchingAliases,
         );
-        const confidence = Math.min(
-          1,
-          Math.max(0, match ? Math.max(item.confidence, match.score) : item.confidence),
-        );
+        const confidence = match
+          ? Math.min(item.confidence, match.score)
+          : 0;
         const status: MatchStatus = match
           ? confidence >= 0.85
             ? "HIGH_CONFIDENCE"
@@ -1288,7 +1270,7 @@ function NewOrder() {
     }
 
     const validItems = analysisResult.items.filter(
-      (item) => !item.rejected && item.product && item.quantity > 0 && item.accepted,
+      (item) => !item.rejected && item.product && item.quantity !== null && item.quantity > 0 && item.accepted,
     );
     if (!validItems.length) {
       setAnalysisError("لا توجد عناصر مؤكدة ومطابقة لإنشاء عرض السعر بعد المراجعة.");
@@ -1771,10 +1753,19 @@ function NewOrder() {
                                         }}
                                       >
                                         <SelectTrigger
-                                          className="h-10 w-full bg-background font-bold"
+                                          className="h-auto min-h-10 w-full bg-background px-3 py-2 text-right font-bold"
                                           onClick={(event) => event.stopPropagation()}
                                         >
-                                          <SelectValue placeholder="اختر الصنف" />
+                                          {item.product ? (
+                                            <div className="min-w-0 text-right">
+                                              <div className="truncate text-sm">{item.product.name_ar}</div>
+                                              <div className="mt-0.5 text-[10px] font-mono font-normal text-muted-foreground" dir="ltr">
+                                                SKU: {item.product.sku}
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <span className="text-muted-foreground">اختر الصنف من قاعدة البيانات</span>
+                                          )}
                                         </SelectTrigger>
                                         <SelectContent className="max-h-80" onClick={(event) => event.stopPropagation()}>
                                           <div className="border-b p-2">
@@ -1848,8 +1839,8 @@ function NewOrder() {
                                     <Input
                                       type="number"
                                       min={0}
-                                      value={item.quantity || 0}
-                                      onChange={(event) => handleQuantityChange(index, Number(event.target.value))}
+                                      value={item.quantity ?? ""}
+                                      onChange={(event) => handleQuantityChange(index, event.target.value === "" ? Number.NaN : Number(event.target.value))}
                                       onClick={(event) => event.stopPropagation()}
                                       className="h-10 w-28 font-bold"
                                     />
