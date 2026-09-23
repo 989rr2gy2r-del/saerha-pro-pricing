@@ -408,6 +408,11 @@ function NewOrder() {
     [products],
   );
 
+  const productById = useMemo(
+    () => new Map(products.map((product) => [product.id, product])),
+    [products],
+  );
+
   const filterProductOptions = (query: string) => {
     const normalizedQuery = normalizeForMatch(query);
     if (!normalizedQuery) {
@@ -418,7 +423,7 @@ function NewOrder() {
 
     return productOptions
       .map((option) => {
-        const product = products.find((entry) => entry.id === option.value);
+        const product = productById.get(option.value);
         if (!product) return null;
 
         const fields = [
@@ -443,12 +448,9 @@ function NewOrder() {
         const haystack = fields.join(" ");
         if (!haystack) return null;
 
-        // Very sensitive partial search:
-        // "ف" -> every field containing ف
-        // "في" -> every field containing في
-        // "فيو" -> every field containing فيو
-        // "فيوز" -> every field containing فيوز
-        // Multiple words must all occur somewhere in the product data.
+        // Search every loaded product; do not cap matching results here.
+        // This preserves all matches for short Arabic fragments and SKU prefixes
+        // such as "ف", "في", "فيو", "فيوز", "0", "07", "071", and "0710".
         const matches = queryTokens.every((token) => haystack.includes(token));
         if (!matches) return null;
 
@@ -1280,7 +1282,7 @@ function NewOrder() {
                                     );
                                   }
 
-                                  return filtered.slice(0, 25).map((option) => (
+                                  return filtered.map((option) => (
                                     <SelectItem key={option.value} value={option.value}>
                                       {option.label}
                                     </SelectItem>
