@@ -72,7 +72,8 @@ function choosePrice(
   };
 }
 
-// @ts-expect-error TanStack's generated route map does not include server-only API routes during standalone typecheck.\nexport const Route = createFileRoute("/api/price-order")({
+// @ts-expect-error TanStack's generated route map does not include server-only API routes during standalone typecheck.
+export const Route = createFileRoute("/api/price-order")({
   server: {
     handlers: {
       POST: async ({ request }) => {
