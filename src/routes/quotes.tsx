@@ -375,26 +375,34 @@ function Quotes() {
 
       const drawTableRow = (y: number, item: QuoteItem, index: number) => {
         const widths = [65, 50, 65, 55, 45, 195, 60];
+        const description = String(item.product_name ?? "");
+        const descriptionLines = doc.splitTextToSize(processArabic(description), widths[5] - 12) as string[];
+        const rowHeight = Math.max(26, Math.min(52, 12 + descriptionLines.length * 11));
         const values = [
           Number(item.line_total ?? 0).toFixed(3),
           Number(item.discount_amount ?? 0).toFixed(3),
           Number(item.unit_price ?? 0).toFixed(3),
           String(item.unit ?? ""),
           String(item.quantity ?? 0),
-          String(item.product_name ?? ""),
+          "",
           String(item.sku ?? ""),
         ];
-        const rowHeight = 26;
         let cursor = margin;
         doc.setDrawColor(GRID);
         doc.setFillColor(index % 2 === 0 ? "#FFFFFF" : LIGHT);
         doc.rect(margin, y, widths.reduce((a, b) => a + b, 0), rowHeight, "FD");
+
         values.forEach((value, i) => {
           const w = widths[i];
           if (i === 5) {
-            drawText(value, cursor + w - 8, y + 17, 7.8, "right");
+            doc.setFont("NotoNaskhArabic", "normal");
+            doc.setFontSize(7.8);
+            doc.setTextColor(TEXT);
+            descriptionLines.slice(0, 4).forEach((line, lineIndex) => {
+              doc.text(line, cursor + w - 8, y + 14 + lineIndex * 10, { align: "right" });
+            });
           } else {
-            drawText(value, cursor + w / 2, y + 17, 7.5, "center");
+            drawText(value, cursor + w / 2, y + rowHeight / 2 + 3, 7.5, "center");
           }
           cursor += w;
         });
@@ -437,8 +445,8 @@ function Quotes() {
         doc.text(total.toFixed(3), boxX + 8, netY + 18);
 
         drawCode39(quote.reference, pageWidth - margin - 170, y + 8, 170, 42);
-        drawText("المبلغ الإجمالي شامل الخصم والضريبة", pageWidth - margin - 85, y + 77, 7.5, "center");
-        drawText("تم إنشاء الفاتورة من الطلبية بعد مراجعة المنتج وسعره", pageWidth - margin - 85, y + 94, 7.5, "center");
+        drawText("المبلغ الإجمالي شامل الخصم", pageWidth - margin - 85, y + 77, 7.5, "center");
+        drawText("تم إنشاء العرض من الطلبية بعد مراجعة المنتج وسعره", pageWidth - margin - 85, y + 94, 7.5, "center");
       };
       let page = 1;
       let y = 252;
