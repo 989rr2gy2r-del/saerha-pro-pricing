@@ -299,6 +299,24 @@ export async function deleteCustomer(id: string) {
   if (error) throw new Error(error.message);
 }
 
+export async function deletePrice(id: string) {
+  if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
+  const { error } = await supabase.from("prices").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteOrder(id: string) {
+  if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
+  const { error } = await supabase.from("orders").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteQuote(id: string) {
+  if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
+  const { error } = await supabase.from("quotations").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 export type ProductImportRow = {
   sku?: string;
   nameAr?: string;
