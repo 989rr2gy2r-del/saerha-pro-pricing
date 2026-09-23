@@ -17,11 +17,11 @@ export const Route = createFileRoute("/api/match-order" as any)({
           if (!items.length) return Response.json({ success: false, error: "لا توجد بنود للمطابقة." }, { status: 400 });
 
           const [productsResult, aliasesResult, correctionsResult] = await Promise.all([
-            (auth.supabase as any).from("products").select(
+            ((auth.supabase as any) as any).from("products").select(
               "id, sku, name_ar, name_en, short_name, brand, model, size, unit",
             ).eq("status", "active").limit(10000),
-            (auth.supabase as any).from("product_aliases").select("product_id, alias, normalized_alias").limit(20000),
-            auth.supabase
+            ((auth.supabase as any) as any).from("product_aliases").select("product_id, alias, normalized_alias").limit(20000),
+            (auth.supabase as any)
               .from("ai_corrections")
               .select("product_id, raw_text, normalized_text, action")
               .in("action", ["accepted", "corrected", "alias_added"])
