@@ -21,7 +21,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!session) {
     if (location.pathname === "/login") return null;
     const redirect = initialPath.current === "/login" ? "/" : initialPath.current;
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" search={{}} as any replace />;
   }
 
   return <>{children}</>;
