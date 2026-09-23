@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     const [{ data: products, error: productError }, { data: prices, error: priceError }, { data: conversions, error: conversionError }] =
       await Promise.all([
         client.from("products").select("id,unit").in("id", ids),
-        client.from("prices").select("id,product_id,price_type,customer_id,amount,currency,source,valid_from,valid_to").in("product_id", ids).order("valid_from", { ascending: false }),
+        client.from("prices").select("id,product_id,price_type,customer_id,amount,currency,source,valid_from,valid_to,is_active").in("product_id", ids).order("valid_from", { ascending: false }),
         client.from("unit_conversions").select("from_unit,to_unit,multiplier,product_id").or(`product_id.is.null,product_id.in.(${ids.join(",")})`),
       ]);
 
@@ -71,10 +71,18 @@ Deno.serve(async (req) => {
     if (conversionError) throw conversionError;
 
     const unitByProduct = new Map((products ?? []).map((row: any) => [row.id, row.unit]));
-    const today = new Date().toISOString().slice(0, 10);
-    const validPrices = (prices ?? []).filter((row: any) =>
-      row.valid_from <= today && (!row.valid_to || row.valid_to > today) && Number(row.amount) >= 0
-    );
+    const now = Date.now();
+    const validPrices = (prices ?? []).filter((row: any) => {
+      const validFrom = row.valid_from ? new Date(row.valid_from).getTime() : Number.NaN;
+      const validTo = row.valid_to ? new Date(row.valid_to).getTime() : Number.NaN;
+      return (
+        row.is_active !== false &&
+        Number.isFinite(validFrom) &&
+        validFrom <= now &&
+        (!row.valid_to || (Number.isFinite(validTo) && validTo > now)) &&
+        Number(row.amount) >= 0
+      );
+    });
     const preferredType = ["wholesale", "contractor", "government"].includes(String(customer.customer_type))
       ? "reseller"
       : "retail";
