@@ -470,7 +470,9 @@ function NewOrder() {
     [products],
   );
 
-  const MAX_RENDERED_PRODUCT_RESULTS = 80;\n\n  const filterProductOptions = (query: string) => {
+  const MAX_RENDERED_PRODUCT_RESULTS = 80;
+
+  const filterProductOptions = (query: string) => {
     const normalizedQuery = normalizeForMatch(query);
     if (!normalizedQuery) {
       return productOptions.slice(0, 25);
