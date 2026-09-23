@@ -653,7 +653,7 @@ function NewOrder() {
       }
       const { data: priceRows, error } = await supabase
         .from("prices")
-        .select("product_id, price_type, customer_id, amount, valid_from, valid_to")
+        .select("product_id, price_type, customer_id, amount, valid_from, valid_to, is_active")
         .in("product_id", [...new Set(productIds)]);
       if (error) throw error;
       const now = Date.now();
@@ -666,7 +666,8 @@ function NewOrder() {
             const rows = (priceRows ?? []).filter((row) => {
               const from = new Date(row.valid_from).getTime();
               const to = row.valid_to ? new Date(row.valid_to).getTime() : null;
-              return row.product_id === item.product!.id && Number.isFinite(from) && from <= now &&
+              return row.product_id === item.product!.id && row.is_active !== false &&
+                Number.isFinite(from) && from <= now &&
                 (!to || (Number.isFinite(to) && to > now)) && Number(row.amount) >= 0;
             });
             const preferredType =
