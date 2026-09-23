@@ -536,24 +536,18 @@ function Quotes() {
                       <Badge variant="secondary">{q.status}</Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => void downloadPdf(q)}>PDF</Button>
-                        <Button variant="ghost" size="sm" onClick={() => downloadExcel(q)}>
-                          <FileSpreadsheet className="ml-1 h-4 w-4" /> Excel
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => void openWhatsApp(q)}>
-                          <MessageCircle className="ml-1 h-4 w-4" /> واتساب
+                       <div className="flex gap-1">
+                         <Button variant="ghost" size="sm" onClick={() => void downloadPdf(q)}>PDF</Button>
+                         <Button variant="ghost" size="sm" onClick={() => downloadExcel(q)}>
+                           <FileSpreadsheet className="ml-1 h-4 w-4" /> Excel
+                         </Button>
+                         <Button variant="ghost" size="sm" onClick={() => void openWhatsApp(q)}>
+                           <MessageCircle className="ml-1 h-4 w-4" /> واتساب
                          </Button>
                          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => void handleDeleteQuote(q)}>
                            <Trash2 className="ml-1 h-4 w-4" /> حذف
                          </Button>
-                         <Button variant="ghost" size="sm" onClick={() => void openWhatsApp(q)}>
-                           <MessageCircle className="ml-1 h-4 w-4" /> واتساب
-                        </Button>
-                 <Button size="sm" variant="destructive" onClick={() => void handleDeleteQuote(open)} disabled={loading}>
-                   <Trash2 className="ml-1 h-4 w-4" /> حذف العرض
-                 </Button>
-                      </div>
+                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -571,15 +565,18 @@ function Quotes() {
           </DialogHeader>
           {open && (
             <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => void downloadPdf(open)}>PDF</Button>
-                <Button size="sm" variant="outline" onClick={() => downloadExcel(open)}>
-                  <FileSpreadsheet className="ml-1 h-4 w-4" /> Excel
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => void openWhatsApp(open)}>
-                  <MessageCircle className="ml-1 h-4 w-4" /> واتساب
-                </Button>
-              </div>
+               <div className="flex flex-wrap gap-2">
+                 <Button size="sm" onClick={() => void downloadPdf(open)}>PDF</Button>
+                 <Button size="sm" variant="outline" onClick={() => downloadExcel(open)}>
+                   <FileSpreadsheet className="ml-1 h-4 w-4" /> Excel
+                 </Button>
+                 <Button size="sm" variant="secondary" onClick={() => void openWhatsApp(open)}>
+                   <MessageCircle className="ml-1 h-4 w-4" /> واتساب
+                 </Button>
+                 <Button size="sm" variant="destructive" onClick={() => void handleDeleteQuote(open)} disabled={loading}>
+                   <Trash2 className="ml-1 h-4 w-4" /> حذف العرض
+                 </Button>
+               </div>
               {open.quotation_items?.map((it: QuoteItem) => (
                 <div key={it.id} className="rounded-xl border border-border p-3">
                   <p className="text-sm font-bold">{it.product_name}</p>
