@@ -441,7 +441,7 @@ function Quotes() {
         drawText("تم إنشاء الفاتورة من الطلبية بعد مراجعة المنتج وسعره", pageWidth - margin - 85, y + 94, 7.5, "center");
       };
       let page = 1;
-      let y = 242;
+      let y = 252;
       drawHeader();
       drawDocumentTitle();
       drawInfo();
