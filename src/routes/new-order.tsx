@@ -1562,280 +1562,7 @@ function NewOrder() {
                         </div>
                       </div>
 
-                      <div className="hidden overflow-x-auto md:block">
-                        <table className="w-full min-w-[980px] text-sm" dir="rtl">
-                          <thead className="bg-muted/60 text-xs font-extrabold">
-                            <tr>
-                              <th className="px-3 py-3 text-right">الكود</th>
-                              <th className="px-3 py-3 text-right">الصنف</th>
-                              <th className="px-3 py-3 text-right">الكمية</th>
-                              <th className="px-3 py-3 text-right">الوحدة</th>
-                              <th className="px-3 py-3 text-right">السعر</th>
-                              <th className="px-3 py-3 text-right">الإجمالي</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y">
-                            {analysisResult.items.map((item, index) => {
-                              const isEditing = editingItemId === item.id;
-                              const lineTotal =
-                                item.priceAmount !== null
-                                  ? Number(item.priceAmount) * Number(item.quantity || 0)
-                                  : null;
-
-                              return (
-                                <tr
-                                  key={item.id}
-                                  onClick={() => setEditingItemId(item.id)}
-                                  className={`cursor-pointer transition-colors hover:bg-accent/5 ${isEditing ? "bg-accent/10" : ""}`}
-                                >
-                                  <td className="px-3 py-3 align-top">
-                                    <div className="font-mono font-extrabold text-primary">
-                                      {item.product?.sku ?? "—"}
-                                    </div>
-                                    <div className="mt-1 text-[10px] text-muted-foreground">
-                                      ثقة {Math.round((item.confidence ?? 0) * 100)}%
-                                    </div>
-                                  </td>
-                                  <td className="px-3 py-3 align-top">
-                                    <div className="min-w-[300px] space-y-2">
-                                      <Select
-                                        value={item.product?.id ?? ""}
-                                        onValueChange={(value) => {
-                                          setEditingItemId(item.id);
-                                          handleProductSelect(index, value);
-                                        }}
-                                      >
-                                        <SelectTrigger
-                                          className="h-10 w-full bg-background font-bold"
-                                          onClick={(event) => event.stopPropagation()}
-                                        >
-                                          <SelectValue placeholder="اختر الصنف" />
-                                        </SelectTrigger>
-                                        <SelectContent className="max-h-80" onClick={(event) => event.stopPropagation()}>
-                                          <div className="border-b p-2">
-                                            <Input
-                                              autoFocus
-                                              value={productSearches[item.id] ?? ""}
-                                              onChange={(event) =>
-                                                setProductSearches((previous) => ({
-                                                  ...previous,
-                                                  [item.id]: event.target.value,
-                                                }))
-                                              }
-                                              placeholder="ابحث بالاسم أو الكود أو الماركة..."
-                                              className="h-9"
-                                              onPointerDown={(event) => event.stopPropagation()}
-                                              onMouseDown={(event) => event.stopPropagation()}
-                                              onFocus={(event) => event.stopPropagation()}
-                                              onKeyDown={(event) => {
-                                                event.stopPropagation();
-                                                if (event.key === "Escape") {
-                                                  event.preventDefault();
-                                                  setProductSearches((previous) => ({
-                                                    ...previous,
-                                                    [item.id]: "",
-                                                  }));
-                                                }
-                                              }}
-                                            />
-                                          </div>
-                                          {(() => {
-                                            const filtered = filterProductOptions(productSearches[item.id] ?? "");
-                                            const visible = filtered.slice(0, MAX_RENDERED_PRODUCT_RESULTS);
-                                            if (!filtered.length) {
-                                              return (
-                                                <div className="px-3 py-2 text-sm text-muted-foreground">
-                                                  لا توجد منتجات مطابقة للبحث
-                                                </div>
-                                              );
-                                            }
-                                            return (
-                                              <>
-                                                {visible.map((option) => (
-                                                  <SelectItem key={option.value} value={option.value}>
-                                                    {option.label}
-                                                  </SelectItem>
-                                                ))}
-                                                {filtered.length > visible.length && (
-                                                  <div className="border-t px-3 py-2 text-center text-[11px] text-muted-foreground">
-                                                    عرض {visible.length} من {filtered.length} نتيجة — ضيّق البحث.
-                                                  </div>
-                                                )}
-                                              </>
-                                            );
-                                          })()}
-                                        </SelectContent>
-                                      </Select>
-                                      <div className="text-xs font-semibold">
-                                        {item.product?.name_ar ?? item.description ?? item.raw_text ?? "صنف غير محدد"}
-                                      </div>
-                                      {item.product?.name_en && (
-                                        <div className="text-[10px] text-muted-foreground" dir="ltr">
-                                          {item.product.name_en}
-                                        </div>
-                                      )}
-                                      <div className="text-[10px] text-muted-foreground">
-                                        {isEditing ? "وضع التعديل مفعل" : "اضغط للتعديل"}
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td className="px-3 py-3 align-top">
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      value={item.quantity || 0}
-                                      onChange={(event) => handleQuantityChange(index, Number(event.target.value))}
-                                      onClick={(event) => event.stopPropagation()}
-                                      className="h-10 w-28 font-bold"
-                                    />
-                                  </td>
-                                  <td className="px-3 py-3 align-top">
-                                    <Input
-                                      value={item.unit || ""}
-                                      onChange={(event) => handleUnitChange(index, event.target.value)}
-                                      onClick={(event) => event.stopPropagation()}
-                                      className="h-10 w-28"
-                                      placeholder="الوحدة"
-                                    />
-                                  </td>
-                                  <td className="px-3 py-3 align-top">
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      step="0.001"
-                                      value={item.priceAmount ?? ""}
-                                      onChange={(event) => handlePriceChange(index, Number(event.target.value))}
-                                      onClick={(event) => event.stopPropagation()}
-                                      placeholder={item.priceAmount === null ? "غير متاح" : "السعر"}
-                                      className="h-10 w-32 font-bold"
-                                    />
-                                    <p className="mt-1 max-w-[180px] text-[10px] text-muted-foreground">
-                                      {item.priceLabel === "سعر يدوي"
-                                        ? "سعر يدوي"
-                                        : item.priceAmount === null && item.basePriceAmount != null
-                                          ? `الأساس: ${Number(item.basePriceAmount).toFixed(3)} د.ك / ${item.basePriceUnit || item.product?.unit || "الوحدة"} — يلزم تحويل`
-                                          : item.priceLabel}
-                                    </p>
-                                  </td>
-                                  <td className="px-3 py-3 align-top">
-                                    <div className="rounded-lg bg-muted/60 px-3 py-2 text-left font-extrabold tabular-nums">
-                                      {lineTotal !== null ? lineTotal.toFixed(3) : "—"}
-                                    </div>
-                                    <div className="mt-1 text-[10px] text-muted-foreground">د.ك</div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                          <tfoot className="border-t bg-muted/40">
-                            <tr>
-                              <td colSpan={5} className="px-3 py-4 text-left font-extrabold">إجمالي الطلبية</td>
-                              <td className="px-3 py-4 text-left text-lg font-black tabular-nums">
-                                {analysisResult.items
-                                  .reduce(
-                                    (sum, item) =>
-                                      sum +
-                                      (item.priceAmount !== null
-                                        ? Number(item.priceAmount) * Number(item.quantity || 0)
-                                        : 0),
-                                    0,
-                                  )
-                                  .toFixed(3)}{" "}
-                                د.ك
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-
-                      <div className="space-y-3 p-3 md:hidden" dir="rtl">
-                        {analysisResult.items.map((item, index) => {
-                          const isEditing = editingItemId === item.id;
-                          const lineTotal =
-                            item.priceAmount !== null
-                              ? Number(item.priceAmount) * Number(item.quantity || 0)
-                              : null;
-
-                          return (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() => setEditingItemId(item.id)}
-                              className={`block w-full rounded-xl border bg-background p-3 text-right shadow-sm transition ${isEditing ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "hover:bg-muted/30"}`}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0 flex-1">
-                                  <div className="mb-1 flex items-center gap-2">
-                                    <span className="rounded-md bg-primary/10 px-2 py-1 font-mono text-xs font-black text-primary">
-                                      {item.product?.sku ?? "—"}
-                                    </span>
-                                    <span className="text-[10px] text-muted-foreground">
-                                      ثقة {Math.round((item.confidence ?? 0) * 100)}%
-                                    </span>
-                                  </div>
-                                  <p className="line-clamp-2 text-sm font-extrabold">
-                                    {item.product?.name_ar ?? item.description ?? item.raw_text ?? "صنف غير محدد"}
-                                  </p>
-                                  {item.product?.name_en && (
-                                    <p className="mt-1 line-clamp-1 text-[10px] text-muted-foreground" dir="ltr">
-                                      {item.product.name_en}
-                                    </p>
-                                  )}
-                                </div>
-                                <div className="shrink-0 text-left">
-                                  <p className="text-[10px] text-muted-foreground">الإجمالي</p>
-                                  <p className="text-base font-black tabular-nums">
-                                    {lineTotal !== null ? lineTotal.toFixed(3) : "—"} د.ك
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="mt-3 grid grid-cols-3 gap-2 border-t pt-3 text-xs">
-                                <div className="rounded-lg bg-muted/50 px-2 py-2">
-                                  <p className="text-[10px] text-muted-foreground">الكمية</p>
-                                  <p className="mt-0.5 font-extrabold tabular-nums">{item.quantity || 0}</p>
-                                </div>
-                                <div className="rounded-lg bg-muted/50 px-2 py-2">
-                                  <p className="text-[10px] text-muted-foreground">الوحدة</p>
-                                  <p className="mt-0.5 font-extrabold">{item.unit || "—"}</p>
-                                </div>
-                                <div className="rounded-lg bg-muted/50 px-2 py-2">
-                                  <p className="text-[10px] text-muted-foreground">السعر</p>
-                                  <p className="mt-0.5 font-extrabold tabular-nums">
-                                    {item.priceAmount !== null ? Number(item.priceAmount).toFixed(3) : "—"}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
-                                <span>{isEditing ? "تم اختيار الصنف للتعديل أدناه" : "اضغط هنا للتعديل واختيار الصنف"}</span>
-                                <span className="font-bold text-primary">✎ تعديل</span>
-                              </div>
-                            </button>
-                          );
-                        })}
-
-                        <div className="rounded-xl border bg-muted/40 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="font-extrabold">إجمالي الطلبية</span>
-                            <span className="text-lg font-black tabular-nums">
-                              {analysisResult.items
-                                .reduce(
-                                  (sum, item) =>
-                                    sum +
-                                    (item.priceAmount !== null
-                                      ? Number(item.priceAmount) * Number(item.quantity || 0)
-                                      : 0),
-                                  0,
-                                )
-                                .toFixed(3)}{" "}
-                              د.ك
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="border-t bg-background p-4">
+                      <div className="mb-4 rounded-xl border bg-background p-4">
                         {analysisResult.items.map((item, index) => {
                           if (editingItemId !== item.id) return null;
                           return (
@@ -1951,6 +1678,366 @@ function NewOrder() {
                           );
                         })}
                       </div>
+
+                      <div className="hidden overflow-x-auto md:block">
+                        <table className="w-full min-w-[980px] text-sm" dir="rtl">
+                          <thead className="bg-muted/60 text-xs font-extrabold">
+                            <tr>
+                              <th className="px-3 py-3 text-right">بحث بالكود</th>
+                              <th className="px-3 py-3 text-right">الصنف</th>
+                              <th className="px-3 py-3 text-right">الكمية</th>
+                              <th className="px-3 py-3 text-right">الوحدة</th>
+                              <th className="px-3 py-3 text-right">السعر</th>
+                              <th className="px-3 py-3 text-right">الإجمالي</th>
+                              <th className="px-3 py-3 text-right">حذف</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {analysisResult.items.map((item, index) => {
+                              const isEditing = editingItemId === item.id;
+                              const lineTotal =
+                                item.priceAmount !== null
+                                  ? Number(item.priceAmount) * Number(item.quantity || 0)
+                                  : null;
+
+                              return (
+                                <tr
+                                  key={item.id}
+                                  onClick={() => setEditingItemId(item.id)}
+                                  className={`cursor-pointer transition-colors hover:bg-accent/5 ${isEditing ? "bg-accent/10" : ""}`}
+                                >
+                                  <td className="px-3 py-3 align-top">
+                                    <Input
+                                      value={codeSearches[item.id] ?? ""}
+                                      onChange={(event) =>
+                                        setCodeSearches((previous) => ({
+                                          ...previous,
+                                          [item.id]: event.target.value,
+                                        }))
+                                      }
+                                      onClick={(event) => event.stopPropagation()}
+                                      onKeyDown={(event) => {
+                                        if (event.key === "Enter") {
+                                          event.preventDefault();
+                                          const matches = filterCodeOptions(codeSearches[item.id] ?? "");
+                                          if (matches.length === 1) {
+                                            handleProductSelect(index, matches[0].value);
+                                            setCodeSearches((previous) => ({
+                                              ...previous,
+                                              [item.id]: matches[0].label.split(" — ").at(-1) ?? "",
+                                            }));
+                                          }
+                                        }
+                                      }}
+                                      placeholder="بحث بالكود فقط"
+                                      className="h-10 w-32 font-mono"
+                                      dir="ltr"
+                                    />
+                                    {(() => {
+                                      const query = codeSearches[item.id] ?? "";
+                                      const matches = filterCodeOptions(query);
+                                      if (!query || !matches.length) return null;
+                                      return (
+                                        <div className="mt-1 max-h-32 overflow-y-auto rounded-md border bg-background shadow-sm">
+                                          {matches.map((option) => (
+                                            <button
+                                              key={option.value}
+                                              type="button"
+                                              className="block w-full border-b px-2 py-1.5 text-right text-[11px] hover:bg-muted last:border-b-0"
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                handleProductSelect(index, option.value);
+                                                setCodeSearches((previous) => ({
+                                                  ...previous,
+                                                  [item.id]: option.label.split(" — ").at(-1) ?? "",
+                                                }));
+                                              }}
+                                            >
+                                              <span className="font-mono font-bold">{option.label.split(" — ").at(-1)}</span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
+                                    <div className="mt-1 text-[10px] text-muted-foreground">
+                                      {item.product ? "SKU: " + item.product.sku : "لم يتم اختيار صنف"}
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-3 align-top">
+                                    <div className="min-w-[300px] space-y-2">
+                                      <Select
+                                        value={item.product?.id ?? ""}
+                                        onValueChange={(value) => {
+                                          setEditingItemId(item.id);
+                                          handleProductSelect(index, value);
+                                        }}
+                                      >
+                                        <SelectTrigger
+                                          className="h-10 w-full bg-background font-bold"
+                                          onClick={(event) => event.stopPropagation()}
+                                        >
+                                          <SelectValue placeholder="اختر الصنف" />
+                                        </SelectTrigger>
+                                        <SelectContent className="max-h-80" onClick={(event) => event.stopPropagation()}>
+                                          <div className="border-b p-2">
+                                            <Input
+                                              autoFocus
+                                              value={productSearches[item.id] ?? ""}
+                                              onChange={(event) =>
+                                                setProductSearches((previous) => ({
+                                                  ...previous,
+                                                  [item.id]: event.target.value,
+                                                }))
+                                              }
+                                              placeholder="ابحث بالاسم أو الكود أو الماركة..."
+                                              className="h-9"
+                                              onPointerDown={(event) => event.stopPropagation()}
+                                              onMouseDown={(event) => event.stopPropagation()}
+                                              onFocus={(event) => event.stopPropagation()}
+                                              onKeyDown={(event) => {
+                                                event.stopPropagation();
+                                                if (event.key === "Escape") {
+                                                  event.preventDefault();
+                                                  setProductSearches((previous) => ({
+                                                    ...previous,
+                                                    [item.id]: "",
+                                                  }));
+                                                }
+                                              }}
+                                            />
+                                          </div>
+                                          {(() => {
+                                            const filtered = filterProductOptions(productSearches[item.id] ?? "");
+                                            const visible = filtered.slice(0, MAX_RENDERED_PRODUCT_RESULTS);
+                                            if (!filtered.length) {
+                                              return (
+                                                <div className="px-3 py-2 text-sm text-muted-foreground">
+                                                  لا توجد منتجات مطابقة للبحث
+                                                </div>
+                                              );
+                                            }
+                                            return (
+                                              <>
+                                                {visible.map((option) => (
+                                                  <SelectItem key={option.value} value={option.value}>
+                                                    {option.label}
+                                                  </SelectItem>
+                                                ))}
+                                                {filtered.length > visible.length && (
+                                                  <div className="border-t px-3 py-2 text-center text-[11px] text-muted-foreground">
+                                                    عرض {visible.length} من {filtered.length} نتيجة — ضيّق البحث.
+                                                  </div>
+                                                )}
+                                              </>
+                                            );
+                                          })()}
+                                        </SelectContent>
+                                      </Select>
+                                      <div className="text-xs font-semibold">
+                                        {item.product?.name_ar ?? item.description ?? item.raw_text ?? "صنف غير محدد"}
+                                      </div>
+                                      {item.product?.name_en && (
+                                        <div className="text-[10px] text-muted-foreground" dir="ltr">
+                                          {item.product.name_en}
+                                        </div>
+                                      )}
+                                      <div className="text-[10px] text-muted-foreground">
+                                        {isEditing ? "وضع التعديل مفعل" : "اضغط للتعديل"}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-3 align-top">
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      value={item.quantity || 0}
+                                      onChange={(event) => handleQuantityChange(index, Number(event.target.value))}
+                                      onClick={(event) => event.stopPropagation()}
+                                      className="h-10 w-28 font-bold"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-3 align-top">
+                                    <Select
+                                      value={item.unit || normalizeUnitValue(item.product?.unit) || "حبة"}
+                                      onValueChange={(value) => handleUnitChange(index, value)}
+                                    >
+                                      <SelectTrigger
+                                        className="h-10 w-32 bg-background"
+                                        onClick={(event) => event.stopPropagation()}
+                                      >
+                                        <SelectValue placeholder="اختر الوحدة" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {[
+                                          ...unitOptions,
+                                          ...(item.unit && !unitOptions.some((option) => option.value === item.unit)
+                                            ? [{ value: item.unit, label: item.unit + " — مقروءة من الطلبية" }]
+                                            : []),
+                                          ...(item.product?.unit &&
+                                          !unitOptions.some((option) => option.value === normalizeUnitValue(item.product?.unit)) &&
+                                          normalizeUnitValue(item.product.unit) !== item.unit
+                                            ? [{ value: normalizeUnitValue(item.product.unit), label: normalizeUnitValue(item.product.unit) + " — وحدة الصنف" }]
+                                            : []),
+                                        ].map((option) => (
+                                          <SelectItem key={item.id + "-" + option.value} value={option.value}>
+                                            {option.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </td>
+                                  <td className="px-3 py-3 align-top">
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      step="0.001"
+                                      value={item.priceAmount ?? ""}
+                                      onChange={(event) => handlePriceChange(index, Number(event.target.value))}
+                                      onClick={(event) => event.stopPropagation()}
+                                      placeholder={item.priceAmount === null ? "غير متاح" : "السعر"}
+                                      className="h-10 w-32 font-bold"
+                                    />
+                                    <p className="mt-1 max-w-[180px] text-[10px] text-muted-foreground">
+                                      {item.priceLabel === "سعر يدوي"
+                                        ? "سعر يدوي"
+                                        : item.priceAmount === null && item.basePriceAmount != null
+                                          ? `الأساس: ${Number(item.basePriceAmount).toFixed(3)} د.ك / ${item.basePriceUnit || item.product?.unit || "الوحدة"} — يلزم تحويل`
+                                          : item.priceLabel}
+                                    </p>
+                                  </td>
+                                  <td className="px-3 py-3 align-top">
+                                    <div className="rounded-lg bg-muted/60 px-3 py-2 text-left font-extrabold tabular-nums">
+                                      {lineTotal !== null ? lineTotal.toFixed(3) : "—"}
+                                    </div>
+                                    <div className="mt-1 text-[10px] text-muted-foreground">د.ك</div>
+                                  </td>
+                                  <td className="px-3 py-3 align-top">
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="destructive"
+                                      title="حذف الصف"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleDeleteLine(index);
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="border-t bg-muted/40">
+                            <tr>
+                              <td colSpan={6} className="px-3 py-4 text-left font-extrabold">إجمالي الطلبية</td>
+                              <td className="px-3 py-4 text-left text-lg font-black tabular-nums">
+                                {analysisResult.items
+                                  .reduce(
+                                    (sum, item) =>
+                                      sum +
+                                      (item.priceAmount !== null
+                                        ? Number(item.priceAmount) * Number(item.quantity || 0)
+                                        : 0),
+                                    0,
+                                  )
+                                  .toFixed(3)}{" "}
+                                د.ك
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+
+                      <div className="space-y-3 p-3 md:hidden" dir="rtl">
+                        {analysisResult.items.map((item, index) => {
+                          const isEditing = editingItemId === item.id;
+                          const lineTotal =
+                            item.priceAmount !== null
+                              ? Number(item.priceAmount) * Number(item.quantity || 0)
+                              : null;
+
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => setEditingItemId(item.id)}
+                              className={`block w-full rounded-xl border bg-background p-3 text-right shadow-sm transition ${isEditing ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "hover:bg-muted/30"}`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <div className="mb-1 flex items-center gap-2">
+                                    <span className="rounded-md bg-primary/10 px-2 py-1 font-mono text-xs font-black text-primary">
+                                      {item.product?.sku ?? "—"}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground">
+                                      ثقة {Math.round((item.confidence ?? 0) * 100)}%
+                                    </span>
+                                  </div>
+                                  <p className="line-clamp-2 text-sm font-extrabold">
+                                    {item.product?.name_ar ?? item.description ?? item.raw_text ?? "صنف غير محدد"}
+                                  </p>
+                                  {item.product?.name_en && (
+                                    <p className="mt-1 line-clamp-1 text-[10px] text-muted-foreground" dir="ltr">
+                                      {item.product.name_en}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="shrink-0 text-left">
+                                  <p className="text-[10px] text-muted-foreground">الإجمالي</p>
+                                  <p className="text-base font-black tabular-nums">
+                                    {lineTotal !== null ? lineTotal.toFixed(3) : "—"} د.ك
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 grid grid-cols-3 gap-2 border-t pt-3 text-xs">
+                                <div className="rounded-lg bg-muted/50 px-2 py-2">
+                                  <p className="text-[10px] text-muted-foreground">الكمية</p>
+                                  <p className="mt-0.5 font-extrabold tabular-nums">{item.quantity || 0}</p>
+                                </div>
+                                <div className="rounded-lg bg-muted/50 px-2 py-2">
+                                  <p className="text-[10px] text-muted-foreground">الوحدة</p>
+                                  <p className="mt-0.5 font-extrabold">{item.unit || "—"}</p>
+                                </div>
+                                <div className="rounded-lg bg-muted/50 px-2 py-2">
+                                  <p className="text-[10px] text-muted-foreground">السعر</p>
+                                  <p className="mt-0.5 font-extrabold tabular-nums">
+                                    {item.priceAmount !== null ? Number(item.priceAmount).toFixed(3) : "—"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
+                                <span>{isEditing ? "تم اختيار الصنف للتعديل أدناه" : "اضغط هنا للتعديل واختيار الصنف"}</span>
+                                <span className="font-bold text-primary">✎ تعديل</span>
+                              </div>
+                            </button>
+                          );
+                        })}
+
+                        <div className="rounded-xl border bg-muted/40 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-extrabold">إجمالي الطلبية</span>
+                            <span className="text-lg font-black tabular-nums">
+                              {analysisResult.items
+                                .reduce(
+                                  (sum, item) =>
+                                    sum +
+                                    (item.priceAmount !== null
+                                      ? Number(item.priceAmount) * Number(item.quantity || 0)
+                                      : 0),
+                                  0,
+                                )
+                                .toFixed(3)}{" "}
+                              د.ك
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
