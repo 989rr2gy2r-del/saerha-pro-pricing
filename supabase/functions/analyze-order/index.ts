@@ -8,8 +8,8 @@ const corsHeaders = {
 };
 
 const MODELS = [
-  { id: "gemini-3.5-flash-lite", timeoutMs: 15000 },
-  { id: "gemini-3.6-flash", timeoutMs: 18000 },
+  { id: "gemini-3.5-flash-lite", timeoutMs: 22000 },
+  { id: "gemini-3.6-flash", timeoutMs: 26000 },
 ];
 
 const MAX_IMAGE_BASE64 = 12_000_000;
@@ -110,7 +110,7 @@ async function callGemini(
           }],
           generationConfig: {
             responseMimeType: "application/json",
-            responseSchema: {
+            responseJsonSchema: {
               type: "object",
               properties: {
                 items: {
@@ -241,46 +241,66 @@ Deno.serve(async (req) => {
 ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
 
     const attempts: Array<{ model: string; error: string; upstreamStatus: number | null }> = [];
-    try {
-        const result = await callGemini(apiKey, MODELS[0].id, MODELS[0].timeoutMs, mimeType, base64Data, prompt);
+    let lastResult: ReturnType<typeof normalize> | null = null;
+
+    for (let index = 0; index < MODELS.length; index += 1) {
+      const model = MODELS[index];
+      try {
+        const result = await callGemini(
+          apiKey,
+          model.id,
+          model.timeoutMs,
+          mimeType,
+          base64Data,
+          index === 0
+            ? prompt
+            : prompt + "\n\nهذه مراجعة ثانية بعد تعذر المحاولة الأولى. لا تخترع أي معلومة؛ ركز على قراءة كل الصفوف والكمية والوحدة بدقة.",
+        );
+        lastResult = result;
+
         const confidences = result.items.map((item) => item.confidence).filter((value) => value > 0);
         const averageConfidence = confidences.length
           ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length
           : 0;
+
         if (result.items.length > 0 && averageConfidence >= 0.78) {
           return json({ success: true, result });
         }
-        // A structurally valid but uncertain result gets one quality pass.
-        const reviewed = await callGemini(
-          apiKey,
-          MODELS[1].id,
-          MODELS[1].timeoutMs,
-          mimeType,
-          base64Data,
-          prompt + "\n\nهذه مراجعة ثانية للحالة غير المؤكدة. لا تخترع أي معلومة؛ ركز على قراءة الصفوف والكمية والوحدة بدقة.",
-        );
-        return json({ success: true, result: reviewed });
+
+        if (index < MODELS.length - 1) continue;
+
+        if (result.items.length > 0) {
+          return json({
+            success: true,
+            result,
+            warning: "تمت القراءة لكن الثقة منخفضة؛ راجع السطور قبل الاعتماد.",
+          });
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : "unknown";
         const statusMatch = message.match(/HTTP (\d{3})/);
         const upstreamStatus = statusMatch ? Number(statusMatch[1]) : null;
         attempts.push({
-          model: MODELS[0].id,
+          model: model.id,
           error: message.slice(0, 800),
           upstreamStatus,
         });
-        console.warn(`Gemini ${MODELS[0].id} failed`, message);
-        return json({
-          success: false,
-          error: /AbortError|aborted|signal has been aborted/i.test(message)
-            ? "انتهت مهلة القراءة الذكية. سيتم تشغيل القراءة الاحتياطية."
-            : message.slice(0, 800),
-          code: /AbortError|aborted|signal has been aborted/i.test(message)
-            ? "GEMINI_TIMEOUT"
-            : upstreamStatus || "GEMINI_FAILED",
-          diagnostic: { attempts },
-        }, 503);
+        console.warn(`Gemini ${model.id} failed`, message);
+        if (index < MODELS.length - 1) continue;
       }
+    }
+
+    return json({
+      success: false,
+      error: "تعذر تشغيل محرك القراءة الذكي بعد محاولتين. سيتم تشغيل القراءة الاحتياطية.",
+      code: attempts.some((attempt) => /AbortError|aborted|signal has been aborted/i.test(attempt.error))
+        ? "GEMINI_TIMEOUT"
+        : "GEMINI_FAILED",
+      diagnostic: {
+        attempts,
+        hadResult: Boolean(lastResult?.items?.length),
+      },
+    }, 503);
   } catch (error) {
     console.error("analyze-order", error);
     return json({ success: false, error: "حدث خطأ أثناء قراءة الطلبية." }, 500);
