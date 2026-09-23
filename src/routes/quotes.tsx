@@ -1,6 +1,6 @@
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { createFileRoute } from "@tanstack/react-router";
-import { FileSpreadsheet, MessageCircle, Plus, Search } from "lucide-react";
+import { FileSpreadsheet, MessageCircle, Plus, Search, Trash2 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
 import { useEffect, useMemo, useState } from "react";
@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { deleteQuote } from "@/lib/db/saerha-data";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/quotes")({
@@ -99,6 +100,20 @@ function Quotes() {
   useEffect(() => {
     void loadQuotes();
   }, []);
+
+  const handleDeleteQuote = async (quote: Quote) => {
+    if (!window.confirm(`هل تريد حذف عرض السعر "${quote.reference}" نهائيًا؟ سيتم حذف بنوده أيضًا.`)) return;
+    try {
+      setLoading(true);
+      await deleteQuote(quote.id);
+      setOpen(null);
+      setQuotes((current) => current.filter((item) => item.id !== quote.id));
+    } catch (deleteError) {
+      alert(deleteError instanceof Error ? deleteError.message : "تعذر حذف عرض السعر");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredQuotes = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -528,7 +543,16 @@ function Quotes() {
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => void openWhatsApp(q)}>
                           <MessageCircle className="ml-1 h-4 w-4" /> واتساب
+                         </Button>
+                         <Button variant="ghost" size="sm" className="text-destructive" onClick={() => void handleDeleteQuote(q)}>
+                           <Trash2 className="ml-1 h-4 w-4" /> حذف
+                         </Button>
+                         <Button variant="ghost" size="sm" onClick={() => void openWhatsApp(q)}>
+                           <MessageCircle className="ml-1 h-4 w-4" /> واتساب
                         </Button>
+                 <Button size="sm" variant="destructive" onClick={() => void handleDeleteQuote(open)} disabled={loading}>
+                   <Trash2 className="ml-1 h-4 w-4" /> حذف العرض
+                 </Button>
                       </div>
                     </TableCell>
                   </TableRow>
