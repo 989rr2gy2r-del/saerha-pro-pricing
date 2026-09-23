@@ -161,7 +161,7 @@ export const Route = createFileRoute("/api/price-order" as any)({
             const conversion = convertQuantity(
               rawQuantity,
               requestedUnit || baseUnit || "",
-              baseUnit,
+              baseUnit ?? "",
               (conversions ?? []) as Array<{
                 from_unit: string;
                 to_unit: string;
