@@ -282,8 +282,19 @@ function Quotes() {
         // Official company footer image: source of truth, preserved without crop or distortion.
         doc.addImage(`data:image/png;base64,${footerBase64}`, "PNG", margin, footerY, contentWidth, footerHeight);
       };
+      const drawDocumentTitle = () => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.setTextColor(TEXT);
+        doc.text("QUOTATION", pageWidth / 2, 118, { align: "center" });
+        doc.setFont("NotoNaskhArabic", "normal");
+        doc.setFontSize(11);
+        doc.setTextColor(TEXT);
+        doc.text(processArabic("عرض سعر"), pageWidth / 2, 132, { align: "center" });
+      };
+
       const drawInfo = () => {
-        const top = 132;
+        const top = 146;
         const row = 25;
         const leftW = 255;
         const rightW = pageWidth - margin * 2 - leftW - 10;
@@ -432,6 +443,7 @@ function Quotes() {
       let page = 1;
       let y = 242;
       drawHeader();
+      drawDocumentTitle();
       drawInfo();
       y = drawTableHeader(y);
       const items = quote.quotation_items ?? [];
@@ -442,7 +454,8 @@ function Quotes() {
           doc.addPage();
           page += 1;
           drawHeader();
-          y = 132;
+          drawDocumentTitle();
+          y = 146;
           y = drawTableHeader(y);
         }
         y = drawTableRow(y, item, index);
