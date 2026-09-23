@@ -1,6 +1,6 @@
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Eye, Plus, Search } from "lucide-react";
+import { Eye, Trash2, Plus, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
