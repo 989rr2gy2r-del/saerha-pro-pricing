@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import * as XLSX from "xlsx";
-import { FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Upload } from "lucide-react";
+import { FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Trash2, Upload } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -598,6 +598,27 @@ function NewOrder() {
     }));
   };
 
+  const handleDeleteLine = (index: number) => {
+    const item = analysisResult?.items[index];
+    if (!item) return;
+    if (!window.confirm(`هل تريد حذف هذا الصنف من الطلبية الحالية؟\n\n${item.description || item.raw_text || "الصنف"}`)) return;
+    setAnalysisResult((prev) => {
+      if (!prev) return prev;
+      return { ...prev, items: prev.items.filter((_, itemIndex) => itemIndex !== index) };
+    });
+  };
+
+  const handleClearCurrentOrder = () => {
+    if (!analysisResult && uploadedFiles.length === 0) return;
+    if (!window.confirm("هل تريد حذف الطلبية الحالية ونتيجة التحليل من الشاشة؟ لن يتم حذف أي سجل محفوظ في قاعدة البيانات.")) return;
+    setAnalysisResult(null);
+    setAnalysisError("");
+    setUploadedFiles([]);
+    setProductSearches({});
+    setProgress(0);
+    setLastAnalyzedKey("");
+  };
+
   const handleProductSelect = (index: number, productId: string) => {
     const selected = products.find((product) => product.id === productId) ?? null;
     const current = analysisResult?.items[index];
@@ -1159,6 +1180,12 @@ function NewOrder() {
               )}
               {analysisResult && (
                 <div className="space-y-4">
+                  <div className="flex justify-end">
+                    <Button type="button" variant="destructive" size="sm" onClick={handleClearCurrentOrder}>
+                      <Trash2 className="ml-2 h-4 w-4" />
+                      حذف الطلبية الحالية
+                    </Button>
+                  </div>
                   {analysisResult.items?.length > 0 ? (
                     analysisResult.items.map((item, index) => (
                       <div key={item.id} className="rounded-lg border bg-card p-4">
@@ -1345,6 +1372,14 @@ function NewOrder() {
                             onClick={() => handleRejectLine(index)}
                           >
                             رفض السطر
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDeleteLine(index)}
+                          >
+                            <Trash2 className="ml-1 h-4 w-4" />
+                            حذف الصنف
                           </Button>
                           <Button
                             size="sm"
