@@ -832,10 +832,6 @@ function NewOrder() {
       }
 
       let rawResult: Record<string, unknown>;
-      const localOcrPromise = image
-        ? readImageLocally(first).catch(() => null)
-        : Promise.resolve(null);
-
       try {
         const supabaseUrl =
           import.meta.env["VITE_SUPABASE_URL"] ||
@@ -881,7 +877,9 @@ function NewOrder() {
               : "تعذر تشغيل القراءة الذكية؛ جارٍ تشغيل القراءة المحلية الاحتياطية.",
         );
         setProgress(30);
-        const local = (await localOcrPromise) ?? await readImageLocally(first, setProgress);
+        // Do not start local OCR while Gemini is running. On mobile this
+        // competes for CPU/network and makes the primary smart-reading path slower.
+        const local = await readImageLocally(first, setProgress);
         rawResult = {
           items: local.items,
           notes: `تمت قراءة الصورة محليًا. النص المستخرج: ${local.text}`,
