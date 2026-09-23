@@ -1,6 +1,6 @@
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowDownUp, Filter, ImageOff, Pencil, Plus, Search } from "lucide-react";
+import { ArrowDownUp, Filter, ImageOff, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
@@ -36,6 +36,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   createProduct,
+  deleteProduct,
   importProductsAndPrices,
   type ProductImportRow,
   updateProduct,
@@ -746,6 +747,21 @@ function ProductForm({
     }
   };
 
+  const removeProduct = async () => {
+    if (!selected) return;
+    if (!window.confirm(`هل تريد حذف المنتج "${selected.nameAr}" (SKU: ${selected.sku}) نهائيًا؟ سيتم حذف أسعاره والاختصارات المرتبطة به.`)) return;
+    try {
+      setSaving(true);
+      await deleteProduct(selected.id);
+      setOpen(false);
+      if (onSaved) await onSaved();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "تعذر حذف المنتج");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const labels = [
     { key: "sku", label: "SKU / كود الصنف" },
     { key: "nameAr", label: "الاسم العربي" },
@@ -952,6 +968,18 @@ function ProductForm({
           >
             {saving ? "جارٍ الحفظ..." : selected ? "تحديث المنتج" : "حفظ المنتج"}
           </Button>
+          {selected && (
+            <Button
+              type="button"
+              variant="destructive"
+              className="h-12 w-full font-extrabold sm:col-span-2"
+              onClick={() => void removeProduct()}
+              disabled={saving}
+            >
+              <Trash2 className="ml-2 h-4 w-4" />
+              حذف المنتج نهائيًا
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
