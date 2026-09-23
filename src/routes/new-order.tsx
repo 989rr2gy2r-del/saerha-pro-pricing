@@ -40,6 +40,13 @@ type ProductRecord = {
   description: string | null;
 };
 
+type UnitRecord = {
+  id: string;
+  code: string;
+  name_ar: string;
+  name_en: string | null;
+};
+
 type MatchStatus = "HIGH_CONFIDENCE" | "NEEDS_REVIEW" | "UNMATCHED";
 
 type ReviewItem = {
@@ -282,6 +289,50 @@ function normalizeForMatch(value: string): string {
     .trim();
 }
 
+function normalizeUnitValue(value: string | null | undefined): string {
+  const normalized = normalizeForMatch(String(value ?? ""));
+  const aliases: Record<string, string> = {
+    roll: "لف",
+    rolls: "لف",
+    "رول": "لف",
+    "لفة": "لف",
+    "لفات": "لف",
+    meter: "متر",
+    meters: "متر",
+    m: "متر",
+    pc: "حبة",
+    pcs: "حبة",
+    piece: "حبة",
+    pieces: "حبة",
+    "قطعة": "حبة",
+    box: "كرتون",
+    boxes: "كرتون",
+    "كرتونه": "كرتون",
+    "كرتونة": "كرتون",
+    bag: "كيس",
+    set: "طقم",
+    dozen: "دزينة",
+    "دزينة": "دزينة",
+  };
+  return aliases[normalized] ?? String(value ?? "").trim();
+}
+
+function extractQuantityFromRawText(rawText: string): number {
+  const raw = String(rawText ?? "")
+    .replace(/[٠-٩]/g, (char) => String("٠١٢٣٤٥٦٧٨٩".indexOf(char)))
+    .replace(/،/g, ",");
+  const unitPattern = "(?:pcs?|pieces?|pc|qty|quantity|حبة|قطعة|كرتون|كرتونه|كرتونة|box|boxes|roll|رول|لفة|لف|meter|metre|m|متر|دزينة|dozen|bag|كيس|set|طقم)";
+  const withUnit = [...raw.matchAll(new RegExp("(\\d+(?:[.,]\\d+)?)\\s*" + unitPattern + "\\b", "gi"))];
+  if (withUnit.length) {
+    const value = Number(String(withUnit.at(-1)?.[1] ?? "").replace(",", "."));
+    if (Number.isFinite(value)) return value;
+  }
+  const values = [...raw.matchAll(/\d+(?:[.,]\d+)?/g)]
+    .map((match) => Number(String(match[0]).replace(",", ".")))
+    .filter((value) => Number.isFinite(value));
+  return values.length >= 2 ? values[values.length - 1] : values[0] ?? 0;
+}
+
 function getPriceLookupKey(priceType: string): string {
   const map: Record<string, string> = {
     retail: "Retail",
@@ -454,9 +505,11 @@ function NewOrder() {
   >([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [productAliases, setProductAliases] = useState<Record<string, string[]>>({});
+  const [units, setUnits] = useState<UnitRecord[]>([]);
   const [progress, setProgress] = useState(0);
   const [lastAnalyzedKey, setLastAnalyzedKey] = useState<string>("");
   const [productSearches, setProductSearches] = useState<Record<string, string>>({});
+  const [codeSearches, setCodeSearches] = useState<Record<string, string>>({});
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   const productOptions = useMemo(
@@ -474,6 +527,19 @@ function NewOrder() {
   );
 
   const MAX_RENDERED_PRODUCT_RESULTS = 150;
+
+  const filterCodeOptions = (query: string) => {
+    const normalizedQuery = normalizeForMatch(query);
+    if (!normalizedQuery) return [];
+    return productOptions
+      .filter((option) => normalizeForMatch(option.label.split(" — ").at(-1) ?? "").includes(normalizedQuery))
+      .slice(0, MAX_RENDERED_PRODUCT_RESULTS);
+  };
+
+  const unitOptions = units.map((unit) => ({
+    value: unit.name_ar,
+    label: unit.name_ar + " — " + unit.code,
+  }));
 
   const filterProductOptions = (query: string) => {
     const normalizedQuery = normalizeForMatch(query);
@@ -528,6 +594,19 @@ function NewOrder() {
       .filter((entry): entry is { option: (typeof productOptions)[number]; score: number } => Boolean(entry))
       .sort((a, b) => b.score - a.score || a.option.label.localeCompare(b.option.label, "ar"))
       .map((entry) => entry.option);
+  };
+
+  const loadUnits = async () => {
+    const { data, error } = await (supabase as any)
+      .from("units")
+      .select("id, code, name_ar, name_en")
+      .order("name_ar", { ascending: true });
+    if (error) {
+      console.error("Saerha units load failed", error);
+      setUnits([]);
+      return;
+    }
+    setUnits((data ?? []) as UnitRecord[]);
   };
 
   const loadCustomers = async () => {
@@ -610,6 +689,7 @@ function NewOrder() {
   useEffect(() => {
     void loadCustomers();
     void loadProducts();
+    void loadUnits();
   }, []);
 
   const patchReviewItem = (index: number, updater: (item: ReviewItem) => ReviewItem) => {
@@ -703,6 +783,7 @@ function NewOrder() {
     setAnalysisError("");
     setUploadedFiles([]);
     setProductSearches({});
+    setCodeSearches({});
     setProgress(0);
     setLastAnalyzedKey("");
   };
@@ -1121,8 +1202,12 @@ function NewOrder() {
           item["normalized_description_ar"] ?? item["arabic_name"] ?? item["description"] ?? item["raw_text"] ?? "",
         ).trim(),
         raw_text: String(item["raw_text"] ?? item["description"] ?? "").trim(),
-        quantity: Number(item["quantity"] ?? 0),
-        unit: String(item["unit"] ?? "").trim(),
+        quantity: (() => {
+          const aiQuantity = Number(item["quantity"] ?? 0);
+          if (Number.isFinite(aiQuantity) && aiQuantity > 0) return aiQuantity;
+          return extractQuantityFromRawText(String(item["raw_text"] ?? item["description"] ?? ""));
+        })(),
+        unit: normalizeUnitValue(String(item["unit"] ?? "").trim()),
         confidence: (() => {
           const value = Number(item["confidence"] ?? 0.5);
           return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5;
@@ -1168,6 +1253,7 @@ function NewOrder() {
           ...item,
           confidence,
           product: match?.product ?? null,
+          unit: normalizeUnitValue(item.unit) || normalizeUnitValue(match?.product?.unit) || "حبة",
           matchReason: match
             ? "تمت المطابقة محليًا مع قاعدة المنتجات"
             : "لم يتم العثور على منتج مطابق تلقائيًا",
