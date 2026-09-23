@@ -1193,12 +1193,12 @@ function NewOrder() {
         const timedOut = serverError instanceof DOMException && serverError.name === "AbortError";
         const serverMessage =
           serverError instanceof Error ? serverError.message.trim() : "";
+        // Do not expose raw provider/API diagnostics in the customer-facing UI.
+        if (serverMessage) console.warn("analyze-order server error:", serverMessage);
         fallbackNotice =
           timedOut
             ? "القراءة الذكية تأخرت قليلًا؛ جارٍ تشغيل القراءة المحلية الاحتياطية."
-            : serverMessage
-              ? `تعذر تشغيل القراءة الذكية: ${serverMessage} — جارٍ تشغيل القراءة المحلية الاحتياطية.`
-              : "تعذر تشغيل القراءة الذكية؛ جارٍ تشغيل القراءة المحلية الاحتياطية.";
+            : "تعذر تشغيل القراءة الذكية؛ جارٍ تشغيل القراءة المحلية الاحتياطية.";
         setAnalysisError(fallbackNotice);
         setProgress(30);
         // Do not start local OCR while Gemini is running. On mobile this
