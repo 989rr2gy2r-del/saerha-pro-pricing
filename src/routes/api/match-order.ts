@@ -4,7 +4,7 @@ import { rankProductMatches } from "@/lib/matching/product-matcher";
 
 type InputItem = { id?: string; description?: string; raw_text?: string; quantity?: number; unit?: string };
 
-export const Route = createFileRoute("/api/match-order")({
+export const Route = createFileRoute("/api/match-order" as any)({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -17,10 +17,10 @@ export const Route = createFileRoute("/api/match-order")({
           if (!items.length) return Response.json({ success: false, error: "لا توجد بنود للمطابقة." }, { status: 400 });
 
           const [productsResult, aliasesResult, correctionsResult] = await Promise.all([
-            auth.supabase.from("products").select(
+            (auth.supabase as any).from("products").select(
               "id, sku, name_ar, name_en, short_name, brand, model, size, unit",
             ).eq("status", "active").limit(10000),
-            auth.supabase.from("product_aliases").select("product_id, alias, normalized_alias").limit(20000),
+            (auth.supabase as any).from("product_aliases").select("product_id, alias, normalized_alias").limit(20000),
             auth.supabase
               .from("ai_corrections")
               .select("product_id, raw_text, normalized_text, action")
