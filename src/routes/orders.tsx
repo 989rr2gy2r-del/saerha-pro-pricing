@@ -127,6 +127,21 @@ function Orders() {
     void loadOrders();
   }, []);
 
+  const handleDeleteOrder = async (order: OrderRow) => {
+    if (!window.confirm(`هل تريد حذف الطلبية "${order.reference}" نهائيًا؟ سيتم حذف أصناف الطلبية أيضًا.`)) return;
+    try {
+      setLoading(true);
+      const { deleteOrder } = await import("@/lib/db/saerha-data");
+      await deleteOrder(order.id);
+      setSelectedOrder(null);
+      await loadOrders();
+    } catch (deleteError) {
+      alert(deleteError instanceof Error ? deleteError.message : "تعذر حذف الطلبية");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const visibleOrders = useMemo(() => {
     const term = query.trim().toLowerCase();
 
@@ -337,6 +352,12 @@ function Orders() {
           </DialogHeader>
           {selectedOrder && (
             <div className="space-y-4 text-sm">
+              <div className="flex justify-start">
+                <Button type="button" variant="destructive" size="sm" onClick={() => void handleDeleteOrder(selectedOrder)} disabled={loading}>
+                  <Trash2 className="ml-1 h-4 w-4" />
+                  حذف الطلبية
+                </Button>
+              </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                 <div>
                   المصدر:{" "}
