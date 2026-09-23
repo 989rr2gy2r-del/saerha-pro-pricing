@@ -457,6 +457,7 @@ function NewOrder() {
   const [progress, setProgress] = useState(0);
   const [lastAnalyzedKey, setLastAnalyzedKey] = useState<string>("");
   const [productSearches, setProductSearches] = useState<Record<string, string>>({});
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   const productOptions = useMemo(
     () =>
@@ -1347,226 +1348,274 @@ function NewOrder() {
                     </Button>
                   </div>
                   {analysisResult.items?.length > 0 ? (
-                    analysisResult.items.map((item, index) => (
-                      <div key={item.id} className="rounded-lg border bg-card p-4">
-                        <div className="mb-3 flex items-start justify-between gap-3">
-                          <div className="space-y-1">
-                            <p className="font-bold text-base">
-                              {item.description || item.raw_text}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              الكمية: {item.quantity || 0} · الوحدة: {item.unit || "غير محددة"}
-                            </p>
+                    <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+                      <div className="border-b bg-muted/40 px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="font-extrabold">جدول الأصناف والأسعار</p>
                             <p className="text-xs text-muted-foreground">
-                              النص الأصلي: {item.raw_text || item.description}
+                              اضغط على أي صنف لعرضه وتعديله، ثم اختر الصنف الصحيح من قاعدة البيانات.
                             </p>
                           </div>
-                          <div className="text-left">
-                            <p className="rounded-full bg-accent/10 px-2 py-1 text-[10px] font-medium">
-                              {item.status}
-                            </p>
-                            <p className="mt-1 text-[10px] text-muted-foreground">
-                              ثقة {Math.round((item.confidence ?? 0) * 100)}%
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="mb-4 rounded-lg border bg-muted/30 p-3">
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <div>
-                              <Label className="text-xs text-muted-foreground">النص المقروء</Label>
-                              <p className="mt-1 text-sm font-medium" dir="auto">
-                                {item.description || item.raw_text || "غير واضح"}
-                              </p>
-                            </div>
-                            <div>
-                              <Label className="text-xs text-muted-foreground">الفهم والترجمة العربية</Label>
-                              <p className="mt-1 text-sm font-bold text-primary" dir="rtl">
-                                {item.normalized_description_ar || "غير واضح — يحتاج مراجعة"}
-                              </p>
-                            </div>
-                          </div>
-                          {item.raw_text && item.raw_text !== item.description && (
-                            <p className="mt-2 text-[10px] text-muted-foreground" dir="auto">
-                              النص الأصلي: {item.raw_text}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>المنتج المقترح</Label>
-                            <Select
-                              value={item.product?.id ?? ""}
-                              onValueChange={(value) => handleProductSelect(index, value)}
-                            >
-                              <SelectTrigger className="h-11">
-                                <SelectValue placeholder="اختر منتجًا" />
-                              </SelectTrigger>
-                              <SelectContent className="max-h-80">
-                                <div className="border-b p-2">
-                                  <Input
-                                    autoFocus
-                                    value={productSearches[item.id] ?? ""}
-                                    onChange={(event) =>
-                                      setProductSearches((previous) => ({
-                                        ...previous,
-                                        [item.id]: event.target.value,
-                                      }))
-                                    }
-                                    placeholder="ابحث بالاسم أو الكود أو الماركة..."
-                                    className="h-9"
-                                    onKeyDown={(event) => {
-                                      if (event.key === "Escape") {
-                                        event.preventDefault();
-                                        setProductSearches((previous) => ({
-                                          ...previous,
-                                          [item.id]: "",
-                                        }));
-                                      }
-                                    }}
-                                  />
-                                </div>
-                                {(() => {
-                                  const filtered = filterProductOptions(
-                                    productSearches[item.id] ?? "",
-                                  );
-                                  const visible = filtered.slice(0, MAX_RENDERED_PRODUCT_RESULTS);
-                                  const hasMore = filtered.length > visible.length;
-
-                                  if (!filtered.length) {
-                                    return (
-                                      <div className="px-3 py-2 text-sm text-muted-foreground">
-                                        لا توجد منتجات مطابقة للبحث
-                                      </div>
-                                    );
-                                  }
-
-                                  return (
-                                    <>
-                                      {visible.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                          {option.label}
-                                        </SelectItem>
-                                      ))}
-                                      {hasMore && (
-                                        <div className="border-t px-3 py-2 text-center text-[11px] text-muted-foreground">
-                                          عرض {visible.length} من {filtered.length} نتيجة — ضيّق البحث بمزيد من الأحرف أو الكود.
-                                        </div>
-                                      )}
-                                    </>
-                                  );
-                                })()}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>SKU</Label>
-                            <Input value={item.product?.sku ?? "-"} readOnly className="h-11" />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>الاسم العربي</Label>
-                            <Input value={item.product?.name_ar ?? "-"} readOnly className="h-11" />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>الاسم الإنجليزي</Label>
-                            <Input value={item.product?.name_en ?? "-"} readOnly className="h-11" />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>الماركة</Label>
-                            <Input value={item.product?.brand ?? "-"} readOnly className="h-11" />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>الكمية</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              value={item.quantity || 0}
-                              onChange={(event) =>
-                                handleQuantityChange(index, Number(event.target.value))
-                              }
-                              className="h-11"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>السعر (د.ك)</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              step="0.001"
-                              value={item.priceAmount ?? ""}
-                              onChange={(event) => handlePriceChange(index, Number(event.target.value))}
-                              placeholder={item.priceAmount === null ? "غير متاح بهذه الوحدة" : "جاري جلب السعر..."}
-                              className="h-11 font-bold"
-                            />
-                            <p className="text-[10px] text-muted-foreground">
-                              {item.priceLabel === "سعر يدوي"
-                                ? "تم تعديل السعر يدويًا"
-                                : item.priceAmount === null && item.basePriceAmount != null
-                                  ? `سعر الأساس: ${Number(item.basePriceAmount).toFixed(3)} د.ك / ${item.basePriceUnit || item.product?.unit || "الوحدة الأساسية"} — يلزم تحويل للوحدة المطلوبة.`
-                                  : "مصدر السعر: " + item.priceLabel}
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>الإجمالي (د.ك)</Label>
-                            <Input
-                              value={item.priceAmount !== null ? (Number(item.priceAmount) * Number(item.quantity || 0)).toFixed(3) : ""}
-                              readOnly
-                              className="h-11 font-bold"
-                            />
-                          </div>
-                          <div className="space-y-2 md:col-span-2">
-                            <Label>الوحدة</Label>
-                            <Input
-                              value={item.unit || ""}
-                              onChange={(event) => handleUnitChange(index, event.target.value)}
-                              className="h-11"
-                              placeholder="اكتب الوحدة"
-                            />
-                          </div>
-                        </div>
-
-                        <p className="mt-3 text-[11px] text-muted-foreground">
-                          سبب المطابقة: {item.matchReason}
-                        </p>
-                        {item.notes && (
-                          <p className="mt-2 text-[11px] text-amber-600">ملاحظات: {item.notes}</p>
-                        )}
-
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleAcceptMatch(index)}
-                            disabled={!item.product}
-                          >
-                            قبول المطابقة
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleRejectLine(index)}
-                          >
-                            رفض السطر
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDeleteLine(index)}
-                          >
-                            <Trash2 className="ml-1 h-4 w-4" />
-                            حذف الصنف
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => void handleSaveAlias(index)}
-                            disabled={!item.product}
-                          >
-                            حفظ الاختصار مستقبلًا
-                          </Button>
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {analysisResult.items.length} صنف
+                          </p>
                         </div>
                       </div>
-                    ))
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[980px] text-sm" dir="rtl">
+                          <thead className="bg-muted/60 text-xs font-extrabold">
+                            <tr>
+                              <th className="px-3 py-3 text-right">الكود</th>
+                              <th className="px-3 py-3 text-right">الصنف</th>
+                              <th className="px-3 py-3 text-right">الكمية</th>
+                              <th className="px-3 py-3 text-right">الوحدة</th>
+                              <th className="px-3 py-3 text-right">السعر</th>
+                              <th className="px-3 py-3 text-right">الإجمالي</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {analysisResult.items.map((item, index) => {
+                              const isEditing = editingItemId === item.id;
+                              const lineTotal =
+                                item.priceAmount !== null
+                                  ? Number(item.priceAmount) * Number(item.quantity || 0)
+                                  : null;
+
+                              return (
+                                <tr
+                                  key={item.id}
+                                  onClick={() => setEditingItemId(item.id)}
+                                  className={`cursor-pointer transition-colors hover:bg-accent/5 ${isEditing ? "bg-accent/10" : ""}`}
+                                >
+                                  <td className="px-3 py-3 align-top">
+                                    <div className="font-mono font-extrabold text-primary">
+                                      {item.product?.sku ?? "—"}
+                                    </div>
+                                    <div className="mt-1 text-[10px] text-muted-foreground">
+                                      ثقة {Math.round((item.confidence ?? 0) * 100)}%
+                                    </div>
+                                  </td>
+
+                                  <td className="px-3 py-3 align-top">
+                                    <div className="min-w-[300px] space-y-2">
+                                      <Select
+                                        value={item.product?.id ?? ""}
+                                        onValueChange={(value) => {
+                                          setEditingItemId(item.id);
+                                          handleProductSelect(index, value);
+                                        }}
+                                      >
+                                        <SelectTrigger
+                                          className="h-10 w-full bg-background font-bold"
+                                          onClick={(event) => event.stopPropagation()}
+                                        >
+                                          <SelectValue placeholder="اختر الصنف" />
+                                        </SelectTrigger>
+                                        <SelectContent
+                                          className="max-h-80"
+                                          onClick={(event) => event.stopPropagation()}
+                                        >
+                                          <div className="border-b p-2">
+                                            <Input
+                                              autoFocus
+                                              value={productSearches[item.id] ?? ""}
+                                              onChange={(event) =>
+                                                setProductSearches((previous) => ({
+                                                  ...previous,
+                                                  [item.id]: event.target.value,
+                                                }))
+                                              }
+                                              placeholder="ابحث بالاسم أو الكود أو الماركة..."
+                                              className="h-9"
+                                              onKeyDown={(event) => {
+                                                if (event.key === "Escape") {
+                                                  event.preventDefault();
+                                                  setProductSearches((previous) => ({
+                                                    ...previous,
+                                                    [item.id]: "",
+                                                  }));
+                                                }
+                                              }}
+                                            />
+                                          </div>
+                                          {(() => {
+                                            const filtered = filterProductOptions(
+                                              productSearches[item.id] ?? "",
+                                            );
+                                            const visible = filtered.slice(0, MAX_RENDERED_PRODUCT_RESULTS);
+                                            if (!filtered.length) {
+                                              return (
+                                                <div className="px-3 py-2 text-sm text-muted-foreground">
+                                                  لا توجد منتجات مطابقة للبحث
+                                                </div>
+                                              );
+                                            }
+                                            return (
+                                              <>
+                                                {visible.map((option) => (
+                                                  <SelectItem key={option.value} value={option.value}>
+                                                    {option.label}
+                                                  </SelectItem>
+                                                ))}
+                                                {filtered.length > visible.length && (
+                                                  <div className="border-t px-3 py-2 text-center text-[11px] text-muted-foreground">
+                                                    عرض {visible.length} من {filtered.length} نتيجة — ضيّق البحث.
+                                                  </div>
+                                                )}
+                                              </>
+                                            );
+                                          })()}
+                                        </SelectContent>
+                                      </Select>
+
+                                      <div className="text-xs font-semibold" dir="rtl">
+                                        {item.product?.name_ar ?? item.description ?? item.raw_text ?? "صنف غير محدد"}
+                                      </div>
+                                      {item.product?.name_en && (
+                                        <div className="text-[10px] text-muted-foreground" dir="ltr">
+                                          {item.product.name_en}
+                                        </div>
+                                      )}
+                                      <div className="text-[10px] text-muted-foreground">
+                                        {isEditing ? "وضع التعديل مفعل" : "اضغط للتعديل"}
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  <td className="px-3 py-3 align-top">
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      value={item.quantity || 0}
+                                      onChange={(event) =>
+                                        handleQuantityChange(index, Number(event.target.value))
+                                      }
+                                      onClick={(event) => event.stopPropagation()}
+                                      className="h-10 w-28 font-bold"
+                                    />
+                                  </td>
+
+                                  <td className="px-3 py-3 align-top">
+                                    <Input
+                                      value={item.unit || ""}
+                                      onChange={(event) => handleUnitChange(index, event.target.value)}
+                                      onClick={(event) => event.stopPropagation()}
+                                      className="h-10 w-28"
+                                      placeholder="الوحدة"
+                                    />
+                                  </td>
+
+                                  <td className="px-3 py-3 align-top">
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      step="0.001"
+                                      value={item.priceAmount ?? ""}
+                                      onChange={(event) => handlePriceChange(index, Number(event.target.value))}
+                                      onClick={(event) => event.stopPropagation()}
+                                      placeholder={item.priceAmount === null ? "غير متاح" : "السعر"}
+                                      className="h-10 w-32 font-bold"
+                                    />
+                                    <p className="mt-1 max-w-[180px] text-[10px] text-muted-foreground">
+                                      {item.priceLabel === "سعر يدوي"
+                                        ? "سعر يدوي"
+                                        : item.priceAmount === null && item.basePriceAmount != null
+                                          ? `الأساس: ${Number(item.basePriceAmount).toFixed(3)} د.ك / ${item.basePriceUnit || item.product?.unit || "الوحدة"} — يلزم تحويل`
+                                          : item.priceLabel}
+                                    </p>
+                                  </td>
+
+                                  <td className="px-3 py-3 align-top">
+                                    <div className="rounded-lg bg-muted/60 px-3 py-2 text-left font-extrabold tabular-nums">
+                                      {lineTotal !== null ? lineTotal.toFixed(3) : "—"}
+                                    </div>
+                                    <div className="mt-1 text-[10px] text-muted-foreground">د.ك</div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="border-t bg-muted/40">
+                            <tr>
+                              <td colSpan={5} className="px-3 py-4 text-left font-extrabold">
+                                إجمالي الطلبية
+                              </td>
+                              <td className="px-3 py-4 text-left text-lg font-black tabular-nums">
+                                {analysisResult.items
+                                  .reduce(
+                                    (sum, item) =>
+                                      sum +
+                                      (item.priceAmount !== null
+                                        ? Number(item.priceAmount) * Number(item.quantity || 0)
+                                        : 0),
+                                    0,
+                                  )
+                                  .toFixed(3)}{" "}
+                                د.ك
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+
+                      <div className="border-t bg-background p-4">
+                        {analysisResult.items.map((item, index) => {
+                          if (editingItemId !== item.id) return null;
+                          return (
+                            <div key={`editor-${item.id}`} className="rounded-lg border bg-muted/20 p-3">
+                              <div className="mb-2 flex items-center justify-between gap-2">
+                                <p className="font-bold">تعديل الصنف: {item.product?.name_ar || item.description}</p>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingItemId(null)}
+                                >
+                                  إغلاق التعديل
+                                </Button>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleAcceptMatch(index)}
+                                  disabled={!item.product}
+                                >
+                                  اعتماد الصنف
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRejectLine(index)}
+                                >
+                                  رفض السطر
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleDeleteLine(index)}
+                                >
+                                  <Trash2 className="ml-1 h-4 w-4" />
+                                  حذف الصنف
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => void handleSaveAlias(index)}
+                                  disabled={!item.product}
+                                >
+                                  حفظ الاختصار مستقبلًا
+                                </Button>
+                              </div>
+                              {item.notes && (
+                                <p className="mt-2 text-[11px] text-amber-600">ملاحظات: {item.notes}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       لم يتم استخراج أصناف واضحة من الملف.
