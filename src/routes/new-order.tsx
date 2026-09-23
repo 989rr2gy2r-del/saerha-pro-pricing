@@ -732,11 +732,20 @@ function NewOrder() {
         const { data } = await (supabase as any).from("customers").select("customer_type").eq("id", selectedCustomerId).maybeSingle();
         customerType = data?.customer_type ?? "retail";
       }
-      const { data: priceRows, error } = await supabase
-        .from("prices")
-        .select("product_id, price_type, customer_id, amount, valid_from, valid_to, is_active")
-        .in("product_id", [...new Set(productIds)]);
+      const uniqueProductIds = [...new Set(productIds)];
+      const [{ data: priceRows, error }, { data: conversionRows, error: conversionError }] =
+        await Promise.all([
+          supabase
+            .from("prices")
+            .select("product_id, price_type, customer_id, amount, valid_from, valid_to, is_active")
+            .in("product_id", uniqueProductIds),
+          supabase
+            .from("unit_conversions")
+            .select("from_unit, to_unit, multiplier, product_id")
+            .or("product_id.is.null,product_id.in.(" + uniqueProductIds.join(",") + ")"),
+        ]);
       if (error) throw error;
+      if (conversionError) throw conversionError;
       const now = Date.now();
       setAnalysisResult((prev) => {
         if (!prev) return prev;
@@ -760,11 +769,54 @@ function NewOrder() {
               rows.find((row) => row.price_type === preferredType && !row.customer_id) ??
               rows.find((row) => row.price_type === "retail" && !row.customer_id) ??
               rows.find((row) => row.price_type === "reseller" && !row.customer_id);
+
+            if (!chosen) {
+              return {
+                ...item,
+                priceAmount: null,
+                priceType: null,
+                priceLabel: "لا يوجد سعر فعال",
+              };
+            }
+
+            const requestedUnit = item.unit || item.product!.unit || "حبة";
+            const baseUnit = item.product!.unit || requestedUnit;
+            const conversion = convertQuantity(
+              1,
+              requestedUnit,
+              baseUnit,
+              (conversionRows ?? []) as unknown as Array<{
+                from_unit: string;
+                to_unit: string;
+                multiplier: number;
+                product_id: string | null;
+              }>,
+              item.product!.id,
+            );
+
+            if (
+              requestedUnit.trim() &&
+              baseUnit.trim() &&
+              !conversion.converted &&
+              requestedUnit.trim().toLowerCase() !== baseUnit.trim().toLowerCase()
+            ) {
+              return {
+                ...item,
+                priceAmount: null,
+                priceType: null,
+                priceLabel: conversion.reason ?? "لا توجد تحويلة للوحدة المطلوبة",
+                notes: [item.notes, conversion.reason ?? "لا توجد تحويلة للوحدة المطلوبة"]
+                  .filter(Boolean)
+                  .join(" "),
+              };
+            }
+
+            const requestedUnitPrice = Number(chosen.amount) * conversion.multiplier;
             return {
               ...item,
-              priceAmount: chosen ? Number(chosen.amount) : null,
-              priceType: chosen?.price_type ?? null,
-              priceLabel: chosen ? getPriceLookupKey(chosen.price_type) : "لا يوجد سعر",
+              priceAmount: Number.isFinite(requestedUnitPrice) ? requestedUnitPrice : null,
+              priceType: chosen.price_type,
+              priceLabel: getPriceLookupKey(chosen.price_type),
             };
           }),
         };
@@ -973,7 +1025,10 @@ function NewOrder() {
         raw_text: String(item["raw_text"] ?? item["description"] ?? "").trim(),
         quantity: Number(item["quantity"] ?? 0),
         unit: String(item["unit"] ?? "").trim(),
-        confidence: Number(item["confidence"] ?? 0.5),
+        confidence: (() => {
+          const value = Number(item["confidence"] ?? 0.5);
+          return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5;
+        })(),
         notes: String(item["notes"] ?? "").trim(),
       }));
 
@@ -1001,7 +1056,10 @@ function NewOrder() {
           item.normalized_description_ar,
           matchingAliases,
         );
-        const confidence = match ? Math.max(item.confidence, match.score) : item.confidence;
+        const confidence = Math.min(
+          1,
+          Math.max(0, match ? Math.max(item.confidence, match.score) : item.confidence),
+        );
         const status: MatchStatus = match
           ? confidence >= 0.85
             ? "HIGH_CONFIDENCE"
