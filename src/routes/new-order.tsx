@@ -1179,24 +1179,32 @@ function NewOrder() {
       const rawItems = Array.isArray(rawResult["items"])
         ? (rawResult["items"] as Record<string, unknown>[])
         : [];
-      const normalizedItems = rawItems.map((item, index: number) => ({
-        id: `${Date.now()}-${index}`,
-        description: String(item["description"] ?? item["raw_text"] ?? "").trim(),
-        normalized_description_ar: String(
-          item["normalized_description_ar"] ?? item["arabic_name"] ?? item["description"] ?? item["raw_text"] ?? "",
-        ).trim(),
-        raw_text: String(item["raw_text"] ?? item["description"] ?? "").trim(),
-        quantity: (() => {
-          const value = Number(item["quantity"]);
-          return Number.isFinite(value) && value > 0 ? value : null;
-        })(),
-        unit: normalizeUnitValue(String(item["unit"] ?? "").trim()),
-        confidence: (() => {
-          const value = Number(item["confidence"] ?? 0.5);
-          return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5;
-        })(),
-        notes: String(item["notes"] ?? "").trim(),
-      }));
+      // AI/OCR engines can occasionally return an empty placeholder object.
+      // Never render that placeholder as a real order line.
+      const normalizedItems = rawItems
+        .map((item, index: number) => ({
+          id: `${Date.now()}-${index}`,
+          description: String(item["description"] ?? item["raw_text"] ?? "").trim(),
+          normalized_description_ar: String(
+            item["normalized_description_ar"] ?? item["arabic_name"] ?? item["description"] ?? item["raw_text"] ?? "",
+          ).trim(),
+          raw_text: String(item["raw_text"] ?? item["description"] ?? "").trim(),
+          quantity: (() => {
+            const value = Number(item["quantity"]);
+            return Number.isFinite(value) && value > 0 ? value : null;
+          })(),
+          unit: normalizeUnitValue(String(item["unit"] ?? "").trim()),
+          confidence: (() => {
+            const value = Number(item["confidence"] ?? 0.5);
+            return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5;
+          })(),
+          notes: String(item["notes"] ?? "").trim(),
+        }))
+        .filter((item) => item.description.length > 0 || item.raw_text.length > 0);
+
+      if (!normalizedItems.length) {
+        throw new Error("لم يتم استخراج أي سطر طلبية واضح من الملف.");
+      }
 
             // Match each extracted line against the products loaded from Supabase.
       // Keep the review state explicit so the user can confirm or correct every match.
