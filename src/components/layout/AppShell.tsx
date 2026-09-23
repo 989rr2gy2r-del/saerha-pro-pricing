@@ -50,7 +50,7 @@ export function AppShell({
 
   const handleLogout = useCallback(async () => {
     await signOut();
-    navigate({ to: "/login", search: { redirect: "/" } });
+    navigate({ to: "/login" });
   }, [navigate, signOut]);
 
   return (
