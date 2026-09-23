@@ -545,7 +545,7 @@ function NewOrder() {
     const normalizedText = normalizeForMatch(rawText);
     if (!normalizedText) return;
 
-    const { data: sessionData } = await supabase.auth.getSession();
+    const { data: sessionData } = await (supabase as any).auth.getSession();
     const userId = sessionData.session?.user?.id;
     if (!userId) return;
 
@@ -815,7 +815,7 @@ function NewOrder() {
       }
 
 
-      const { data: authSession } = await supabase.auth.getSession();
+      const { data: authSession } = await (supabase as any).auth.getSession();
       const accessToken = authSession.session?.access_token;
       if (!accessToken) {
         throw new Error("انتهت جلسة الدخول. سجّل الدخول ثم أعد المحاولة.");
@@ -829,7 +829,7 @@ function NewOrder() {
       try {
         const supabaseUrl =
           import.meta.env["VITE_SUPABASE_URL"] ||
-          "https://ebtjwwrjhsebojurkvgy.supabase.co";
+          "https://ebtjwwrjhsebojurkvgy.(supabase as any).co";
 
         setProgress(45);
         const response = await fetchWithTimeout(`${supabaseUrl}/functions/v1/analyze-order`, {
