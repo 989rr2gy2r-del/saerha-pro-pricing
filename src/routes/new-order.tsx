@@ -218,11 +218,11 @@ function parseLocalOcrText(text: string) {
     const endMatch = line.match(new RegExp(`^(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?$`, "i"));
 
     if (startMatch) {
-      quantity = Number(String(startMatch[1]).replace(/[٠-٩]/g, (c) => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(",", "."));
+      quantity = Number(String(startMatch[1] ?? "").replace(/[٠-٩]/g, (c) => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(",", "."));
       unit = startMatch[2] ?? "";
       description = startMatch[3].trim();
     } else if (endMatch) {
-      quantity = Number(String(endMatch[2]).replace(/[٠-٩]/g, (c) => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(",", "."));
+      quantity = Number(String(endMatch[2] ?? "").replace(/[٠-٩]/g, (c) => "٠١٢٣٤٥٦٧٨٩".indexOf(c)).replace(",", "."));
       unit = endMatch[3] ?? "";
       description = endMatch[1].trim();
     }
