@@ -1271,6 +1271,7 @@ function NewOrder() {
         items: matchedItems,
         notes: String(rawResult["notes"] ?? "").trim(),
       });
+      setEditingItemId(matchedItems[0]?.id ?? null);
       void refreshPreviewPrices(matchedItems, customerId);
       setProgress(100);
     } catch (error) {
@@ -1759,9 +1760,6 @@ function NewOrder() {
                                         </div>
                                       );
                                     })()}
-                                    <div className="mt-1 text-[10px] text-muted-foreground">
-                                      {item.product ? "SKU: " + item.product.sku : "لم يتم اختيار صنف"}
-                                    </div>
                                   </td>
                                   <td className="px-3 py-3 align-top">
                                     <div className="min-w-[300px] space-y-2">
