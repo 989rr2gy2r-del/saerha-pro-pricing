@@ -303,7 +303,9 @@ function getPriceLookupKey(priceType: string): string {
 function similarityScore(a: string, b: string): number {
   if (!a || !b) return 0;
   if (a === b) return 1;
-  if (a.includes(b) || b.includes(a)) return Math.min(a.length, b.length) / Math.max(a.length, b.length) * 0.95;
+  if (a.includes(b) || b.includes(a)) {
+    return Math.min(a.length, b.length) / Math.max(a.length, b.length) * 0.95;
+  }
   const aTokens = a.split(" ").filter(Boolean);
   const bTokens = b.split(" ").filter(Boolean);
   if (!aTokens.length || !bTokens.length) return 0;
@@ -311,6 +313,51 @@ function similarityScore(a: string, b: string): number {
     bTokens.some((candidate) => candidate === token || candidate.includes(token) || token.includes(candidate)),
   ).length;
   return tokenHits / Math.max(aTokens.length, bTokens.length);
+}
+
+type PreparedProductMatch = {
+  product: ProductRecord;
+  sku: string;
+  fields: Array<{ value: string; weight: number }>;
+  haystack: string;
+};
+
+const preparedProductCache = new WeakMap<ProductRecord, PreparedProductMatch>();
+
+function prepareProductForMatch(
+  product: ProductRecord,
+  aliases: Record<string, string[]>,
+): PreparedProductMatch {
+  const cached = preparedProductCache.get(product);
+  if (cached) return cached;
+
+  const fields = [
+    { value: product.sku, weight: 1.25 },
+    { value: product.name_ar, weight: 1.15 },
+    { value: product.name_en, weight: 1.1 },
+    { value: product.short_name, weight: 1.1 },
+    { value: product.brand, weight: 0.8 },
+    { value: product.model, weight: 0.85 },
+    { value: product.size, weight: 0.75 },
+    { value: product.description, weight: 0.65 },
+    ...((aliases[product.id] ?? []).map((value) => ({ value, weight: 1.05 }))),
+    { value: product.category_main, weight: 0.45 },
+    { value: product.category_sub, weight: 0.45 },
+    { value: product.category_third, weight: 0.4 },
+    { value: product.product_group, weight: 0.4 },
+  ]
+    .filter((field): field is { value: string; weight: number } => Boolean(field.value))
+    .map((field) => ({ value: normalizeForMatch(String(field.value)), weight: field.weight }))
+    .filter((field) => Boolean(field.value));
+
+  const prepared = {
+    product,
+    sku: normalizeForMatch(product.sku),
+    fields,
+    haystack: fields.map((field) => field.value).join(" "),
+  };
+  preparedProductCache.set(product, prepared);
+  return prepared;
 }
 
 function findLocalProductMatch(
@@ -322,40 +369,56 @@ function findLocalProductMatch(
   const queries = [normalizeForMatch(text), normalizeForMatch(normalizedArabic)].filter(Boolean);
   if (!queries.length) return null;
 
-  const scored = products.map((product) => {
-    const fields = [
-      { value: product.sku, weight: 1.25 },
-      { value: product.name_ar, weight: 1.15 },
-      { value: product.name_en, weight: 1.1 },
-      { value: product.short_name, weight: 1.1 },
-      { value: product.brand, weight: 0.8 },
-      { value: product.model, weight: 0.85 },
-      { value: product.size, weight: 0.75 },
-      { value: product.description, weight: 0.65 },
-      ...((aliases[product.id] ?? []).map((value) => ({ value, weight: 1.05 }))),
-      { value: product.category_main, weight: 0.45 },
-      { value: product.category_sub, weight: 0.45 },
-      { value: product.category_third, weight: 0.4 },
-      { value: product.product_group, weight: 0.4 },
-    ];
+  const prepared = products.map((product) => prepareProductForMatch(product, aliases));
+
+  // SKU is the strongest signal. Resolve exact numeric OCR/SKU text before
+  // doing any fuzzy matching across the catalog.
+  for (const query of queries) {
+    if (!/^\\d+$/.test(query)) continue;
+    const exactSku = prepared.find((entry) => entry.sku === query);
+    if (exactSku) return { product: exactSku.product, score: 1.25 };
+  }
+
+  // Narrow candidates cheaply using distinctive query tokens/numeric fragments.
+  // This avoids scoring all 4,583 products for every OCR line.
+  const candidateSet = new Set<PreparedProductMatch>();
+  for (const query of queries) {
+    const tokens = query.split(" ").filter((token) => token.length >= 2);
+    const usefulToken = tokens.sort((a, b) => b.length - a.length)[0];
+    if (usefulToken) {
+      for (const entry of prepared) {
+        if (entry.haystack.includes(usefulToken)) candidateSet.add(entry);
+      }
+    }
+  }
+
+  let candidates = candidateSet.size ? [...candidateSet] : prepared;
+
+  // Numeric fragments such as "322" should surface SKUs like 3220/3222
+  // without forcing a full fuzzy scan.
+  const numericQueries = queries.filter((query) => /^\\d{2,}$/.test(query));
+  if (numericQueries.length) {
+    const numericCandidates = candidates.filter((entry) =>
+      numericQueries.some((query) => entry.sku.includes(query) || entry.haystack.includes(query)),
+    );
+    if (numericCandidates.length) candidates = numericCandidates;
+  }
+
+  const scored = candidates.map((entry) => {
     let best = 0;
     for (const query of queries) {
-      for (const field of fields) {
-        if (!field.value) continue;
-        const candidate = normalizeForMatch(String(field.value));
-        if (!candidate) continue;
-        const score = similarityScore(query, candidate) * field.weight;
+      for (const field of entry.fields) {
+        const score = similarityScore(query, field.value) * field.weight;
         best = Math.max(best, score);
       }
 
       const queryTokens = query.split(" ").filter(Boolean);
       if (queryTokens.length > 1) {
-        const haystack = normalizeForMatch(fields.map((field) => field.value).filter(Boolean).join(" "));
-        const overlap = queryTokens.filter((token) => haystack.includes(token)).length / queryTokens.length;
+        const overlap = queryTokens.filter((token) => entry.haystack.includes(token)).length / queryTokens.length;
         best = Math.max(best, overlap * 0.9);
       }
     }
-    return { product, score: Math.min(best, 1.25) };
+    return { product: entry.product, score: Math.min(best, 1.25) };
   }).sort((a, b) => b.score - a.score);
 
   const best = scored[0];
