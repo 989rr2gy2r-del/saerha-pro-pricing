@@ -1984,11 +1984,25 @@ function NewOrder() {
                                     </p>
                                   )}
                                 </div>
-                                <div className="shrink-0 text-left">
-                                  <p className="text-[10px] text-muted-foreground">الإجمالي</p>
-                                  <p className="text-base font-black tabular-nums">
-                                    {lineTotal !== null ? lineTotal.toFixed(3) : "—"} د.ك
-                                  </p>
+                                <div className="flex shrink-0 items-start gap-2 text-left">
+                                  <div>
+                                    <p className="text-[10px] text-muted-foreground">الإجمالي</p>
+                                    <p className="text-base font-black tabular-nums">
+                                      {lineTotal !== null ? lineTotal.toFixed(3) : "—"} د.ك
+                                    </p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="destructive"
+                                    title="حذف الصف"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleDeleteLine(index);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
                                 </div>
                               </div>
 
