@@ -7,8 +7,11 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"];
-const MODEL_TIMEOUT_MS = 18000;
+const MODELS = [
+  { id: "gemini-3.5-flash-lite", timeoutMs: 10000 },
+  { id: "gemini-3.6-flash", timeoutMs: 12000 },
+];
+
 const MAX_IMAGE_BASE64 = 12_000_000;
 
 function json(data: unknown, status = 200) {
@@ -78,12 +81,13 @@ function extractText(payload: any) {
 async function callGemini(
   apiKey: string,
   model: string,
+  timeoutMs: number,
   mimeType: string,
   base64Data: string,
   prompt: string,
 ) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
@@ -106,7 +110,7 @@ async function callGemini(
           }],
           generationConfig: {
             responseMimeType: "application/json",
-            temperature: 0,
+            thinkingConfig: { thinkingLevel: "minimal" },
             maxOutputTokens: 4096,
           },
         }),
@@ -210,7 +214,7 @@ ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
       let lastError: unknown = null;
       for (const model of MODELS) {
         try {
-          const result = await callGemini(apiKey, model, mimeType, base64Data, prompt);
+          const result = await callGemini(apiKey, model.id, model.timeoutMs, mimeType, base64Data, prompt);
           return json({ success: true, result });
         } catch (error) {
           lastError = error;
