@@ -67,6 +67,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAnalyzeOrderRoute = ApiAnalyzeOrderRouteImport.update({
   id: '/api/analyze-order',
   path: '/api/analyze-order',
@@ -93,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/products': typeof ProductsRoute
   '/quotes': typeof QuotesRoute
   '/settings': typeof SettingsRoute
+  '/users': typeof UsersRoute
   '/api/analyze-order': typeof ApiAnalyzeOrderRoute
   '/api/import-products': typeof ApiImportProductsRoute
   '/api/supabase-write': typeof ApiSupabaseWriteRoute
@@ -107,6 +113,7 @@ export interface FileRoutesByTo {
   '/products': typeof ProductsRoute
   '/quotes': typeof QuotesRoute
   '/settings': typeof SettingsRoute
+  '/users': typeof UsersRoute
   '/api/analyze-order': typeof ApiAnalyzeOrderRoute
   '/api/import-products': typeof ApiImportProductsRoute
   '/api/supabase-write': typeof ApiSupabaseWriteRoute
@@ -122,6 +129,7 @@ export interface FileRoutesById {
   '/products': typeof ProductsRoute
   '/quotes': typeof QuotesRoute
   '/settings': typeof SettingsRoute
+  '/users': typeof UsersRoute
   '/api/analyze-order': typeof ApiAnalyzeOrderRoute
   '/api/import-products': typeof ApiImportProductsRoute
   '/api/supabase-write': typeof ApiSupabaseWriteRoute
@@ -138,6 +146,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/quotes'
     | '/settings'
+    | '/users'
     | '/api/analyze-order'
     | '/api/import-products'
     | '/api/supabase-write'
@@ -181,6 +190,7 @@ export interface RootRouteChildren {
   ProductsRoute: typeof ProductsRoute
   QuotesRoute: typeof QuotesRoute
   SettingsRoute: typeof SettingsRoute
+  UsersRoute: typeof UsersRoute
   ApiAnalyzeOrderRoute: typeof ApiAnalyzeOrderRoute
   ApiImportProductsRoute: typeof ApiImportProductsRoute
   ApiSupabaseWriteRoute: typeof ApiSupabaseWriteRoute
@@ -285,6 +295,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProductsRoute: ProductsRoute,
   QuotesRoute: QuotesRoute,
   SettingsRoute: SettingsRoute,
+  UsersRoute: UsersRoute,
   ApiAnalyzeOrderRoute: ApiAnalyzeOrderRoute,
   ApiImportProductsRoute: ApiImportProductsRoute,
   ApiSupabaseWriteRoute: ApiSupabaseWriteRoute,
