@@ -1329,7 +1329,7 @@ function NewOrder() {
           const local = await readImageLocally(first, setProgress);
           rawResult = { items: local.items, notes: `تمت قراءة الصورة محليًا. النص المستخرج: ${local.text}` };
         } else if (text.trim()) {
-          const localText = parseTextOrderFallback(text);
+          const localText = await parseTextOrderFallback(text);
           if (!localText.items.length) throw serverError;
           rawResult = localText;
         } else {
