@@ -11,7 +11,7 @@ import {
   Plus,
   LogOut,
 } from "lucide-react";
-import { useCallback, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { BrandLockup } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
@@ -46,8 +46,26 @@ export function AppShell({
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { signOut, user } = useAuth();
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const navigate = useNavigate();
   const isActive = (to: string) => (to === "/" ? pathname === "/" : pathname.startsWith(to));
+
+  useEffect(() => {
+    let mounted = true;
+    if (!user?.id) {
+      setDisplayName(null);
+      return;
+    }
+    void supabase
+      .from("profiles")
+      .select("username,full_name")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (mounted) setDisplayName(data?.username || data?.full_name || null);
+      });
+    return () => { mounted = false; };
+  }, [user?.id]);
 
   const handleLogout = useCallback(async () => {
     await signOut();
@@ -86,7 +104,7 @@ export function AppShell({
             <div className="min-w-0">
               <p className="truncate text-[10px] font-semibold text-primary-foreground/60">الحساب</p>
               <p className="truncate text-xs font-bold text-primary-foreground">
-                {user?.email ?? "مستخدم"}
+                {displayName ?? user?.email ?? "مستخدم"}
               </p>
             </div>
             <Button
