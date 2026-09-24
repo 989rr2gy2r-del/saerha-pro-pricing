@@ -236,7 +236,66 @@ function parseLocalOcrText(text: string) {
   });
 }
 
-async function getTesseractWorker(onProgress?: (value: number) => void) {
+async function parseTextOrderFallback(text: string) {
+  const units = "حبة|قطعة|قطع|علبة|كرتون|كرتونه|رول|لفة|باكيت|باك|متر|سم|مم|كجم|كغ|جم|غ|لتر|مل|عبوة|طقم|كيس|صندوق|دزينة|زوج|pcs|pc|pieces|piece|roll|packet|pack|carton|box".split("|");
+  const unitPattern = units.join("|");
+  const toNumber = (value: string) => Number(String(value ?? "").replace(/[٠-٩]/g, (char) => String("٠١٢٣٤٥٦٧٨٩".indexOf(char))).replace(/,/g, "."));
+  const lines = text.split(/\r?\n/).map((line) => line.replace(/[|¦]+/g, "\t").trim()).filter(Boolean);
+  const items = lines.flatMap((line, index) => {
+    const cleaned = line.replace(/^[-*•]+\s*/, "").replace(/^\s*(?:م|رقم|no|item)\.?\s*/i, "").trim();
+    if (!cleaned || /^(?:الصنف|الكمية|الطلبية|البيان|item|product|quantity)\b/i.test(cleaned)) return [];
+    const columns = cleaned.split(/\t+/).map((part) => part.trim()).filter(Boolean);
+    let description = "";
+    let quantity = 0;
+    let unit = "";
+    const quantityUnit = new RegExp("^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(" + unitPattern + ")?\\s*$", "i");
+    const trailingQuantity = new RegExp("^(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(" + unitPattern + ")?\\s*$", "i");
+    const leadingQuantity = new RegExp("^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s+(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(" + unitPattern + ")?\\s*$", "i");
+    if (columns.length >= 2) {
+      const last = columns[columns.length - 1] ?? "";
+      const lastMatch = last.match(quantityUnit);
+      if (lastMatch) {
+        quantity = toNumber(lastMatch[1] ?? "");
+        unit = normalizeUnitValue(lastMatch[2] ?? "");
+        description = columns.slice(0, -1).join(" ").replace(/^\d+\s+/, "").trim();
+      }
+    }
+    if (!description) {
+      const leading = cleaned.match(leadingQuantity);
+      const trailing = cleaned.match(trailingQuantity);
+      if (leading) {
+        quantity = toNumber(leading[3] ?? "");
+        unit = normalizeUnitValue(leading[4] ?? "");
+        description = (leading[2] ?? "").trim();
+      } else if (trailing) {
+        quantity = toNumber(trailing[2] ?? "");
+        unit = normalizeUnitValue(trailing[3] ?? "");
+        description = (trailing[1] ?? "").replace(/^\d+\s+/, "").trim();
+      } else {
+        description = cleaned.replace(/^\d+[.)\-:]?\s+/, "").trim();
+      }
+    }
+    if (!description || !Number.isFinite(quantity) || quantity <= 0) return [];
+    return [{
+      id: "text-fallback-" + Date.now() + "-" + index,
+      description,
+      normalized_description_ar: description,
+      quantity,
+      unit,
+      raw_text: line,
+      confidence: 0.35,
+      notes: "تعذر تشغيل التحليل الذكي للنص؛ تمت قراءة السطر محليًا، راجع المطابقة قبل الاعتماد.",
+    }];
+  });
+  return {
+    items,
+    notes: items.length
+      ? "تمت قراءة النص محليًا كخطة احتياطية. يمكنك تعديل أي سطر قبل اعتماد العرض."
+      : "لم يتم العثور على صفوف واضحة في النص. جرّب فصل الصنف والكمية بعلامة Tab أو اكتب الكمية مع الوحدة.",
+  };
+}
+
+function getTesseractWorker(onProgress?: (value: number) => void) {
   if (!tesseractWorkerPromise) {
     const tesseract = await loadLocalTesseract();
     tesseractWorkerPromise = tesseract.createWorker(["ara", "eng"], 1, {
@@ -1217,31 +1276,27 @@ function NewOrder() {
           rawResult = (data.result ?? data) as Record<string, unknown>;
         }
       } catch (serverError) {
-        // GitHub Pages is static, so the local OCR fallback guarantees that
-        // image reading still works even when the server AI endpoint is unavailable.
-        if (!image || !/^data:image\//i.test(image)) {
-          throw serverError;
-        }
-
+        // The AI is the primary path, but a local fallback keeps both images
+        // and pasted text usable during a temporary Gemini/network failure.
         const timedOut = serverError instanceof DOMException && serverError.name === "AbortError";
-        const serverMessage =
-          serverError instanceof Error ? serverError.message.trim() : "";
-        fallbackNotice =
-          timedOut
-            ? "القراءة الذكية تأخرت قليلًا؛ جارٍ تشغيل القراءة المحلية الاحتياطية."
-            : serverMessage
-              ? `تعذر تشغيل القراءة الذكية: ${serverMessage} — جارٍ تشغيل القراءة المحلية الاحتياطية.`
-              : "تعذر تشغيل القراءة الذكية؛ جارٍ تشغيل القراءة المحلية الاحتياطية.";
+        const serverMessage = serverError instanceof Error ? serverError.message.trim() : "";
+        fallbackNotice = timedOut
+          ? "القراءة الذكية تأخرت قليلًا؛ جارٍ تشغيل القراءة الاحتياطية."
+          : serverMessage
+            ? `تعذر تشغيل القراءة الذكية: ${serverMessage} — جارٍ تشغيل القراءة الاحتياطية.`
+            : "تعذر تشغيل القراءة الذكية؛ جارٍ تشغيل القراءة الاحتياطية.";
         setAnalysisError(fallbackNotice);
         setProgress(30);
-        // Do not start local OCR while Gemini is running. On mobile this
-        // competes for CPU/network and makes the primary smart-reading path slower.
-        const local = await readImageLocally(first, setProgress);
-        rawResult = {
-          items: local.items,
-          notes: `تمت قراءة الصورة محليًا. النص المستخرج: ${local.text}`,
-        };
-      }
+        if (image && /^data:image\//i.test(image)) {
+          const local = await readImageLocally(first, setProgress);
+          rawResult = { items: local.items, notes: `تمت قراءة الصورة محليًا. النص المستخرج: ${local.text}` };
+        } else if (text.trim()) {
+          const localText = parseTextOrderFallback(text);
+          if (!localText.items.length) throw serverError;
+          rawResult = localText;
+        } else {
+          throw serverError;
+        }
 
       const rawItems = Array.isArray(rawResult["items"])
         ? (rawResult["items"] as Record<string, unknown>[])
