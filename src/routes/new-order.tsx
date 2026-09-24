@@ -1975,7 +1975,6 @@ function NewOrder() {
                                       </div>
                                     </div>
                                   )}
-                                  </div>
 
                                   <div className="mt-2">
                                     {item.product ? (
