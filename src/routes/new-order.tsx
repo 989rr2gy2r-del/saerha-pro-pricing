@@ -282,6 +282,30 @@ function normalizeForMatch(value: string): string {
     .trim();
 }
 
+function normalizeUnitValue(value: string): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const key = raw.toLowerCase();
+  const aliases: Record<string, string> = {
+    pc: "حبة",
+    pcs: "حبة",
+    piece: "حبة",
+    pieces: "حبة",
+    ea: "حبة",
+    each: "حبة",
+    pkt: "PKT",
+    packet: "PKT",
+    packets: "PKT",
+    pack: "PKT",
+    packs: "PKT",
+    roll: "رول",
+    rolls: "رول",
+    "لف": "رول",
+    "لفة": "رول",
+  };
+  return aliases[key] ?? raw;
+}
+
 function getPriceLookupKey(priceType: string): string {
   const map: Record<string, string> = {
     retail: "Retail",
