@@ -1200,7 +1200,7 @@ function NewOrder() {
           ...item,
           confidence,
           product: match?.product ?? null,
-          unit: normalizeUnitValue(match?.product?.unit) || normalizeUnitValue(item.unit) || "حبة",
+          unit: normalizeUnitValue(match?.product?.unit ?? "") || normalizeUnitValue(item.unit ?? "") || "حبة",
           matchReason: match
             ? "تمت المطابقة مع قاعدة المنتجات — بيانات الصنف الأساسية من Supabase"
             : "لم يتم العثور على منتج مطابق تلقائيًا",
