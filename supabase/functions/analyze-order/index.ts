@@ -8,8 +8,8 @@ const corsHeaders = {
 };
 
 const MODELS = [
-  { id: "gemini-3.5-flash-lite", timeoutMs: 22000 },
-  { id: "gemini-3.6-flash", timeoutMs: 26000 },
+  { id: "gemini-3.8-flash", timeoutMs: 30000 },
+  { id: "gemini-3.5-flash", timeoutMs: 30000 },
 ];
 
 const MAX_IMAGE_BASE64 = 12_000_000;
@@ -133,7 +133,7 @@ async function callGemini(
               },
               required: ["items", "notes"],
             },
-            thinkingConfig: { thinkingLevel: "minimal" },
+            thinkingConfig: { thinkingLevel: "low" },
             maxOutputTokens: 4096,
           },
         }),
