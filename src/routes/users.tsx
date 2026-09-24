@@ -49,7 +49,7 @@ function UsersPage() {
     if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
 
     const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-users`,
+      `${import.meta.env.VITE_SUPABASE_URL || "https://ebtjwwrjhsebojurkvgy.supabase.co"}/functions/v1/manage-users`,
       {
         ...options,
         headers: {
