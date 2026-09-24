@@ -1025,9 +1025,17 @@ function NewOrder() {
   const handleUnitChange = (index: number, value: string) => {
     const current = analysisResult?.items[index];
     if (!current) return;
-    const nextItem = { ...current, unit: value };
+    const shouldUseDatabasePrice = Boolean(current.product) && current.priceType !== "manual_quote";
+    const nextItem = {
+      ...current,
+      unit: value,
+      priceAmount: shouldUseDatabasePrice ? null : current.priceAmount,
+      priceLabel: shouldUseDatabasePrice ? "جارٍ جلب السعر من قاعدة الأسعار..." : current.priceLabel,
+    };
     patchReviewItem(index, () => nextItem);
-    if (nextItem.product) void refreshPreviewPrices([nextItem], customerId);
+    if (nextItem.product && nextItem.priceType !== "manual_quote") {
+      void refreshPreviewPrices([nextItem], customerId);
+    }
   };
 
   const handlePriceChange = (index: number, value: number) => {
@@ -2142,11 +2150,23 @@ function NewOrder() {
                                   </div>
                                   <div className="space-y-2">
                                     <Label>الوحدة</Label>
-                                    <Input
-                                      value={item.unit || ""}
-                                      onChange={(event) => handleUnitChange(index, event.target.value)}
-                                      placeholder="الوحدة"
-                                    />
+                                    <Select
+                                      value={item.unit || "حبة"}
+                                      onValueChange={(value) => handleUnitChange(index, value)}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="اختر الوحدة" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {["حبة", "كرتون", "علبة", "رول", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "طقم", "كيس", "صندوق"].map(
+                                          (unit) => (
+                                            <SelectItem key={unit} value={unit}>
+                                              {unit}
+                                            </SelectItem>
+                                          ),
+                                        )}
+                                      </SelectContent>
+                                    </Select>
                                   </div>
                                 </div>
 
@@ -2158,8 +2178,11 @@ function NewOrder() {
                                     step="0.001"
                                     value={item.priceAmount ?? ""}
                                     onChange={(event) => handlePriceChange(index, Number(event.target.value))}
-                                    placeholder="السعر"
+                                    placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"}
                                   />
+                                  <p className="text-[10px] text-muted-foreground">
+                                    السعر يظهر تلقائيًا من قاعدة الأسعار، ويمكنك استبداله يدويًا لهذا العرض فقط.
+                                  </p>
                                   <div className="flex flex-wrap items-center gap-2 text-[10px]">
                                     {item.priceType !== "manual_quote" && item.priceAmount !== null ? (
                                       <span className="inline-flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-300">
@@ -2228,6 +2251,7 @@ function NewOrder() {
                                     handleDeleteLine(index);
                                     setEditingSnapshot(null);
                                     setEditingItemId(null);
+                                    setOpenProductPickerId(null);
                                   }}
                                 >
                                   <Trash2 className="ml-1 h-4 w-4" />
