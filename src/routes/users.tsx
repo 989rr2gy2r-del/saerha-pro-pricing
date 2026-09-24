@@ -37,7 +37,7 @@ function UsersPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("2588");
+  const [password, setPassword] = useState("69940150");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -48,22 +48,13 @@ function UsersPage() {
     const token = data.session?.access_token;
     if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
 
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL || "https://ebtjwwrjhsebojurkvgy.supabase.co"}/functions/v1/manage-users`,
-      {
-        ...options,
-        headers: {
-          ...(options?.headers ?? {}),
-          Authorization: `Bearer ${token}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? import.meta.env.VITE_SUPABASE_ANON_KEY,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok || !body.success) throw new Error(body.error || "تعذر تنفيذ العملية.");
-    return body;
+    const { data, error } = await supabase.functions.invoke("manage-users", {
+      method: options?.method ?? "GET",
+      body: options?.body ? JSON.parse(String(options.body)) : undefined,
+    });
+    if (error) throw new Error(error.message || "تعذر تنفيذ العملية.");
+    if (!data?.success) throw new Error(data?.error || "تعذر تنفيذ العملية.");
+    return data;
   }
 
   async function loadUsers() {
@@ -106,7 +97,7 @@ function UsersPage() {
       setMessage(`تم إنشاء حساب ${name.trim()} بنجاح.`);
       setName("");
       setEmail("");
-      setPassword("2588");
+      setPassword("69940150");
       await loadUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذر إنشاء الحساب.");
