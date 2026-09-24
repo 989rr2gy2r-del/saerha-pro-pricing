@@ -40,20 +40,13 @@ type ProductRecord = {
   description: string | null;
 };
 
-type UnitRecord = {
-  id: string;
-  code: string;
-  name_ar: string;
-  name_en: string | null;
-};
-
 type MatchStatus = "HIGH_CONFIDENCE" | "NEEDS_REVIEW" | "UNMATCHED";
 
 type ReviewItem = {
   id: string;
   description: string;
   normalized_description_ar: string;
-  quantity: number | null;
+  quantity: number;
   unit: string;
   raw_text: string;
   confidence: number;
@@ -204,35 +197,8 @@ async function prepareOcrImage(file: File): Promise<HTMLCanvasElement> {
   return canvas;
 }
 
-function translateCommonEnglish(text: string): string {
-  let value = String(text ?? "").trim();
-  const replacements: Array<[RegExp, string]> = [
-    [/\\bpvc\\b/gi, "PVC"],
-    [/\\bpipe\\b/gi, "أنبوب"],
-    [/\\bcapling\\b|\\bcoupling\\b/gi, "وصلة"],
-    [/\\bdouble\\b/gi, "دبل"],
-    [/\\bmelbus\\b/gi, "ملبوش"],
-    [/\\bgi\\b/gi, "GI"],
-    [/\\bbox\\b/gi, "علبة"],
-    [/\\bbar\\b/gi, "بار"],
-    [/\\btape\\b/gi, "شريط"],
-    [/\\bconnector\\b/gi, "موصل"],
-    [/\\bwire\\b/gi, "سلك"],
-    [/\\bred\\b/gi, "أحمر"],
-    [/\\bblack\\b/gi, "أسود"],
-    [/\\byellow\\b/gi, "أصفر"],
-    [/\\bgreen\\b/gi, "أخضر"],
-    [/\\bgermany\\b/gi, "ألماني"],
-    [/\\bdozen\\b/gi, "دزينة"],
-    [/\\bmm\\b/gi, "ملم"],
-    [/\\bamps?\\b/gi, "أمبير"],
-  ];
-  for (const [pattern, replacement] of replacements) value = value.replace(pattern, replacement);
-  return value.replace(/\\s+/g, " ").trim();
-}
-
 function parseLocalOcrText(text: string) {
-  const units = "حبة|قطعة|علبة|كرتون|كرتونه|كرتون|متر|سم|مم|كجم|كغ|جم|غ|لتر|ل|مل|رول|لفة|باكيت|كيس|طقم|زوج|rolls?|pcs?|pieces?|pc|dozen|box|boxes|bag|set".split("|");
+  const units = "حبة|قطعة|علبة|كرتون|كرتونه|كرتون|متر|سم|مم|كجم|كغ|جم|غ|لتر|ل|مل|رول|لفة|باكيت|كيس|طقم|زوج|متر".split("|");
   const unitPattern = units.join("|");
   const lines = text
     .split(/\r?\n/)
@@ -241,7 +207,7 @@ function parseLocalOcrText(text: string) {
 
   return lines.map((line, index) => {
     let description = line;
-    let quantity: number | null = null;
+    let quantity = 0;
     let unit = "";
 
     const startMatch = line.match(new RegExp(`^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?\\s+(.+)$`, "i"));
@@ -249,25 +215,19 @@ function parseLocalOcrText(text: string) {
 
     if (startMatch) {
       quantity = Number(String(startMatch[1] ?? "").replace(/[٠-٩]/g, (c: string) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(",", "."));
-      unit = normalizeUnitValue(startMatch[2] ?? "");
+      unit = startMatch[2] ?? "";
       description = startMatch[3].trim();
     } else if (endMatch) {
       quantity = Number(String(endMatch[2] ?? "").replace(/[٠-٩]/g, (c: string) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(",", "."));
-      unit = normalizeUnitValue(endMatch[3] ?? "");
+      unit = endMatch[3] ?? "";
       description = endMatch[1].trim();
     }
-
-    const safeQuantity =
-      typeof quantity === "number" && Number.isFinite(quantity) && quantity > 0
-        ? quantity
-        : null;
 
     return {
       id: `ocr-${Date.now()}-${index}`,
       description,
-      normalized_description_ar: /[A-Za-z]/.test(description) ? translateCommonEnglish(description) : description,
       raw_text: line,
-      quantity: safeQuantity,
+      quantity: Number.isFinite(quantity) ? quantity : 0,
       unit,
       confidence: 0.45,
       notes: "تمت القراءة محليًا من الصورة؛ راجع السطر قبل اعتماد العرض.",
@@ -320,34 +280,6 @@ function normalizeForMatch(value: string): string {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function normalizeUnitValue(value: string | null | undefined): string {
-  const normalized = normalizeForMatch(String(value ?? ""));
-  const aliases: Record<string, string> = {
-    roll: "لف",
-    rolls: "لف",
-    "رول": "لف",
-    "لفة": "لف",
-    "لفات": "لف",
-    meter: "متر",
-    meters: "متر",
-    m: "متر",
-    pc: "حبة",
-    pcs: "حبة",
-    piece: "حبة",
-    pieces: "حبة",
-    "قطعة": "حبة",
-    box: "كرتون",
-    boxes: "كرتون",
-    "كرتونه": "كرتون",
-    "كرتونة": "كرتون",
-    bag: "كيس",
-    set: "طقم",
-    dozen: "دزينة",
-    "دزينة": "دزينة",
-  };
-  return aliases[normalized] ?? String(value ?? "").trim();
 }
 
 function getPriceLookupKey(priceType: string): string {
@@ -430,14 +362,7 @@ function findLocalProductMatch(
   normalizedArabic = "",
   aliases: Record<string, string[]> = {},
 ) {
-  const rawQuery = normalizeForMatch(text);
-  const translatedQuery = normalizeForMatch(normalizedArabic);
-  // For Arabic source text, only the original Arabic query may drive matching.
-  // AI-normalized text may contain inferred brand/model/color details.
-  const rawContainsArabic = /[\u0600-\u06FF]/.test(String(text ?? ""));
-  const queries = rawContainsArabic
-    ? [rawQuery].filter(Boolean)
-    : [rawQuery, translatedQuery].filter(Boolean);
+  const queries = [normalizeForMatch(text), normalizeForMatch(normalizedArabic)].filter(Boolean);
   if (!queries.length) return null;
 
   const prepared = products.map((product) => prepareProductForMatch(product, aliases));
@@ -477,51 +402,24 @@ function findLocalProductMatch(
 
   const scored = candidates.map((entry) => {
     let best = 0;
-    let bestCoverage = 0;
     for (const query of queries) {
-      const queryTokens = query.split(" ").filter(Boolean);
       for (const field of entry.fields) {
         const score = similarityScore(query, field.value) * field.weight;
         best = Math.max(best, score);
-
-        if (queryTokens.length > 1) {
-          const matchedTokens = queryTokens.filter((token) =>
-            field.value.split(" ").some(
-              (candidate) => candidate === token || candidate.includes(token) || token.includes(candidate),
-            ),
-          ).length;
-          bestCoverage = Math.max(bestCoverage, matchedTokens / queryTokens.length);
-        } else if (queryTokens.length === 1 && field.value.includes(queryTokens[0])) {
-          bestCoverage = Math.max(bestCoverage, 1);
-        }
       }
 
+      const queryTokens = query.split(" ").filter(Boolean);
       if (queryTokens.length > 1) {
         const overlap = queryTokens.filter((token) => entry.haystack.includes(token)).length / queryTokens.length;
         best = Math.max(best, overlap * 0.9);
-        bestCoverage = Math.max(bestCoverage, overlap);
       }
     }
-    return {
-      product: entry.product,
-      score: Math.min(best, 1.25),
-      coverage: bestCoverage,
-    };
+    return { product: entry.product, score: Math.min(best, 1.25) };
   }).sort((a, b) => b.score - a.score);
 
   const best = scored[0];
-  const second = scored[1];
-  // Generic/ambiguous lines must not be auto-matched to a specific brand/model/color.
-  if (
-    !best ||
-    best.score < 0.88 ||
-    (queries.some((query) => query.split(" ").filter(Boolean).length > 1) && best.coverage < 0.75) ||
-    (second && best.score - second.score < 0.08)
-  ) {
-    return null;
-  }
-
-  return { ...best, score: Math.min(1, best.score) };
+  if (!best || best.score < 0.58) return null;
+  return best;
 }
 
 export const Route = createFileRoute("/new-order")({
@@ -556,7 +454,6 @@ function NewOrder() {
   >([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [productAliases, setProductAliases] = useState<Record<string, string[]>>({});
-  const [units, setUnits] = useState<UnitRecord[]>([]);
   const [progress, setProgress] = useState(0);
   const [lastAnalyzedKey, setLastAnalyzedKey] = useState<string>("");
   const [productSearches, setProductSearches] = useState<Record<string, string>>({});
@@ -578,17 +475,59 @@ function NewOrder() {
 
   const MAX_RENDERED_PRODUCT_RESULTS = 150;
 
-  const loadUnits = async () => {
-    const { data, error } = await (supabase as any)
-      .from("units")
-      .select("id, code, name_ar, name_en")
-      .order("name_ar", { ascending: true });
-    if (error) {
-      console.error("Saerha units load failed", error);
-      setUnits([]);
-      return;
+  const filterProductOptions = (query: string) => {
+    const normalizedQuery = normalizeForMatch(query);
+    if (!normalizedQuery) {
+      return productOptions.slice(0, 25);
     }
-    setUnits((data ?? []) as UnitRecord[]);
+
+    const queryTokens = normalizedQuery.split(" ").filter(Boolean);
+
+    return productOptions
+      .map((option) => {
+        const product = productById.get(option.value);
+        if (!product) return null;
+
+        const fields = [
+          product.sku,
+          product.name_ar,
+          product.name_en,
+          product.short_name,
+          product.brand,
+          product.model,
+          product.size,
+          product.category_main,
+          product.category_sub,
+          product.category_third,
+          product.product_group,
+          product.description,
+          product.unit,
+          ...(productAliases[product.id] ?? []),
+        ]
+          .filter(Boolean)
+          .map((value) => normalizeForMatch(String(value)));
+
+        const haystack = fields.join(" ");
+        if (!haystack) return null;
+
+        // Search every loaded product; do not cap matching results here.
+        // This preserves all matches for short Arabic fragments and SKU prefixes
+        // such as "ف", "في", "فيو", "فيوز", "0", "07", "071", and "0710".
+        const matches = queryTokens.every((token) => haystack.includes(token));
+        if (!matches) return null;
+
+        const exactField = fields.some((field) => field === normalizedQuery);
+        const startsField = fields.some((field) => field.startsWith(normalizedQuery));
+        const containsField = fields.some((field) => field.includes(normalizedQuery));
+
+        return {
+          option,
+          score: exactField ? 3 : startsField ? 2 : containsField ? 1 : 0,
+        };
+      })
+      .filter((entry): entry is { option: (typeof productOptions)[number]; score: number } => Boolean(entry))
+      .sort((a, b) => b.score - a.score || a.option.label.localeCompare(b.option.label, "ar"))
+      .map((entry) => entry.option);
   };
 
   const loadCustomers = async () => {
@@ -671,7 +610,6 @@ function NewOrder() {
   useEffect(() => {
     void loadCustomers();
     void loadProducts();
-    void loadUnits();
   }, []);
 
   const patchReviewItem = (index: number, updater: (item: ReviewItem) => ReviewItem) => {
@@ -983,7 +921,7 @@ function NewOrder() {
   const handleQuantityChange = (index: number, value: number) => {
     patchReviewItem(index, (item) => ({
       ...item,
-      quantity: Number.isFinite(value) && value > 0 ? value : null,
+      quantity: Number.isFinite(value) ? Math.max(0, value) : 0,
     }));
   };
 
@@ -1144,7 +1082,7 @@ function NewOrder() {
             fileType: first.type || first.name,
             text,
           }),
-        }, 75000);
+        }, 45000);
 
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data?.error || "تعذر تشغيل محرك القراءة الذكي.");
@@ -1164,12 +1102,12 @@ function NewOrder() {
         const timedOut = serverError instanceof DOMException && serverError.name === "AbortError";
         const serverMessage =
           serverError instanceof Error ? serverError.message.trim() : "";
-        // Do not expose raw provider/API diagnostics in the customer-facing UI.
-        if (serverMessage) console.warn("analyze-order server error:", serverMessage);
         fallbackNotice =
           timedOut
             ? "القراءة الذكية تأخرت قليلًا؛ جارٍ تشغيل القراءة المحلية الاحتياطية."
-            : "تعذر تشغيل القراءة الذكية؛ جارٍ تشغيل القراءة المحلية الاحتياطية.";
+            : serverMessage
+              ? `تعذر تشغيل القراءة الذكية: ${serverMessage} — جارٍ تشغيل القراءة المحلية الاحتياطية.`
+              : "تعذر تشغيل القراءة الذكية؛ جارٍ تشغيل القراءة المحلية الاحتياطية.";
         setAnalysisError(fallbackNotice);
         setProgress(30);
         // Do not start local OCR while Gemini is running. On mobile this
@@ -1184,32 +1122,21 @@ function NewOrder() {
       const rawItems = Array.isArray(rawResult["items"])
         ? (rawResult["items"] as Record<string, unknown>[])
         : [];
-      // AI/OCR engines can occasionally return an empty placeholder object.
-      // Never render that placeholder as a real order line.
-      const normalizedItems = rawItems
-        .map((item, index: number) => ({
-          id: `${Date.now()}-${index}`,
-          description: String(item["description"] ?? item["raw_text"] ?? "").trim(),
-          normalized_description_ar: String(
-            item["normalized_description_ar"] ?? item["arabic_name"] ?? item["description"] ?? item["raw_text"] ?? "",
-          ).trim(),
-          raw_text: String(item["raw_text"] ?? item["description"] ?? "").trim(),
-          quantity: (() => {
-            const value = Number(item["quantity"]);
-            return Number.isFinite(value) && value > 0 ? value : null;
-          })(),
-          unit: normalizeUnitValue(String(item["unit"] ?? "").trim()),
-          confidence: (() => {
-            const value = Number(item["confidence"] ?? 0.5);
-            return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5;
-          })(),
-          notes: String(item["notes"] ?? "").trim(),
-        }))
-        .filter((item) => item.description.length > 0 || item.raw_text.length > 0);
-
-      if (!normalizedItems.length) {
-        throw new Error("لم يتم استخراج أي سطر طلبية واضح من الملف.");
-      }
+      const normalizedItems = rawItems.map((item, index: number) => ({
+        id: `${Date.now()}-${index}`,
+        description: String(item["description"] ?? item["raw_text"] ?? "").trim(),
+        normalized_description_ar: String(
+          item["normalized_description_ar"] ?? item["arabic_name"] ?? item["description"] ?? item["raw_text"] ?? "",
+        ).trim(),
+        raw_text: String(item["raw_text"] ?? item["description"] ?? "").trim(),
+        quantity: Number(item["quantity"] ?? 0),
+        unit: String(item["unit"] ?? "").trim(),
+        confidence: (() => {
+          const value = Number(item["confidence"] ?? 0.5);
+          return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5;
+        })(),
+        notes: String(item["notes"] ?? "").trim(),
+      }));
 
             // Match each extracted line against the products loaded from Supabase.
       // Keep the review state explicit so the user can confirm or correct every match.
@@ -1235,9 +1162,10 @@ function NewOrder() {
           item.normalized_description_ar,
           matchingAliases,
         );
-        const confidence = match
-          ? Math.min(item.confidence, match.score)
-          : 0;
+        const confidence = Math.min(
+          1,
+          Math.max(0, match ? Math.max(item.confidence, match.score) : item.confidence),
+        );
         const status: MatchStatus = match
           ? confidence >= 0.85
             ? "HIGH_CONFIDENCE"
@@ -1266,7 +1194,6 @@ function NewOrder() {
         items: matchedItems,
         notes: String(rawResult["notes"] ?? "").trim(),
       });
-      setEditingItemId(matchedItems[0]?.id ?? null);
       void refreshPreviewPrices(matchedItems, customerId);
       setProgress(100);
     } catch (error) {
@@ -1283,7 +1210,7 @@ function NewOrder() {
     }
 
     const validItems = analysisResult.items.filter(
-      (item) => !item.rejected && item.product && item.quantity !== null && item.quantity > 0 && item.accepted,
+      (item) => !item.rejected && item.product && item.quantity > 0 && item.accepted,
     );
     if (!validItems.length) {
       setAnalysisError("لا توجد عناصر مؤكدة ومطابقة لإنشاء عرض السعر بعد المراجعة.");
@@ -1543,201 +1470,69 @@ function NewOrder() {
                     </Button>
                   </div>
                   {analysisResult.items?.length > 0 ? (
-
                     <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
                       <div className="border-b bg-muted/40 px-4 py-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
-                            <p className="font-extrabold">الأصناف المطابقة</p>
+                            <p className="font-extrabold">جدول الأصناف والأسعار</p>
                             <p className="text-xs text-muted-foreground">
-                              تم جلب الاسم والكود والوحدة والسعر مباشرة من قاعدة البيانات. عدّل فقط ما تحتاجه.
+                              تمت مطابقة الأصناف وعرض أسعار قاعدة البيانات تلقائيًا. اضغط «تعديل» فقط عند الحاجة.
                             </p>
                           </div>
-                          <p className="text-xs font-medium text-muted-foreground">{analysisResult.items.length} صنف</p>
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {analysisResult.items.length} صنف
+                          </p>
                         </div>
                       </div>
 
-                      <div className="space-y-3 p-3" dir="rtl">
-                        {analysisResult.items.map((item, index) => {
-                          const lineTotal =
-                            item.priceAmount !== null && item.quantity !== null
-                              ? Number(item.priceAmount) * Number(item.quantity || 0)
-                              : null;
-                          const isEditing = editingItemId === item.id;
+                      <div className="hidden overflow-x-auto md:block">
+                        <table className="w-full min-w-[980px] text-sm" dir="rtl">
+                          <thead className="bg-muted/60 text-xs font-extrabold">
+                            <tr>
+                              <th className="px-3 py-3 text-right">الكود</th>
+                              <th className="px-3 py-3 text-right">الصنف</th>
+                              <th className="px-3 py-3 text-right">الكمية</th>
+                              <th className="px-3 py-3 text-right">الوحدة</th>
+                              <th className="px-3 py-3 text-right">السعر</th>
+                              <th className="px-3 py-3 text-right">الإجمالي</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {analysisResult.items.map((item, index) => {
+                              const isEditing = editingItemId === item.id;
+                              const lineTotal =
+                                item.priceAmount !== null
+                                  ? Number(item.priceAmount) * Number(item.quantity || 0)
+                                  : null;
 
-                          return (
-                            <div
-                              key={item.id}
-                              className={`rounded-xl border bg-background p-4 shadow-sm transition ${isEditing ? "border-primary ring-1 ring-primary/20" : ""}`}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0 flex-1">
-                                  <div className="mb-1 flex flex-wrap items-center gap-2">
-                                    <span className="rounded-md bg-primary/10 px-2 py-1 font-mono text-xs font-black text-primary" dir="ltr">
-                                      {item.product?.sku ?? "غير مطابق"}
-                                    </span>
-                                    <span className={`text-[10px] ${item.confidence >= 0.85 ? "text-emerald-600" : "text-amber-600"}`}>
+                              return (
+                                <tr
+                                  key={item.id}
+                                  onClick={() => setEditingItemId(item.id)}
+                                  className={`cursor-pointer transition-colors hover:bg-accent/5 ${isEditing ? "bg-accent/10" : ""}`}
+                                >
+                                  <td className="px-3 py-3 align-top">
+                                    <div className="font-mono font-extrabold text-primary">
+                                      {item.product?.sku ?? "—"}
+                                    </div>
+                                    <div className="mt-1 text-[10px] text-muted-foreground">
                                       ثقة {Math.round((item.confidence ?? 0) * 100)}%
-                                    </span>
-                                    {item.accepted && (
-                                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">
-                                        مطابق تلقائيًا
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-base font-extrabold leading-7">
-                                    {item.product?.name_ar ?? item.description ?? item.raw_text ?? "صنف غير محدد"}
-                                  </p>
-                                  {item.product?.name_en && (
-                                    <p className="mt-0.5 text-[10px] text-muted-foreground" dir="ltr">{item.product.name_en}</p>
-                                  )}
-                                </div>
-
-                                <div className="flex shrink-0 items-center gap-2">
-                                  <Button type="button" size="sm" variant="outline" onClick={() => setEditingItemId(item.id)}>
-                                    <PenLine className="ml-1 h-4 w-4" />
-                                    تعديل
-                                  </Button>
-                                  <Button type="button" size="icon" variant="destructive" title="حذف الصف" onClick={() => handleDeleteLine(index)}>
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-
-                              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                                <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                  <p className="text-[10px] text-muted-foreground">الكمية</p>
-                                  <p className="mt-0.5 font-extrabold tabular-nums">{item.quantity ?? "—"}</p>
-                                </div>
-                                <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                  <p className="text-[10px] text-muted-foreground">الوحدة</p>
-                                  <p className="mt-0.5 font-extrabold">{item.unit || item.product?.unit || "—"}</p>
-                                </div>
-                                <div className="rounded-lg bg-muted/50 px-3 py-2">
-                                  <p className="text-[10px] text-muted-foreground">سعر قاعدة البيانات</p>
-                                  <p className="mt-0.5 font-extrabold tabular-nums">
-                                    {item.priceAmount !== null ? Number(item.priceAmount).toFixed(3) : "—"} د.ك
-                                  </p>
-                                </div>
-                                <div className="rounded-lg bg-primary/5 px-3 py-2">
-                                  <p className="text-[10px] text-muted-foreground">الإجمالي</p>
-                                  <p className="mt-0.5 font-black tabular-nums">{lineTotal !== null ? lineTotal.toFixed(3) : "—"} د.ك</p>
-                                </div>
-                              </div>
-
-                              {item.notes && (
-                                <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                                  {item.notes}
-                                </p>
-                              )}
-
-                              {isEditing && (
-                                <div className="mt-4 rounded-xl border bg-muted/20 p-3">
-                                  <div className="mb-3 flex items-center justify-between gap-2">
-                                    <div>
-                                      <p className="font-bold">تعديل الصنف</p>
-                                      <p className="text-[11px] text-muted-foreground">غيّر الصنف أو الكمية أو الوحدة أو السعر فقط إذا احتجت.</p>
                                     </div>
-                                    <Button type="button" size="sm" variant="ghost" onClick={() => setEditingItemId(null)}>إغلاق</Button>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <Label className="text-xs font-bold">الصنف من قاعدة البيانات</Label>
-                                    <Input
-                                      value={productSearches[item.id] ?? ""}
-                                      onChange={(event) => setProductSearches((previous) => ({ ...previous, [item.id]: event.target.value }))}
-                                      placeholder="ابحث بالاسم أو الكود أو الماركة أو الموديل..."
-                                      className="h-11"
-                                      dir="rtl"
-                                    />
-                                    <div className="max-h-52 overflow-y-auto rounded-lg border bg-background">
-                                      {(() => {
-                                        const search = productSearches[item.id] ?? "";
-                                        const filtered = filterProductOptions(search);
-                                        const visible = filtered.slice(0, 12);
-                                        if (!products.length) return <div className="px-3 py-3 text-sm text-destructive">قاعدة الأصناف لم تُحمّل بعد.</div>;
-                                        if (!search.trim()) return <div className="px-3 py-3 text-xs text-muted-foreground">اكتب اسمًا أو كودًا لعرض الاقتراحات.</div>;
-                                        if (!visible.length) return <div className="px-3 py-3 text-sm text-muted-foreground">لا توجد نتائج مطابقة.</div>;
-                                        return visible.map((option) => (
-                                          <button
-                                            key={option.value}
-                                            type="button"
-                                            className="block w-full border-b px-3 py-2 text-right text-xs hover:bg-muted last:border-b-0"
-                                            onClick={() => {
-                                              handleProductSelect(index, option.value);
-                                              setProductSearches((previous) => ({ ...previous, [item.id]: option.label }));
-                                            }}
-                                          >
-                                            <span className="font-bold">{option.label}</span>
-                                          </button>
-                                        ));
-                                      })()}
-                                    </div>
-                                  </div>
-
-                                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                    <div className="space-y-1">
-                                      <Label className="text-xs">الكمية</Label>
-                                      <Input type="number" min={0} value={item.quantity ?? ""} onChange={(event) => handleQuantityChange(index, event.target.value === "" ? Number.NaN : Number(event.target.value))} className="h-10" />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-xs">الوحدة</Label>
-                                      <Select value={item.unit || "حبة"} onValueChange={(value) => handleUnitChange(index, value)}>
-                                        <SelectTrigger className="h-10"><SelectValue placeholder="الوحدة" /></SelectTrigger>
-                                        <SelectContent>
-                                          {[
-                                            ...unitOptions,
-                                            ...(item.unit && !unitOptions.some((option) => option.value === item.unit) ? [{ value: item.unit, label: item.unit }] : []),
-                                          ].map((option) => (
-                                            <SelectItem key={item.id + "-edit-" + option.value} value={option.value}>{option.label}</SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-xs">السعر</Label>
-                                      <Input type="number" min={0} step="0.001" value={item.priceAmount ?? ""} onChange={(event) => handlePriceChange(index, Number(event.target.value))} className="h-10 font-bold" />
-                                    </div>
-                                    <div className="flex items-end">
-                                      <div className="w-full rounded-lg bg-background px-3 py-2">
-                                        <p className="text-[10px] text-muted-foreground">الإجمالي</p>
-                                        <p className="font-black tabular-nums">
-                                          {item.priceAmount !== null && item.quantity !== null ? (Number(item.priceAmount) * Number(item.quantity)).toFixed(3) : "—"} د.ك
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="mt-3 flex flex-wrap gap-2">
-                                    <Button type="button" size="sm" onClick={() => handleAcceptMatch(index)} disabled={!item.product}>اعتماد التعديل</Button>
-                                    <Button type="button" size="sm" variant="secondary" onClick={() => void handleSaveAlias(index)} disabled={!item.product}>حفظ الاختصار</Button>
-                                    <Button type="button" size="sm" variant="outline" onClick={() => setEditingItemId(null)}>تم</Button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-
-                        <div className="rounded-xl border bg-muted/40 p-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <span className="font-extrabold">إجمالي الطلبية</span>
-                              <p className="text-[10px] text-muted-foreground">يُحسب مباشرة من أسعار قاعدة البيانات أو السعر اليدوي.</p>
-                            </div>
-                            <span className="text-xl font-black tabular-nums">
-                              {analysisResult.items.reduce(
-                                (sum, item) => sum + (item.priceAmount !== null && item.quantity !== null ? Number(item.priceAmount) * Number(item.quantity || 0) : 0),
-                                0,
-                              ).toFixed(3)}{" "}د.ك
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                                            <span className="text-muted-foreground">اختر الصنف من قاعدة البيانات</span>
-                                          )}
+                                  </td>
+                                  <td className="px-3 py-3 align-top">
+                                    <div className="min-w-[300px] space-y-2">
+                                      <Select
+                                        value={item.product?.id ?? ""}
+                                        onValueChange={(value) => {
+                                          setEditingItemId(item.id);
+                                          handleProductSelect(index, value);
+                                        }}
+                                      >
+                                        <SelectTrigger
+                                          className="h-10 w-full bg-background font-bold"
+                                          onClick={(event) => event.stopPropagation()}
+                                        >
+                                          <SelectValue placeholder="اختر الصنف" />
                                         </SelectTrigger>
                                         <SelectContent className="max-h-80" onClick={(event) => event.stopPropagation()}>
                                           <div className="border-b p-2">
@@ -1811,41 +1606,20 @@ function NewOrder() {
                                     <Input
                                       type="number"
                                       min={0}
-                                      value={item.quantity ?? ""}
-                                      onChange={(event) => handleQuantityChange(index, event.target.value === "" ? Number.NaN : Number(event.target.value))}
+                                      value={item.quantity || 0}
+                                      onChange={(event) => handleQuantityChange(index, Number(event.target.value))}
                                       onClick={(event) => event.stopPropagation()}
                                       className="h-10 w-28 font-bold"
                                     />
                                   </td>
                                   <td className="px-3 py-3 align-top">
-                                    <Select
-                                      value={item.unit || normalizeUnitValue(item.product?.unit) || "حبة"}
-                                      onValueChange={(value) => handleUnitChange(index, value)}
-                                    >
-                                      <SelectTrigger
-                                        className="h-10 w-32 bg-background"
-                                        onClick={(event) => event.stopPropagation()}
-                                      >
-                                        <SelectValue placeholder="اختر الوحدة" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {[
-                                          ...unitOptions,
-                                          ...(item.unit && !unitOptions.some((option) => option.value === item.unit)
-                                            ? [{ value: item.unit, label: item.unit + " — مقروءة من الطلبية" }]
-                                            : []),
-                                          ...(item.product?.unit &&
-                                          !unitOptions.some((option) => option.value === normalizeUnitValue(item.product?.unit)) &&
-                                          normalizeUnitValue(item.product.unit) !== item.unit
-                                            ? [{ value: normalizeUnitValue(item.product.unit), label: normalizeUnitValue(item.product.unit) + " — وحدة الصنف" }]
-                                            : []),
-                                        ].map((option) => (
-                                          <SelectItem key={item.id + "-" + option.value} value={option.value}>
-                                            {option.label}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                    <Input
+                                      value={item.unit || ""}
+                                      onChange={(event) => handleUnitChange(index, event.target.value)}
+                                      onClick={(event) => event.stopPropagation()}
+                                      className="h-10 w-28"
+                                      placeholder="الوحدة"
+                                    />
                                   </td>
                                   <td className="px-3 py-3 align-top">
                                     <Input
@@ -1872,27 +1646,13 @@ function NewOrder() {
                                     </div>
                                     <div className="mt-1 text-[10px] text-muted-foreground">د.ك</div>
                                   </td>
-                                  <td className="px-3 py-3 align-top">
-                                    <Button
-                                      type="button"
-                                      size="icon"
-                                      variant="destructive"
-                                      title="حذف الصف"
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        handleDeleteLine(index);
-                                      }}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </td>
                                 </tr>
                               );
                             })}
                           </tbody>
                           <tfoot className="border-t bg-muted/40">
                             <tr>
-                              <td colSpan={6} className="px-3 py-4 text-left font-extrabold">إجمالي الطلبية</td>
+                              <td colSpan={5} className="px-3 py-4 text-left font-extrabold">إجمالي الطلبية</td>
                               <td className="px-3 py-4 text-left text-lg font-black tabular-nums">
                                 {analysisResult.items
                                   .reduce(
@@ -1945,25 +1705,11 @@ function NewOrder() {
                                     </p>
                                   )}
                                 </div>
-                                <div className="flex shrink-0 items-start gap-2 text-left">
-                                  <div>
-                                    <p className="text-[10px] text-muted-foreground">الإجمالي</p>
-                                    <p className="text-base font-black tabular-nums">
-                                      {lineTotal !== null ? lineTotal.toFixed(3) : "—"} د.ك
-                                    </p>
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    size="icon"
-                                    variant="destructive"
-                                    title="حذف الصف"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      handleDeleteLine(index);
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                <div className="shrink-0 text-left">
+                                  <p className="text-[10px] text-muted-foreground">الإجمالي</p>
+                                  <p className="text-base font-black tabular-nums">
+                                    {lineTotal !== null ? lineTotal.toFixed(3) : "—"} د.ك
+                                  </p>
                                 </div>
                               </div>
 
@@ -2012,7 +1758,122 @@ function NewOrder() {
                         </div>
                       </div>
 
+                      <div className="border-t bg-background p-4">
+                        {analysisResult.items.map((item, index) => {
+                          if (editingItemId !== item.id) return null;
+                          return (
+                            <div key={`editor-${item.id}`} className="rounded-lg border bg-muted/20 p-3">
+                              <div className="mb-2 flex items-center justify-between gap-2">
+                                <p className="font-bold">تعديل الصنف: {item.product?.name_ar || item.description}</p>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingItemId(null)}
+                                >
+                                  إغلاق التعديل
+                                </Button>
+                              </div>
+                              <div className="mb-3 rounded-lg border bg-background p-3">
+                                <Label className="text-xs font-bold">بحث واختيار الصنف من قاعدة البيانات</Label>
+                                <Input
+                                  value={productSearches[item.id] ?? ""}
+                                  onChange={(event) =>
+                                    setProductSearches((previous) => ({
+                                      ...previous,
+                                      [item.id]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="اكتب الاسم أو الكود أو الماركة أو الموديل..."
+                                  className="mt-2 h-10"
+                                  dir="rtl"
+                                />
+                                <div className="mt-2 max-h-56 overflow-y-auto rounded-md border">
+                                  {(() => {
+                                    const search = productSearches[item.id] ?? "";
+                                    const filtered = filterProductOptions(search);
+                                    const visible = filtered.slice(0, 60);
+                                    if (!products.length) {
+                                      return (
+                                        <div className="px-3 py-3 text-sm text-destructive">
+                                          لم يتم تحميل قاعدة الأصناف. أعد تحميل الصفحة ثم جرّب مرة أخرى.
+                                        </div>
+                                      );
+                                    }
+                                    if (!filtered.length) {
+                                      return (
+                                        <div className="px-3 py-3 text-sm text-muted-foreground">
+                                          لا توجد نتائج مطابقة. جرّب جزءًا من الاسم أو الكود.
+                                        </div>
+                                      );
+                                    }
+                                    return visible.map((option) => (
+                                      <button
+                                        key={option.value}
+                                        type="button"
+                                        className="block w-full border-b px-3 py-2 text-right text-xs hover:bg-muted last:border-b-0"
+                                        onClick={() => {
+                                          handleProductSelect(index, option.value);
+                                          setProductSearches((previous) => ({
+                                            ...previous,
+                                            [item.id]: option.label,
+                                          }));
+                                        }}
+                                      >
+                                        <span className="font-bold">{option.label}</span>
+                                      </button>
+                                    ));
+                                  })()}
+                                </div>
+                                {(() => {
+                                  const count = filterProductOptions(productSearches[item.id] ?? "").length;
+                                  return count > 60 ? (
+                                    <p className="mt-1 text-[10px] text-muted-foreground">
+                                      عرض أول 60 من {count} نتيجة — ضيّق البحث للحصول على الصنف المطلوب.
+                                    </p>
+                                  ) : null;
+                                })()}
+                              </div>
 
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleAcceptMatch(index)}
+                                  disabled={!item.product}
+                                >
+                                  اعتماد الصنف
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRejectLine(index)}
+                                >
+                                  رفض السطر
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleDeleteLine(index)}
+                                >
+                                  <Trash2 className="ml-1 h-4 w-4" />
+                                  حذف الصنف
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => void handleSaveAlias(index)}
+                                  disabled={!item.product}
+                                >
+                                  حفظ الاختصار مستقبلًا
+                                </Button>
+                              </div>
+                              {item.notes && (
+                                <p className="mt-2 text-[11px] text-amber-600">ملاحظات: {item.notes}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
