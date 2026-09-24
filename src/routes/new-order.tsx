@@ -1489,7 +1489,8 @@ function NewOrder() {
         // not by an AI-generated/translated product name.
         const catalogSkus = new Set(matchingProducts.map((product) => normalizeForMatch(product.sku)));
         const sourceSignals = extractOrderSignals(item.raw_text, catalogSkus);
-        const trustedSourceSku = sourceSignals.sku || normalizeForMatch(item.sourceSku ?? "");
+        const modelSku = normalizeForMatch(item.sourceSku ?? "");
+        const trustedSourceSku = sourceSignals.sku || (modelSku && catalogSkus.has(modelSku) ? modelSku : "");
         const match = trustedSourceSku
           ? findLocalProductMatch(trustedSourceSku, matchingProducts, "", matchingAliases) ??
             findLocalProductMatch(item.raw_text || item.description, matchingProducts, "", matchingAliases)
