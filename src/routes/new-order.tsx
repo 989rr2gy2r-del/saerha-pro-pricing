@@ -949,14 +949,14 @@ function NewOrder() {
             if (!conversion.converted) {
               return {
                 ...item,
-                priceAmount: null,
+                // Keep the real database price visible even when the requested
+                // unit has no conversion. Do not show a misleading total.
+                priceAmount: Number.isFinite(basePrice) ? basePrice : null,
                 basePriceAmount: Number.isFinite(basePrice) ? basePrice : null,
                 basePriceUnit: baseUnit,
                 priceType: chosen.price_type,
-                priceLabel: conversion.reason ?? "لا توجد تحويلة للوحدة المطلوبة",
-                notes: [item.notes, conversion.reason ?? "لا توجد تحويلة للوحدة المطلوبة"]
-                  .filter(Boolean)
-                  .join(" "),
+                priceLabel: getPriceLookupKey(chosen.price_type) + " / " + baseUnit + " — لا توجد تحويلة لـ " + requestedUnit,
+                notes: [item.notes, conversion.reason ?? "لا توجد تحويلة للوحدة المطلوبة"].filter(Boolean).join(" "),
               };
             }
 
@@ -1628,7 +1628,7 @@ function NewOrder() {
                           <div>
                             <p className="font-extrabold">جدول الأصناف والأسعار</p>
                             <p className="text-xs text-muted-foreground">
-                              تمت مطابقة الأصناف وعرض أسعار قاعدة البيانات تلقائيًا. اضغط على اسم الصنف لاختيار صنف آخر، واضغط «تعديل» لتعديل بقية بيانات السطر.
+                              تمت مطابقة الأصناف وعرض أسعار قاعدة البيانات تلقائيًا. اضغط مباشرة على الصنف أو الكود أو الكمية أو الوحدة أو السعر للتعديل أو الاختيار.
                             </p>
                           </div>
                           <p className="text-xs font-medium text-muted-foreground">
@@ -1652,7 +1652,6 @@ function NewOrder() {
                           </thead>
                           <tbody className="divide-y">
                             {analysisResult.items.map((item, index) => {
-                              const isEditing = editingItemId === item.id;
                               const displayName =
                                 item.quoteName?.trim() ||
                                 item.product?.name_ar ||
@@ -1660,19 +1659,17 @@ function NewOrder() {
                                 item.raw_text ||
                                 "صنف غير محدد";
                               const lineTotal =
-                                item.priceAmount !== null
+                                item.priceAmount !== null &&
+                                (!item.basePriceUnit || !item.unit || item.unit.trim().toLowerCase() === item.basePriceUnit.trim().toLowerCase() || item.priceType === "manual_quote")
                                   ? Number(item.priceAmount) * Number(item.quantity || 0)
                                   : null;
 
                               return (
                                 <tr
                                   key={item.id}
-                                  className={isEditing ? "bg-accent/10" : ""}
                                 >
                                   <td className="px-3 py-3 align-top">
-                                    <div className="font-mono font-extrabold text-primary">
-                                      {item.product?.sku ?? "—"}
-                                    </div>
+                                    <button type="button" className="rounded-md px-2 py-1 font-mono font-extrabold text-primary transition hover:bg-primary/10" onClick={() => handleOpenProductPicker(index)} title="اختيار أو تغيير الصنف">{item.product?.sku ?? "—"}</button>
                                     <div className="mt-1 text-[10px] text-muted-foreground">
                                       ثقة {Math.round((item.confidence ?? 0) * 100)}%
                                     </div>
@@ -1812,65 +1809,15 @@ function NewOrder() {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    {isEditing ? (
-                                      <Input
-                                        type="number"
-                                        min={0}
-                                        step="0.001"
-                                        value={item.quantity ?? 0}
-                                        onChange={(event) => handleQuantityChange(index, Number(event.target.value))}
-                                        className="h-10 w-28 font-bold"
-                                      />
-                                    ) : (
-                                      <div className="rounded-lg bg-muted/50 px-3 py-2 font-extrabold tabular-nums">
-                                        {Number(item.quantity || 0)}
-                                      </div>
-                                    )}
+                                    <Input type="number" min={0} step="0.001" value={item.quantity ?? 0} onChange={(event) => handleQuantityChange(index, Number(event.target.value))} className="h-10 w-28 font-bold tabular-nums" aria-label="الكمية" />
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    {isEditing ? (
-                                      <Select
-                                        value={item.unit || "حبة"}
-                                        onValueChange={(value) => handleUnitChange(index, value)}
-                                      >
-                                        <SelectTrigger className="h-10 w-32">
-                                          <SelectValue placeholder="اختر الوحدة" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {["حبة", "كرتون", "علبة", "رول", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "طقم", "كيس", "صندوق"].map((unit) => (
-                                            <SelectItem key={unit} value={unit}>{unit}</SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                    ) : (
-                                      <div className="rounded-lg bg-muted/50 px-3 py-2 font-bold">
-                                        {item.unit || "—"}
-                                      </div>
-                                    )}
+                                    <Select value={item.unit || "حبة"} onValueChange={(value) => handleUnitChange(index, value)}><SelectTrigger className="h-10 w-32 font-bold"><SelectValue placeholder="اختر الوحدة" /></SelectTrigger><SelectContent>{["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent></Select>
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    {isEditing ? (
-                                      <>
-                                        <Input
-                                          type="number"
-                                          min={0}
-                                          step="0.001"
-                                          value={item.priceAmount ?? ""}
-                                          onChange={(event) => handlePriceChange(index, Number(event.target.value))}
-                                          placeholder="السعر"
-                                          className="h-10 w-32 font-bold tabular-nums"
-                                        />
-                                        <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">
-                                          عدّل السعر يدويًا إذا احتجت
-                                        </p>
-                                      </>
-                                    ) : (
-                                      <div className="rounded-lg bg-muted/50 px-3 py-2 font-extrabold tabular-nums">
-                                        {item.priceAmount !== null ? Number(item.priceAmount).toFixed(3) : "—"}
-                                      </div>
-                                    )}
+                                    <Input type="number" min={0} step="0.001" value={item.priceAmount ?? ""} onChange={(event) => handlePriceChange(index, Number(event.target.value))} placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"} className="h-10 w-32 font-bold tabular-nums" aria-label="السعر" />
                                     <p className="mt-1 text-[10px] text-muted-foreground">
                                       {item.priceLabel === "سعر يدوي"
                                         ? "سعر يدوي"
@@ -1898,28 +1845,9 @@ function NewOrder() {
                                       <Button
                                         type="button"
                                         size="sm"
-                                        variant={isEditing ? "default" : "outline"}
-                                        onClick={() => isEditing ? handleSaveEditing() : handleStartEditing(index)}
-                                      >
-                                      {isEditing ? (
-                                        <>
-                                          <Check className="ml-1 h-4 w-4" />
-                                          حفظ
-                                        </>
-                                      ) : (
-                                        <>
-                                          <PenLine className="ml-1 h-4 w-4" />
-                                          تعديل
-                                        </>
-                                      )}
-                                    </Button>
-                                      <Button
-                                        type="button"
-                                        size="sm"
                                         variant="destructive"
                                         onClick={() => {
                                           handleDeleteLine(index);
-                                          if (editingItemId === item.id) handleCancelEditing();
                                         }}
                                       >
                                         <Trash2 className="ml-1 h-4 w-4" />
@@ -1954,7 +1882,6 @@ function NewOrder() {
 
                       <div className="space-y-3 p-3 md:hidden" dir="rtl">
                         {analysisResult.items.map((item, index) => {
-                          const isEditing = editingItemId === item.id;
                           const displayName =
                             item.quoteName?.trim() ||
                             item.product?.name_ar ||
@@ -1962,23 +1889,20 @@ function NewOrder() {
                             item.raw_text ||
                             "صنف غير محدد";
                           const lineTotal =
-                            item.priceAmount !== null
+                            item.priceAmount !== null &&
+                            (!item.basePriceUnit || !item.unit || item.unit.trim().toLowerCase() === item.basePriceUnit.trim().toLowerCase() || item.priceType === "manual_quote")
                               ? Number(item.priceAmount) * Number(item.quantity || 0)
                               : null;
 
                           return (
                             <div
                               key={item.id}
-                              className={isEditing
-                                ? "rounded-xl border bg-background p-3 shadow-sm border-primary bg-primary/5 ring-1 ring-primary/20"
-                                : "rounded-xl border bg-background p-3 shadow-sm"}
+                              className="rounded-xl border bg-background p-3 shadow-sm"
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="relative min-w-0 flex-1">
                                   <div className="mb-1 flex items-center gap-2">
-                                    <span className="rounded-md bg-primary/10 px-2 py-1 font-mono text-xs font-black text-primary">
-                                      {item.product?.sku ?? "—"}
-                                    </span>
+                                    <button type="button" className="rounded-md bg-primary/10 px-2 py-1 font-mono text-xs font-black text-primary" onClick={() => handleOpenProductPicker(index)} title="اختيار أو تغيير الصنف">{item.product?.sku ?? "—"}</button>
                                     <span className="text-[10px] text-muted-foreground">
                                       ثقة {Math.round((item.confidence ?? 0) * 100)}%
                                     </span>
@@ -2110,47 +2034,23 @@ function NewOrder() {
                                 </div>
                               </div>
 
-                              {isEditing && (
-                                <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border-2 border-primary/20 bg-primary/5 p-3 sm:grid-cols-3">
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">الكمية</Label>
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      step="0.001"
-                                      value={item.quantity ?? 0}
-                                      onChange={(event) => handleQuantityChange(index, Number(event.target.value))}
-                                    />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">الوحدة</Label>
-                                    <Select
-                                      value={item.unit || "حبة"}
-                                      onValueChange={(value) => handleUnitChange(index, value)}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="اختر الوحدة" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {["حبة", "كرتون", "علبة", "رول", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "طقم", "كيس", "صندوق"].map((unit) => (
-                                          <SelectItem key={unit} value={unit}>{unit}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">السعر</Label>
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      step="0.001"
-                                      value={item.priceAmount ?? ""}
-                                      onChange={(event) => handlePriceChange(index, Number(event.target.value))}
-                                      placeholder="السعر"
-                                    />
-                                  </div>
+                              <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border bg-muted/20 p-3 sm:grid-cols-3">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">الكمية</Label>
+                                  <Input type="number" min={0} step="0.001" value={item.quantity ?? 0} onChange={(event) => handleQuantityChange(index, Number(event.target.value))} className="font-bold tabular-nums" />
                                 </div>
-                              )}
+                                <div className="space-y-1">
+                                  <Label className="text-xs">الوحدة</Label>
+                                  <Select value={item.unit || "حبة"} onValueChange={(value) => handleUnitChange(index, value)}>
+                                    <SelectTrigger><SelectValue placeholder="اختر الوحدة" /></SelectTrigger>
+                                    <SelectContent>{["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">السعر</Label>
+                                  <Input type="number" min={0} step="0.001" value={item.priceAmount ?? ""} onChange={(event) => handlePriceChange(index, Number(event.target.value))} placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"} className="font-bold tabular-nums" />
+                                </div>
+                              </div>
 
                               <div className="mt-3 grid grid-cols-3 gap-2 border-t pt-3 text-xs">
                                 <div className="rounded-lg bg-muted/50 px-2 py-2">
@@ -2179,28 +2079,9 @@ function NewOrder() {
                                 <Button
                                   type="button"
                                   size="sm"
-                                  variant={isEditing ? "default" : "outline"}
-                                  onClick={() => isEditing ? handleSaveEditing() : handleStartEditing(index)}
-                                >
-                                  {isEditing ? (
-                                    <>
-                                      <Check className="ml-1 h-4 w-4" />
-                                      حفظ
-                                    </>
-                                  ) : (
-                                    <>
-                                      <PenLine className="ml-1 h-4 w-4" />
-                                      تعديل
-                                    </>
-                                  )}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
                                   variant="destructive"
                                   onClick={() => {
                                     handleDeleteLine(index);
-                                    if (editingItemId === item.id) handleCancelEditing();
                                   }}
                                 >
                                   <Trash2 className="ml-1 h-4 w-4" />
