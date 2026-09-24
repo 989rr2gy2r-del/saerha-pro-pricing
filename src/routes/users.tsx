@@ -44,17 +44,17 @@ function UsersPage() {
   const [message, setMessage] = useState("");
 
   async function callManageUsers(options?: RequestInit) {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
     if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
 
-    const { data, error } = await supabase.functions.invoke("manage-users", {
+    const { data: responseData, error } = await supabase.functions.invoke("manage-users", {
       method: options?.method ?? "GET",
       body: options?.body ? JSON.parse(String(options.body)) : undefined,
     });
     if (error) throw new Error(error.message || "تعذر تنفيذ العملية.");
-    if (!data?.success) throw new Error(data?.error || "تعذر تنفيذ العملية.");
-    return data;
+    if (!responseData?.success) throw new Error(responseData?.error || "تعذر تنفيذ العملية.");
+    return responseData;
   }
 
   async function loadUsers() {
