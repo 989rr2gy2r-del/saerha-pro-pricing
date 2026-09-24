@@ -27,6 +27,7 @@ export const navItems = [
   { to: "/prices", label: "الأسعار", icon: Tags },
   { to: "/customers", label: "العملاء", icon: Users },
   { to: "/quotes", label: "عروض الأسعار", icon: FileText },
+  { to: "/users", label: "المستخدمون", icon: Users },
   { to: "/settings", label: "الإعدادات", icon: Settings },
 ] as const;
 
