@@ -1347,12 +1347,17 @@ function NewOrder() {
 
         return {
           ...item,
+          // Once a catalog product is matched, the displayed name comes from
+          // the database — never from an AI-invented product name.
+          description: match?.product.name_ar ?? item.raw_text ?? item.description,
+          normalized_description_ar: match?.product.name_ar ?? item.normalized_description_ar,
+          quoteName: match?.product.name_ar ?? undefined,
           confidence,
           product: match?.product ?? null,
           unit: normalizeUnitValue(match?.product?.unit ?? "") || normalizeUnitValue(item.unit ?? "") || "حبة",
           matchReason: match
-            ? "تمت المطابقة مع قاعدة المنتجات — بيانات الصنف الأساسية من Supabase"
-            : "لم يتم العثور على منتج مطابق تلقائيًا",
+            ? "تمت المطابقة مع قاعدة المنتجات — الاسم والبيانات من Supabase"
+            : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة",
           status,
           rejected: false,
           accepted: Boolean(match && confidence >= 0.85),
