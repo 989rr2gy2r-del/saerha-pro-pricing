@@ -1975,6 +1975,8 @@ function NewOrder() {
                                       </div>
                                     </div>
                                   )}
+                                  </div>
+
                                   <div className="mt-2">
                                     {item.product ? (
                                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
