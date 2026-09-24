@@ -583,6 +583,9 @@ function NewOrder() {
   const [openProductPickerId, setOpenProductPickerId] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingSnapshot, setEditingSnapshot] = useState<{ itemId: string; item: ReviewItem } | null>(null);
+  // Keep numeric drafts as text while the user types so a decimal separator
+  // such as "11." is not lost on every React render.
+  const [numericDrafts, setNumericDrafts] = useState<Record<string, { quantity?: string; price?: string }>>({});
 
   const productOptions = useMemo(
     () =>
@@ -982,9 +985,7 @@ function NewOrder() {
 
       setAnalysisResult((prev) => {
         if (!prev) return prev;
-        return {
-          ...prev,
-          items: prev.items.map((item) => {
+        const nextItems = prev.items.map((item) => {
             if (!item.product || item.rejected || item.priceType === "manual_quote") return item;
 
             const rows = (priceRows ?? [])
@@ -1066,7 +1067,14 @@ function NewOrder() {
               priceType: chosen.price_type,
               priceLabel: getPriceLookupKey(chosen.price_type),
             };
-          }),
+          });
+        const activePricedItems = nextItems.filter((item) => item.product && !item.rejected);
+        if (activePricedItems.length && activePricedItems.every((item) => Number.isFinite(Number(item.priceAmount)))) {
+          setAnalysisError("");
+        }
+        return {
+          ...prev,
+          items: nextItems,
         };
       });
     } catch (error) {
@@ -1143,6 +1151,68 @@ function NewOrder() {
       priceType: "manual_quote",
       priceLabel: "سعر يدوي",
     }));
+  };
+
+  const normalizeDecimalDraft = (value: string) =>
+    value.replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(/,/g, ".").replace(/\\s/g, "");
+
+  const updateNumericDraft = (index: number, field: "quantity" | "price", rawValue: string) => {
+    const item = analysisResult?.items[index];
+    if (!item) return;
+    const value = normalizeDecimalDraft(rawValue);
+    if (!/^\\d*(?:\\.\\d*)?$/.test(value)) return;
+
+    setNumericDrafts((prev) => ({
+      ...prev,
+      [item.id]: { ...prev[item.id], [field]: value },
+    }));
+
+    if (value === "" || value === ".") {
+      if (field === "quantity") handleQuantityChange(index, 0);
+      else handlePriceChange(index, 0);
+      return;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return;
+    if (field === "quantity") handleQuantityChange(index, parsed);
+    else handlePriceChange(index, parsed);
+  };
+
+  const beginNumericEdit = (index: number, field: "quantity" | "price") => {
+    const item = analysisResult?.items[index];
+    if (!item) return;
+    const value =
+      field === "quantity"
+        ? String(item.quantity ?? "")
+        : item.priceAmount == null
+          ? ""
+          : String(item.priceAmount);
+    setNumericDrafts((prev) => ({
+      ...prev,
+      [item.id]: { ...prev[item.id], [field]: value },
+    }));
+  };
+
+  const finishNumericEdit = (index: number, field: "quantity" | "price") => {
+    const item = analysisResult?.items[index];
+    if (!item) return;
+    const draft = numericDrafts[item.id]?.[field];
+    if (draft == null) return;
+    const value = normalizeDecimalDraft(draft);
+    const parsed = Number(value);
+    if (value !== "" && Number.isFinite(parsed)) {
+      if (field === "quantity") handleQuantityChange(index, parsed);
+      else handlePriceChange(index, parsed);
+    }
+    setNumericDrafts((prev) => {
+      const next = { ...prev };
+      const current = { ...(next[item.id] ?? {}) };
+      delete current[field];
+      if (!current.quantity && !current.price) delete next[item.id];
+      else next[item.id] = current;
+      return next;
+    });
   };
 
   const handleSaveAlias = async (index: number) => {
@@ -1912,7 +1982,7 @@ function NewOrder() {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <Input type="number" min={0} step="0.001" value={item.quantity ?? 0} onChange={(event) => handleQuantityChange(index, Number(event.target.value))} className="h-10 w-28 font-bold tabular-nums" aria-label="الكمية" />
+                                    <Input type="text" inputMode="decimal" value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? 0)} onFocus={() => beginNumericEdit(index, "quantity")} onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)} onBlur={() => finishNumericEdit(index, "quantity")} className="h-10 w-28 font-bold tabular-nums" aria-label="الكمية" />
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
@@ -1920,7 +1990,7 @@ function NewOrder() {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <Input type="number" min={0} step="0.001" value={item.priceAmount ?? ""} onChange={(event) => handlePriceChange(index, Number(event.target.value))} placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"} className="h-10 w-32 font-bold tabular-nums" aria-label="السعر" />
+                                    <Input type="text" inputMode="decimal" value={numericDrafts[item.id]?.price ?? (item.priceAmount == null ? "" : String(item.priceAmount))} onFocus={() => beginNumericEdit(index, "price")} onChange={(event) => updateNumericDraft(index, "price", event.target.value)} onBlur={() => finishNumericEdit(index, "price")} placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"} className="h-10 w-32 font-bold tabular-nums" aria-label="السعر" />
                                     <p className="mt-1 text-[10px] text-muted-foreground">
                                       {item.priceLabel === "سعر يدوي"
                                         ? "سعر يدوي"
@@ -2139,7 +2209,7 @@ function NewOrder() {
                               <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border bg-muted/20 p-3 sm:grid-cols-3">
                                 <div className="space-y-1">
                                   <Label className="text-xs">الكمية</Label>
-                                  <Input type="number" min={0} step="0.001" value={item.quantity ?? 0} onChange={(event) => handleQuantityChange(index, Number(event.target.value))} className="font-bold tabular-nums" />
+                                  <Input type="text" inputMode="decimal" value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? 0)} onFocus={() => beginNumericEdit(index, "quantity")} onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)} onBlur={() => finishNumericEdit(index, "quantity")} className="font-bold tabular-nums" />
                                 </div>
                                 <div className="space-y-1">
                                   <Label className="text-xs">الوحدة</Label>
@@ -2150,7 +2220,7 @@ function NewOrder() {
                                 </div>
                                 <div className="space-y-1">
                                   <Label className="text-xs">السعر</Label>
-                                  <Input type="number" min={0} step="0.001" value={item.priceAmount ?? ""} onChange={(event) => handlePriceChange(index, Number(event.target.value))} placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"} className="font-bold tabular-nums" />
+                                  <Input type="text" inputMode="decimal" value={numericDrafts[item.id]?.price ?? (item.priceAmount == null ? "" : String(item.priceAmount))} onFocus={() => beginNumericEdit(index, "price")} onChange={(event) => updateNumericDraft(index, "price", event.target.value)} onBlur={() => finishNumericEdit(index, "price")} placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"} className="font-bold tabular-nums" />
                                 </div>
                               </div>
 
