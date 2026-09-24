@@ -360,6 +360,28 @@ function normalizeForMatch(value: string): string {
   return normalized;
 }
 
+function normalizeUnitValue(value: string): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const key = raw.toLowerCase();
+  const aliases: Record<string, string> = {
+    "حبة": "حبة", "قطعة": "حبة", "قطع": "حبة", "pc": "حبة", "pcs": "حبة", "piece": "حبة", "pieces": "حبة",
+    "كرتون": "كرتون", "كرتونه": "كرتون", "carton": "كرتون", "cartons": "كرتون", "box": "كرتون", "boxes": "كرتون",
+    "علبة": "علبة", "علب": "علبة",
+    "رول": "رول", "لفة": "رول", "roll": "رول", "rolls": "رول",
+    "باكيت": "باكيت", "باك": "باكيت", "pack": "باكيت", "packs": "باكيت", "packet": "باكيت", "packets": "باكيت",
+    "متر": "متر", "m": "متر", "meter": "متر", "meters": "متر",
+    "سم": "سم", "cm": "سم",
+    "مم": "مم", "mm": "مم",
+    "كيلوغرام": "كيلوغرام", "كغ": "كيلوغرام", "كجم": "كيلوغرام", "kg": "كيلوغرام",
+    "غرام": "غرام", "جم": "غرام", "غ": "غرام", "g": "غرام",
+    "لتر": "لتر", "l": "لتر", "liter": "لتر", "litre": "لتر",
+    "مل": "مل", "ml": "مل",
+    "عبوة": "عبوة", "طقم": "طقم", "كيس": "كيس", "صندوق": "صندوق",
+  };
+  return aliases[key] ?? raw;
+}
+
 function matchTokens(value: string): string[] {
   return normalizeForMatch(value).split(" ").map((token) => token.trim()).filter(Boolean);
 }
