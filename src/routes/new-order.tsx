@@ -482,6 +482,7 @@ function NewOrder() {
   const [progress, setProgress] = useState(0);
   const [lastAnalyzedKey, setLastAnalyzedKey] = useState<string>("");
   const [productSearches, setProductSearches] = useState<Record<string, string>>({});
+  const [openProductPickerId, setOpenProductPickerId] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingSnapshot, setEditingSnapshot] = useState<{ itemId: string; item: ReviewItem } | null>(null);
 
@@ -654,7 +655,24 @@ function NewOrder() {
     if (!item) return;
     setEditingSnapshot({ itemId: item.id, item: { ...item } });
     setEditingItemId(item.id);
-    setProductSearches((previous) => ({ ...previous, [item.id]: "" }));
+    setOpenProductPickerId(null);
+  };
+
+  const handleOpenProductPicker = (index: number) => {
+    const item = analysisResult?.items[index];
+    if (!item) return;
+
+    setEditingItemId(null);
+    setEditingSnapshot(null);
+    setOpenProductPickerId(item.id);
+    setProductSearches((previous) => ({
+      ...previous,
+      [item.id]: item.product?.name_ar || item.description || item.raw_text || "",
+    }));
+  };
+
+  const handleCloseProductPicker = () => {
+    setOpenProductPickerId(null);
   };
 
   const handleCancelEditing = () => {
@@ -677,6 +695,7 @@ function NewOrder() {
   const handleSaveEditing = () => {
     setEditingSnapshot(null);
     setEditingItemId(null);
+    setOpenProductPickerId(null);
   };
 
   const recordCorrection = async (
@@ -759,6 +778,7 @@ function NewOrder() {
     setAnalysisError("");
     setUploadedFiles([]);
     setProductSearches({});
+    setOpenProductPickerId(null);
     setProgress(0);
     setLastAnalyzedKey("");
   };
@@ -1553,7 +1573,7 @@ function NewOrder() {
                           <div>
                             <p className="font-extrabold">جدول الأصناف والأسعار</p>
                             <p className="text-xs text-muted-foreground">
-                              تمت مطابقة الأصناف وعرض أسعار قاعدة البيانات تلقائيًا. اضغط «تعديل» فقط عند الحاجة.
+                              تمت مطابقة الأصناف وعرض أسعار قاعدة البيانات تلقائيًا. اضغط على اسم الصنف لاختيار صنف آخر، واضغط «تعديل» لتعديل بقية بيانات السطر.
                             </p>
                           </div>
                           <p className="text-xs font-medium text-muted-foreground">
@@ -1604,25 +1624,135 @@ function NewOrder() {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <div className="min-w-[280px]">
-                                      <div className="font-bold text-foreground">{displayName}</div>
-                                      {item.product?.name_en && (
-                                        <div className="mt-1 text-[10px] text-muted-foreground" dir="ltr">
-                                          {item.product.name_en}
+                                    <div className="relative min-w-[300px]">
+                                      <button
+                                        type="button"
+                                        className={openProductPickerId === item.id
+                                          ? "w-full rounded-lg border-2 border-primary bg-background px-3 py-2 text-right shadow-sm"
+                                          : "w-full rounded-lg border border-transparent bg-muted/50 px-3 py-2 text-right transition hover:border-primary/40 hover:bg-background"}
+                                        onClick={() => handleOpenProductPicker(index)}
+                                      >
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div className="min-w-0">
+                                            <div className="font-bold text-foreground">{displayName}</div>
+                                            {item.product?.name_en && (
+                                              <div className="mt-1 text-[10px] text-muted-foreground" dir="ltr">
+                                                {item.product.name_en}
+                                              </div>
+                                            )}
+                                          </div>
+                                          <span className="shrink-0 rounded-md bg-primary/10 px-2 py-1 font-mono text-[10px] font-black text-primary">
+                                            {item.product?.sku ?? "اختيار"}
+                                          </span>
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                          {item.product ? (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                                              <DatabaseIcon className="h-3 w-3" />
+                                              بيانات الصنف من القاعدة
+                                            </span>
+                                          ) : (
+                                            <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                                              اضغط لاختيار الصنف
+                                            </span>
+                                          )}
+                                        </div>
+                                      </button>
+
+                                      {openProductPickerId === item.id && (
+                                        <div className="absolute right-0 top-full z-50 mt-1 w-[min(620px,calc(100vw-32px))] rounded-xl border bg-background p-2 shadow-2xl">
+                                          <div className="flex items-center gap-2 border-b pb-2">
+                                            <div className="relative flex-1">
+                                              <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                              <Input
+                                                autoFocus
+                                                value={productSearches[item.id] ?? ""}
+                                                onChange={(event) =>
+                                                  setProductSearches((previous) => ({
+                                                    ...previous,
+                                                    [item.id]: event.target.value,
+                                                  }))
+                                                }
+                                                placeholder="ابحث باسم الصنف أو الكود أو الماركة..."
+                                                className="h-10 pr-9"
+                                                dir="rtl"
+                                              />
+                                            </div>
+                                            <Button
+                                              type="button"
+                                              size="icon"
+                                              variant="ghost"
+                                              onClick={handleCloseProductPicker}
+                                              aria-label="إغلاق قائمة الأصناف"
+                                            >
+                                              <X className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+
+                                          <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border">
+                                            {(() => {
+                                              const search = productSearches[item.id] ?? "";
+                                              const filtered = filterProductOptions(search);
+                                              const currentOption = item.product
+                                                ? productOptions.find((option) => option.value === item.product?.id)
+                                                : null;
+                                              const visible = [
+                                                ...(currentOption ? [currentOption] : []),
+                                                ...filtered.filter((option) => option.value !== item.product?.id),
+                                              ].slice(0, 8);
+                                              const smartMatch =
+                                                !visible.length && search.trim().length >= 2
+                                                  ? findLocalProductMatch(search, products, "", productAliases)
+                                                  : null;
+
+                                              return visible.length > 0 ? (
+                                                visible.map((option) => {
+                                                  const product = productById.get(option.value);
+                                                  return (
+                                                    <button
+                                                      key={option.value}
+                                                      type="button"
+                                                      className="grid w-full grid-cols-[90px_1fr] gap-3 border-b px-3 py-2.5 text-right last:border-b-0 hover:bg-muted"
+                                                      onClick={() => {
+                                                        handleProductSelect(index, option.value);
+                                                        handleCloseProductPicker();
+                                                      }}
+                                                    >
+                                                      <span className="font-mono text-xs font-black text-primary">
+                                                        {product?.sku ?? "—"}
+                                                      </span>
+                                                      <span className="min-w-0">
+                                                        <span className="block font-bold">{product?.name_ar ?? option.label}</span>
+                                                        <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                                                          {product?.brand || "بدون ماركة"} · {product?.unit || "بدون وحدة"}
+                                                        </span>
+                                                      </span>
+                                                    </button>
+                                                  );
+                                                })
+                                              ) : smartMatch?.product ? (
+                                                <button
+                                                  type="button"
+                                                  className="block w-full px-3 py-3 text-right hover:bg-muted"
+                                                  onClick={() => {
+                                                    handleProductSelect(index, smartMatch.product.id);
+                                                    handleCloseProductPicker();
+                                                  }}
+                                                >
+                                                  <div className="mb-1 text-[10px] font-bold text-primary">اقتراح ذكي قريب من البحث</div>
+                                                  <div className="font-bold">
+                                                    {smartMatch.product.name_ar} — {smartMatch.product.sku}
+                                                  </div>
+                                                </button>
+                                              ) : (
+                                                <div className="px-3 py-4 text-sm text-muted-foreground">
+                                                  لا توجد مطابقة. جرّب جزءًا أقصر من الاسم أو الكود.
+                                                </div>
+                                              );
+                                            })()}
+                                          </div>
                                         </div>
                                       )}
-                                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                        {item.product ? (
-                                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-                                            <DatabaseIcon className="h-3 w-3" />
-                                            مطابق لقاعدة الأصناف
-                                          </span>
-                                        ) : (
-                                          <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                                            يحتاج اختيار صنف
-                                          </span>
-                                        )}
-                                      </div>
                                     </div>
                                   </td>
 
@@ -1731,7 +1861,7 @@ function NewOrder() {
                                 : "rounded-xl border bg-background p-3 shadow-sm"}
                             >
                               <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0 flex-1">
+                                <div className="relative min-w-0 flex-1">
                                   <div className="mb-1 flex items-center gap-2">
                                     <span className="rounded-md bg-primary/10 px-2 py-1 font-mono text-xs font-black text-primary">
                                       {item.product?.sku ?? "—"}
@@ -1740,11 +1870,110 @@ function NewOrder() {
                                       ثقة {Math.round((item.confidence ?? 0) * 100)}%
                                     </span>
                                   </div>
-                                  <p className="line-clamp-2 text-sm font-extrabold">{displayName}</p>
-                                  {item.product?.name_en && (
-                                    <p className="mt-1 line-clamp-1 text-[10px] text-muted-foreground" dir="ltr">
-                                      {item.product.name_en}
-                                    </p>
+
+                                  <button
+                                    type="button"
+                                    className={openProductPickerId === item.id
+                                      ? "w-full rounded-lg border-2 border-primary bg-background p-2 text-right"
+                                      : "w-full rounded-lg border border-transparent p-2 text-right transition hover:border-primary/30 hover:bg-muted/40"}
+                                    onClick={() => handleOpenProductPicker(index)}
+                                  >
+                                    <p className="line-clamp-2 text-sm font-extrabold">{displayName}</p>
+                                    {item.product?.name_en && (
+                                      <p className="mt-1 line-clamp-1 text-[10px] text-muted-foreground" dir="ltr">
+                                        {item.product.name_en}
+                                      </p>
+                                    )}
+                                  </button>
+
+                                  {openProductPickerId === item.id && (
+                                    <div className="absolute right-0 top-full z-50 mt-1 w-[min(620px,calc(100vw-28px))] rounded-xl border bg-background p-2 shadow-2xl">
+                                      <div className="flex items-center gap-2">
+                                        <div className="relative flex-1">
+                                          <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                          <Input
+                                            autoFocus
+                                            value={productSearches[item.id] ?? ""}
+                                            onChange={(event) =>
+                                              setProductSearches((previous) => ({
+                                                ...previous,
+                                                [item.id]: event.target.value,
+                                              }))
+                                            }
+                                            placeholder="ابحث باسم الصنف أو الكود..."
+                                            className="h-10 pr-9"
+                                            dir="rtl"
+                                          />
+                                        </div>
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="ghost"
+                                          onClick={handleCloseProductPicker}
+                                          aria-label="إغلاق قائمة الأصناف"
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+
+                                      <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border">
+                                        {(() => {
+                                          const search = productSearches[item.id] ?? "";
+                                          const filtered = filterProductOptions(search);
+                                          const currentOption = item.product
+                                            ? productOptions.find((option) => option.value === item.product?.id)
+                                            : null;
+                                          const visible = [
+                                            ...(currentOption ? [currentOption] : []),
+                                            ...filtered.filter((option) => option.value !== item.product?.id),
+                                          ].slice(0, 8);
+                                          const smartMatch =
+                                            !visible.length && search.trim().length >= 2
+                                              ? findLocalProductMatch(search, products, "", productAliases)
+                                              : null;
+
+                                          return visible.length > 0 ? (
+                                            visible.map((option) => {
+                                              const product = productById.get(option.value);
+                                              return (
+                                                <button
+                                                  key={option.value}
+                                                  type="button"
+                                                  className="block w-full border-b px-3 py-2.5 text-right last:border-b-0 hover:bg-muted"
+                                                  onClick={() => {
+                                                    handleProductSelect(index, option.value);
+                                                    handleCloseProductPicker();
+                                                  }}
+                                                >
+                                                  <div className="font-bold">{product?.name_ar ?? option.label}</div>
+                                                  <div className="mt-0.5 text-[10px] text-muted-foreground">
+                                                    {product?.sku ?? "—"} · {product?.brand || "بدون ماركة"} · {product?.unit || "بدون وحدة"}
+                                                  </div>
+                                                </button>
+                                              );
+                                            })
+                                          ) : smartMatch?.product ? (
+                                            <button
+                                              type="button"
+                                              className="block w-full px-3 py-3 text-right hover:bg-muted"
+                                              onClick={() => {
+                                                handleProductSelect(index, smartMatch.product.id);
+                                                handleCloseProductPicker();
+                                              }}
+                                            >
+                                              <div className="mb-1 text-[10px] font-bold text-primary">اقتراح ذكي قريب من البحث</div>
+                                              <div className="font-bold">
+                                                {smartMatch.product.name_ar} — {smartMatch.product.sku}
+                                              </div>
+                                            </button>
+                                          ) : (
+                                            <div className="px-3 py-4 text-sm text-muted-foreground">
+                                              لا توجد مطابقة. جرّب جزءًا أقصر من الاسم أو الكود.
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
+                                    </div>
                                   )}
                                   <div className="mt-2">
                                     {item.product ? (
@@ -1875,81 +2104,11 @@ function NewOrder() {
                               </div>
 
                               <div className="grid gap-4 lg:grid-cols-2">
-                                <div className="space-y-2 lg:col-span-2">
-                                  <Label>اختيار الصنف من قاعدة البيانات</Label>
-                                  <div className="relative">
-                                    <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                    <Input
-                                      value={search}
-                                      onChange={(event) =>
-                                        setProductSearches((previous) => ({
-                                          ...previous,
-                                          [item.id]: event.target.value,
-                                        }))
-                                      }
-                                      placeholder="ابحث بالاسم أو الكود أو الماركة أو الموديل..."
-                                      className="h-11 pr-9"
-                                      dir="rtl"
-                                    />
-                                  </div>
-                                  <p className="text-[10px] text-muted-foreground">
-                                    اكتب جزءًا من الاسم أو الكود. ستظهر لك عدد محدود من النتائج الأقرب بدل قائمة طويلة.
+                                <div className="rounded-lg border bg-background p-3 lg:col-span-2">
+                                  <p className="text-xs font-bold">اختيار الصنف</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    اضغط على اسم الصنف داخل الصف لاختيار صنف آخر من قاعدة البيانات. عند الاختيار سيُجلب السعر المناسب تلقائيًا.
                                   </p>
-
-                                  {search.trim() && (
-                                    <div className="rounded-lg border bg-background shadow-sm">
-                                      {visible.length > 0 ? (
-                                        visible.map((option) => {
-                                          const product = productById.get(option.value);
-                                          return (
-                                            <button
-                                              key={option.value}
-                                              type="button"
-                                              className="block w-full border-b px-3 py-3 text-right transition last:border-b-0 hover:bg-muted"
-                                              onClick={() => {
-                                                handleProductSelect(index, option.value);
-                                                setProductSearches((previous) => ({
-                                                  ...previous,
-                                                  [item.id]: "",
-                                                }));
-                                              }}
-                                            >
-                                              <div className="font-bold">{option.label}</div>
-                                              {product && (
-                                                <div className="mt-1 text-[10px] text-muted-foreground">
-                                                  {product.brand || "بدون ماركة"} · {product.unit || "بدون وحدة"}
-                                                </div>
-                                              )}
-                                            </button>
-                                          );
-                                        })
-                                      ) : smartMatch?.product ? (
-                                        <button
-                                          type="button"
-                                          className="block w-full px-3 py-3 text-right hover:bg-muted"
-                                          onClick={() => {
-                                            handleProductSelect(index, smartMatch.product.id);
-                                            setProductSearches((previous) => ({
-                                              ...previous,
-                                              [item.id]: "",
-                                            }));
-                                          }}
-                                        >
-                                          <div className="mb-1 text-[10px] font-bold text-primary">اقتراح ذكي قريب من البحث</div>
-                                          <div className="font-bold">
-                                            {smartMatch.product.name_ar} — {smartMatch.product.sku}
-                                          </div>
-                                          <div className="mt-1 text-[10px] text-muted-foreground">
-                                            {smartMatch.product.brand || "بدون ماركة"} · {smartMatch.product.unit || "بدون وحدة"}
-                                          </div>
-                                        </button>
-                                      ) : (
-                                        <div className="px-3 py-3 text-sm text-muted-foreground">
-                                          لا توجد مطابقة. جرّب جزءًا أقصر من الاسم أو الكود.
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
                                 </div>
 
                                 <div className="space-y-2">
