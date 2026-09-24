@@ -1151,6 +1151,9 @@ function NewOrder() {
       priceType: "manual_quote",
       priceLabel: "سعر يدوي",
     }));
+    // A manual price is an explicit override for this quotation.
+    // Clear any earlier "missing price" warning immediately.
+    setAnalysisError("");
   };
 
   const normalizeDecimalDraft = (value: string) =>
@@ -1167,11 +1170,9 @@ function NewOrder() {
       [item.id]: { ...prev[item.id], [field]: value },
     }));
 
-    if (value === "" || value === ".") {
-      if (field === "quantity") handleQuantityChange(index, 0);
-      else handlePriceChange(index, 0);
-      return;
-    }
+    // Keep the input text intact while the user is typing.
+    // In particular, do not turn "" or "." into 0 and destroy a decimal draft.
+    if (value === "" || value === ".") return;
 
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return;
@@ -2355,11 +2356,14 @@ function NewOrder() {
                                   <div className="space-y-2">
                                     <Label>الكمية</Label>
                                     <Input
-                                      type="number"
+                                      type="text"
+                                      inputMode="decimal"
                                       min={0}
                                       step="0.001"
-                                      value={item.quantity || 0}
-                                      onChange={(event) => handleQuantityChange(index, Number(event.target.value))}
+                                      value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? "")}
+                                      onFocus={() => beginNumericEdit(index, "quantity")}
+                                      onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)}
+                                      onBlur={() => finishNumericEdit(index, "quantity")}
                                     />
                                   </div>
                                   <div className="space-y-2">
@@ -2387,11 +2391,14 @@ function NewOrder() {
                                 <div className="space-y-2">
                                   <Label>السعر</Label>
                                   <Input
-                                    type="number"
+                                    type="text"
+                                    inputMode="decimal"
                                     min={0}
                                     step="0.001"
-                                    value={item.priceAmount ?? ""}
-                                    onChange={(event) => handlePriceChange(index, Number(event.target.value))}
+                                    value={numericDrafts[item.id]?.price ?? (item.priceAmount == null ? "" : String(item.priceAmount))}
+                                    onFocus={() => beginNumericEdit(index, "price")}
+                                    onChange={(event) => updateNumericDraft(index, "price", event.target.value)}
+                                    onBlur={() => finishNumericEdit(index, "price")}
                                     placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"}
                                   />
                                   <p className="text-[10px] text-muted-foreground">
