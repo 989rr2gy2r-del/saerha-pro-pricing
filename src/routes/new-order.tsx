@@ -295,7 +295,7 @@ async function parseTextOrderFallback(text: string) {
   };
 }
 
-function getTesseractWorker(onProgress?: (value: number) => void) {
+async function getTesseractWorker(onProgress?: (value: number) => void) {
   if (!tesseractWorkerPromise) {
     const tesseract = await loadLocalTesseract();
     tesseractWorkerPromise = tesseract.createWorker(["ara", "eng"], 1, {
@@ -324,27 +324,27 @@ const PRODUCT_SELECT_FIELDS =
   "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, unit, description";
 
 const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
-  [/\\bpipe(?:s)?\\b/gi, "بايب"], [/\\belbow(?:s)?\\b/gi, "كوع"],
-  [/\\btee(?:s)?\\b/gi, "تي"], [/\\bcoupling(?:s)?\\b/gi, "وصلة"],
-  [/\\bcoupler(?:s)?\\b/gi, "وصلة"], [/\\bsocket(?:s)?\\b/gi, "سكت"],
-  [/\\badapter(?:s)?\\b/gi, "أدبتر"], [/\\badaptor(?:s)?\\b/gi, "أدبتر"],
-  [/\\bconnector(?:s)?\\b/gi, "موصل"], [/\\bclamp(?:s)?\\b/gi, "كلبس"],
-  [/\\bbox(?:es)?\\b/gi, "صندوق"], [/\\bnipple(?:s)?\\b/gi, "نبل"],
-  [/\\bvalve(?:s)?\\b/gi, "محبس"], [/\\breducer(?:s)?\\b/gi, "مخفض"],
-  [/\\bunion(?:s)?\\b/gi, "وصلة"], [/\\bflexible\\b/gi, "فليكسيبل"],
-  [/\\bblack\\b/gi, "اسود"], [/\\bwhite\\b/gi, "ابيض"],
-  [/\\bgreen\\b/gi, "اخضر"], [/\\bred\\b/gi, "احمر"], [/\\bblue\\b/gi, "ازرق"],
-  [/\\broll(?:s)?\\b/gi, "رول"], [/\\bpiece(?:s)?\\b/gi, "قطعة"],
-  [/\\bpcs\\b/gi, "قطعة"], [/\\bpc\\b/gi, "قطعة"],
-  [/\\bcarton(?:s)?\\b/gi, "كرتون"], [/\\bpacket(?:s)?\\b/gi, "باكيت"],
-  [/\\bpack(?:s)?\\b/gi, "باكيت"], [/\\bmm\\b/gi, "مم"], [/\\bcm\\b/gi, "سم"],
-  [/\\binch(?:es)?\\b/gi, "انش"],
+  [/\bpipe(?:s)?\b/gi, "بايب"], [/\belbow(?:s)?\b/gi, "كوع"],
+  [/\btee(?:s)?\b/gi, "تي"], [/\bcoupling(?:s)?\b/gi, "وصلة"],
+  [/\bcoupler(?:s)?\b/gi, "وصلة"], [/\bsocket(?:s)?\b/gi, "سكت"],
+  [/\badapter(?:s)?\b/gi, "أدبتر"], [/\badaptor(?:s)?\b/gi, "أدبتر"],
+  [/\bconnector(?:s)?\b/gi, "موصل"], [/\bclamp(?:s)?\b/gi, "كلبس"],
+  [/\bbox(?:es)?\b/gi, "صندوق"], [/\bnipple(?:s)?\b/gi, "نبل"],
+  [/\bvalve(?:s)?\b/gi, "محبس"], [/\breducer(?:s)?\b/gi, "مخفض"],
+  [/\bunion(?:s)?\b/gi, "وصلة"], [/\bflexible\b/gi, "فليكسيبل"],
+  [/\bblack\b/gi, "اسود"], [/\bwhite\b/gi, "ابيض"],
+  [/\bgreen\b/gi, "اخضر"], [/\bred\b/gi, "احمر"], [/\bblue\b/gi, "ازرق"],
+  [/\broll(?:s)?\b/gi, "رول"], [/\bpiece(?:s)?\b/gi, "قطعة"],
+  [/\bpcs\b/gi, "قطعة"], [/\bpc\b/gi, "قطعة"],
+  [/\bcarton(?:s)?\b/gi, "كرتون"], [/\bpacket(?:s)?\b/gi, "باكيت"],
+  [/\bpack(?:s)?\b/gi, "باكيت"], [/\bmm\b/gi, "مم"], [/\bcm\b/gi, "سم"],
+  [/\binch(?:es)?\b/gi, "انش"],
 ];
 
 function normalizeForMatch(value: string): string {
   let normalized = String(value ?? "")
     .normalize("NFKD")
-    .replace(/[\\u0300-\\u036f]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[٠-٩]/g, (char) => "٠١٢٣٤٥٦٧٨٩".indexOf(char).toString())
     .replace(/[أآإ]/g, "ا").replace(/ى/g, "ي").replace(/ؤ/g, "و").replace(/ئ/g, "ي").replace(/ء/g, "")
     .replace(/ـ/g, "").replace(/[ة]/g, "ة")
@@ -352,11 +352,11 @@ function normalizeForMatch(value: string): string {
     .replace(/[_/\\-]+/g, " ").toLowerCase();
   for (const [pattern, replacement] of PRODUCT_SYNONYMS) normalized = normalized.replace(pattern, replacement);
   normalized = normalized
-    .replace(/(\\d+(?:\\.\\d+)?)\\s*(?:مم|mm)\\b/gi, "$1 مم")
-    .replace(/(\\d+(?:\\.\\d+)?)\\s*(?:سم|cm)\\b/gi, "$1 سم")
-    .replace(/(\\d+(?:\\.\\d+)?)\\s*(?:انش|inch|in)\\b/gi, "$1 انش")
-    .replace(/(\\d+)\\s*["”″]/g, "$1 انش")
-    .replace(/\\s+/g, " ").trim();
+    .replace(/(\d+(?:\.\d+)?)\s*(?:مم|mm)\b/gi, "$1 مم")
+    .replace(/(\d+(?:\.\d+)?)\s*(?:سم|cm)\b/gi, "$1 سم")
+    .replace(/(\d+(?:\.\d+)?)\s*(?:انش|inch|in)\b/gi, "$1 انش")
+    .replace(/(\d+)\s*["”″]/g, "$1 انش")
+    .replace(/\s+/g, " ").trim();
   return normalized;
 }
 
@@ -375,8 +375,8 @@ function similarityScore(a: string, b: string): number {
   if (!tokenHits) return 0;
   const tokenScore = tokenHits / Math.max(aTokens.length, bTokens.length);
   const queryCoverage = tokenHits / aTokens.length;
-  const numericA = aTokens.filter((token) => /^\\d+(?:\\.\\d+)?$/.test(token));
-  const numericB = bTokens.filter((token) => /^\\d+(?:\\.\\d+)?$/.test(token));
+  const numericA = aTokens.filter((token) => /^\d+(?:\.\d+)?$/.test(token));
+  const numericB = bTokens.filter((token) => /^\d+(?:\.\d+)?$/.test(token));
   const numericHits = numericA.filter((token) => numericB.includes(token)).length;
   const numericScore = numericA.length ? numericHits / numericA.length : 0;
   return Math.min(1.25, tokenScore * 0.65 + queryCoverage * 0.25 + numericScore * 0.35);
