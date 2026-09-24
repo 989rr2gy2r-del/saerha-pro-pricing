@@ -59,11 +59,11 @@ export function AppShell({
     }
     void supabase
       .from("profiles")
-      .select("username,full_name")
+      .select("full_name")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data }) => {
-        if (mounted) setDisplayName(data?.username || data?.full_name || null);
+        if (mounted) setDisplayName(data?.full_name || null);
       });
     return () => { mounted = false; };
   }, [user?.id]);
