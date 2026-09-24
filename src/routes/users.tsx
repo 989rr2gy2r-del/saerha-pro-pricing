@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { KeyRound, Plus, ShieldCheck, UserRound, UsersRound } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
@@ -83,7 +83,7 @@ function UsersPage() {
     void loadUsers();
   }, []);
 
-  async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setMessage("");
