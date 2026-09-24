@@ -470,6 +470,7 @@ function NewOrder() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [analysisResult, setAnalysisResult] = useState<OrderAnalysisResult | null>(null);
+  const [pastedOrderText, setPastedOrderText] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersLoading, setCustomersLoading] = useState(true);
@@ -1067,6 +1068,24 @@ function NewOrder() {
   };
 
 
+  const handlePasteOrder = async () => {
+    const text = pastedOrderText.trim();
+    if (!text) {
+      setAnalysisError("الصق نص الطلبية أولًا.");
+      return;
+    }
+
+    const file = new File([text], "طلبية-ملصقة.txt", {
+      type: "text/plain",
+      lastModified: Date.now(),
+    });
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    await handleFileChange({
+      target: { files: transfer.files },
+    } as ChangeEvent<HTMLInputElement>);
+  };
+
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     if (!files.length) return;
@@ -1549,6 +1568,34 @@ function NewOrder() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-2 border-primary/20 bg-background shadow-card">
+          <CardContent className="p-5">
+            <div className="mb-3">
+              <p className="text-base font-extrabold">أو الصق الطلبية كنص</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                الصق الجدول كما وصلك من واتساب أو Excel أو البريد. سعّرها سيقرأ رقم الصنف والاسم والكمية والوحدة، ثم يطابق الأصناف مع قاعدة البيانات.
+              </p>
+            </div>
+            <Textarea
+              value={pastedOrderText}
+              onChange={(event) => setPastedOrderText(event.target.value)}
+              placeholder={"مثال:\nم\tالصنف\tالكمية\n1\tبايب عدساني 20 مم\t6 رول\n2\tسكت 20 مم\t2 كرتون"}
+              className="min-h-44 font-mono text-sm leading-7"
+              dir="rtl"
+              disabled={isAnalyzing}
+            />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[11px] text-muted-foreground">
+                لا تحتاج إلى تنسيق خاص؛ سيحاول النظام فهم الصفوف حتى لو كانت مفصولة بمسافات أو Tab.
+              </p>
+              <Button type="button" onClick={handlePasteOrder} disabled={isAnalyzing || !pastedOrderText.trim()}>
+                <PenLine className="ml-1 h-4 w-4" />
+                تحليل الطلبية الملصقة
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
