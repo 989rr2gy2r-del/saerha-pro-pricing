@@ -18,6 +18,7 @@ import { Route as PricesRouteImport } from './routes/prices'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as QuotesRouteImport } from './routes/quotes'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as UsersRouteImport } from './routes/users'
 import { Route as ApiAnalyzeOrderRouteImport } from './routes/api/analyze-order'
 import { Route as ApiImportProductsRouteImport } from './routes/api/import-products'
 import { Route as ApiSupabaseWriteRouteImport } from './routes/api/supabase-write'
@@ -259,6 +260,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/analyze-order': {
