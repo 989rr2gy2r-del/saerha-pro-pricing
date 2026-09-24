@@ -84,7 +84,7 @@ export function AppShell({
           {navItems.map((item) => (
             <Link
               key={item.to}
-              to={item.to}
+              to={item.to as any}
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-colors",
                 isActive(item.to)
@@ -192,7 +192,7 @@ export function AppShell({
           {mobileNav.map((item) => (
             <Link
               key={item.to}
-              to={item.to}
+              to={item.to as any}
               className={cn(
                 "flex min-h-16 flex-col items-center justify-center gap-1 px-1 text-[11px] font-semibold transition-colors",
                 isActive(item.to) ? "text-accent" : "text-muted-foreground",
