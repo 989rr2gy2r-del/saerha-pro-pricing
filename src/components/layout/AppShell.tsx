@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/integrations/supabase/auth-provider";
 import { COMPANY, SYSTEM } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 export const navItems = [
   { to: "/", label: "لوحة التحكم", icon: LayoutDashboard },
