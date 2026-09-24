@@ -49,7 +49,7 @@ function UsersPage() {
     if (!token) throw new Error("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
 
     const { data: responseData, error } = await supabase.functions.invoke("manage-users", {
-      method: options?.method ?? "GET",
+      method: (options?.method ?? "GET") as "GET" | "POST",
       body: options?.body ? JSON.parse(String(options.body)) : undefined,
     });
     if (error) throw new Error(error.message || "تعذر تنفيذ العملية.");
