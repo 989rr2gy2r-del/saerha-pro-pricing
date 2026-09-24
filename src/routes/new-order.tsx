@@ -62,6 +62,9 @@ type ReviewItem = {
   priceType: string | null;
   priceLabel: string;
   quoteName?: string;
+  sourceSku?: string;
+  sourceUnitPrice?: number | null;
+  sourceLineTotal?: number | null;
 };
 
 type OrderAnalysisResult = {
@@ -377,6 +380,40 @@ function normalizeForMatch(value: string): string {
     .replace(/(\d+)\s*["”″]/g, "$1 انش")
     .replace(/\s+/g, " ").trim();
   return normalized;
+}
+
+function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
+  const asciiText = String(rawText ?? "")
+    .replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c)))
+    .replace(/,/g, ".")
+    .replace(/\s+/g, " ")
+    .trim();
+  let sku = "";
+  const numericTokens = asciiText.match(/\b\d{3,8}\b/g) ?? [];
+  if (catalogSkus) sku = numericTokens.find((token) => catalogSkus.has(token)) ?? "";
+  const unitMatches: Array<[RegExp, string]> = [
+    [/(?:^|\s)(?:roll|rolls|رول|لفة)(?:\s|$)/i, "رول"],
+    [/(?:^|\s)(?:pkt|pkts|pack|packs|packet|packets|باكيت|باك)(?:\s|$)/i, "باكيت"],
+    [/(?:^|\s)(?:carton|cartons|كرتون|كرتونه)(?:\s|$)/i, "كرتون"],
+    [/(?:^|\s)(?:pcs?|pieces?|piece|حبة|قطعة|قطع)(?:\s|$)/i, "حبة"],
+    [/(?:^|\s)(?:box|boxes|صندوق)(?:\s|$)/i, "صندوق"],
+    [/(?:^|\s)(?:meter|meters|متر)(?:\s|$)/i, "متر"],
+  ];
+  let unit = "";
+  let quantity: number | null = null;
+  for (const [pattern, normalizedUnit] of unitMatches) {
+    const match = asciiText.match(pattern);
+    if (!match) continue;
+    unit = normalizedUnit;
+    const start = match.index ?? 0;
+    const before = asciiText.slice(0, start).match(/(\d+(?:\.\d+)?)\s*$/);
+    const after = asciiText.slice(start + match[0].length).match(/^\s*(\d+(?:\.\d+)?)/);
+    const candidate = after?.[1] ?? before?.[1] ?? "";
+    const parsed = Number(candidate);
+    if (candidate && Number.isFinite(parsed) && parsed > 0) quantity = parsed;
+    break;
+  }
+  return { sku, unit, quantity };
 }
 
 function normalizeUnitValue(value: string): string {
@@ -1420,6 +1457,9 @@ function NewOrder() {
         raw_text: String(item["raw_text"] ?? item["description"] ?? "").trim(),
         quantity: Number(item["quantity"] ?? 0),
         unit: String(item["unit"] ?? "").trim(),
+        sourceSku: String(item["sku"] ?? "").trim(),
+        sourceUnitPrice: item["unit_price"] == null ? null : Number(item["unit_price"]),
+        sourceLineTotal: item["line_total"] == null ? null : Number(item["line_total"]),
         confidence: (() => {
           const value = Number(item["confidence"] ?? 0.5);
           return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5;
@@ -1447,12 +1487,13 @@ function NewOrder() {
       const matchedItems: ReviewItem[] = normalizedItems.map((item) => {
         // Catalog matching must be driven by what was actually read,
         // not by an AI-generated/translated product name.
-        const match = findLocalProductMatch(
-          item.raw_text || item.description,
-          matchingProducts,
-          "",
-          matchingAliases,
-        );
+        const catalogSkus = new Set(matchingProducts.map((product) => normalizeForMatch(product.sku)));
+        const sourceSignals = extractOrderSignals(item.raw_text, catalogSkus);
+        const trustedSourceSku = sourceSignals.sku || normalizeForMatch(item.sourceSku ?? "");
+        const match = trustedSourceSku
+          ? findLocalProductMatch(trustedSourceSku, matchingProducts, "", matchingAliases) ??
+            findLocalProductMatch(item.raw_text || item.description, matchingProducts, "", matchingAliases)
+          : findLocalProductMatch(item.raw_text || item.description, matchingProducts, "", matchingAliases);
         const confidence = Math.min(
           1,
           Math.max(0, match ? Math.max(item.confidence, match.score) : item.confidence),
@@ -1470,14 +1511,28 @@ function NewOrder() {
           description: match?.product.name_ar ?? item.raw_text ?? item.description,
           normalized_description_ar: match?.product.name_ar ?? item.normalized_description_ar,
           quoteName: match?.product.name_ar ?? undefined,
+          quantity:
+            sourceSignals.quantity && sourceSignals.quantity > 0
+              ? sourceSignals.quantity
+              : Number.isFinite(item.quantity)
+                ? item.quantity
+                : 0,
           confidence,
           product: match?.product ?? null,
-          // The order's requested unit must win. The catalog unit is only
-          // a fallback because one product can legitimately be ordered as رول/باكيت
-          // even when its master unit is حبة and a unit conversion exists.
-          unit: normalizeUnitValue(item.unit ?? "") || normalizeUnitValue(match?.product?.unit ?? "") || "حبة",
+          sourceSku: sourceSignals.sku || item.sourceSku || "",
+          sourceUnitPrice: item.sourceUnitPrice ?? null,
+          sourceLineTotal: item.sourceLineTotal ?? null,
+          // A unit printed next to a quantity in the source row is stronger
+          // than a generic model guess.
+          unit:
+            sourceSignals.unit ||
+            normalizeUnitValue(item.unit ?? "") ||
+            normalizeUnitValue(match?.product?.unit ?? "") ||
+            "حبة",
           matchReason: match
-            ? "تمت المطابقة مع قاعدة المنتجات — الاسم والبيانات من Supabase"
+            ? sourceSignals.sku
+              ? "تمت المطابقة برقم الصنف الموجود في الطلب ثم تأكيد المنتج من قاعدة البيانات"
+              : "تمت المطابقة مع قاعدة المنتجات — الاسم والبيانات من Supabase"
             : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة",
           status,
           rejected: false,
