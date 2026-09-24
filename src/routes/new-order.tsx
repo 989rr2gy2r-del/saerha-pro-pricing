@@ -1297,6 +1297,7 @@ function NewOrder() {
         } else {
           throw serverError;
         }
+      }
 
       const rawItems = Array.isArray(rawResult["items"])
         ? (rawResult["items"] as Record<string, unknown>[])
