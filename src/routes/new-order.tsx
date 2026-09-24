@@ -1329,10 +1329,12 @@ function NewOrder() {
       }
 
       const matchedItems: ReviewItem[] = normalizedItems.map((item) => {
+        // Catalog matching must be driven by what was actually read,
+        // not by an AI-generated/translated product name.
         const match = findLocalProductMatch(
-          item.description || item.raw_text,
+          item.raw_text || item.description,
           matchingProducts,
-          item.normalized_description_ar,
+          "",
           matchingAliases,
         );
         const confidence = Math.min(
