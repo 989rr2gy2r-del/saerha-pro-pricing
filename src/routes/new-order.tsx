@@ -916,7 +916,7 @@ function NewOrder() {
     if (analysisResult?.items?.length) {
       void refreshPreviewPrices(analysisResult.items, customerId);
     }
-  }, [customerId, analysisResult?.items]);
+  }, [customerId, analysisResult?.items?.length]);
 
   const handleQuantityChange = (index: number, value: number) => {
     patchReviewItem(index, (item) => ({
