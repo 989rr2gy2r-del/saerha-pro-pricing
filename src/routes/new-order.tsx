@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import * as XLSX from "xlsx";
-import { FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Trash2, Upload } from "lucide-react";
+import { Check, Database, FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Search, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -61,6 +61,7 @@ type ReviewItem = {
   basePriceUnit?: string;
   priceType: string | null;
   priceLabel: string;
+  quoteName?: string;
 };
 
 type OrderAnalysisResult = {
@@ -482,6 +483,7 @@ function NewOrder() {
   const [lastAnalyzedKey, setLastAnalyzedKey] = useState<string>("");
   const [productSearches, setProductSearches] = useState<Record<string, string>>({});
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingSnapshot, setEditingSnapshot] = useState<{ itemId: string; item: ReviewItem } | null>(null);
 
   const productOptions = useMemo(
     () =>
@@ -647,6 +649,36 @@ function NewOrder() {
     });
   };
 
+  const handleStartEditing = (index: number) => {
+    const item = analysisResult?.items[index];
+    if (!item) return;
+    setEditingSnapshot({ itemId: item.id, item: { ...item } });
+    setEditingItemId(item.id);
+    setProductSearches((previous) => ({ ...previous, [item.id]: "" }));
+  };
+
+  const handleCancelEditing = () => {
+    const snapshot = editingSnapshot;
+    if (snapshot) {
+      setAnalysisResult((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: prev.items.map((item) =>
+            item.id === snapshot.itemId ? snapshot.item : item,
+          ),
+        };
+      });
+    }
+    setEditingSnapshot(null);
+    setEditingItemId(null);
+  };
+
+  const handleSaveEditing = () => {
+    setEditingSnapshot(null);
+    setEditingItemId(null);
+  };
+
   const recordCorrection = async (
     item: ReviewItem,
     action: "accepted" | "corrected" | "alias_added",
@@ -748,14 +780,19 @@ function NewOrder() {
       const nextItem = {
         ...item,
         product: selected,
+        quoteName: selected?.name_ar ?? item.quoteName,
         unit: dbUnit || previousUnit || "حبة",
+        priceAmount: selected ? null : item.priceAmount,
+        basePriceAmount: selected ? null : item.basePriceAmount,
+        basePriceUnit: selected ? selected.unit ?? "" : item.basePriceUnit,
+        priceType: selected ? null : item.priceType,
+        priceLabel: selected ? "جارٍ جلب السعر من قاعدة الأسعار..." : item.priceLabel,
         accepted: Boolean(selected),
         rejected: false,
         status: nextStatus,
         matchReason: selected ? "تم اختيار المنتج من قاعدة البيانات" : "لم يتم اختيار منتج",
         notes: [item.notes, unitNote].filter(Boolean).join(" "),
       };
-      if (selected) void refreshPreviewPrices([nextItem], customerId);
       return nextItem;
     });
   };
@@ -936,11 +973,27 @@ function NewOrder() {
     }
   };
 
+  const pricingKey = useMemo(
+    () =>
+      (analysisResult?.items ?? [])
+        .map((item) =>
+          [
+            item.id,
+            item.product?.id ?? "",
+            item.unit ?? "",
+            item.rejected ? "rejected" : "active",
+            item.priceType === "manual_quote" ? "manual" : "database",
+          ].join(":"),
+        )
+        .join("|"),
+    [analysisResult?.items],
+  );
+
   useEffect(() => {
-    if (analysisResult?.items?.length) {
+    if (analysisResult?.items?.length && pricingKey) {
       void refreshPreviewPrices(analysisResult.items, customerId);
     }
-  }, [customerId, analysisResult?.items?.length]);
+  }, [customerId, pricingKey]);
 
   const handleQuantityChange = (index: number, value: number) => {
     patchReviewItem(index, (item) => ({
@@ -1396,7 +1449,7 @@ function NewOrder() {
               quotation_id: quote.id,
               line_no: index + 1,
               product_id: line.product.id,
-              product_name: line.product.name_ar,
+              product_name: line.quoteName?.trim() || line.product.name_ar,
               sku: line.product.sku,
               quantity: Number(line.quantity || 0),
               unit: line.unit || line.product.unit || "حبة",
@@ -1510,7 +1563,7 @@ function NewOrder() {
                       </div>
 
                       <div className="hidden overflow-x-auto md:block">
-                        <table className="w-full min-w-[980px] text-sm" dir="rtl">
+                        <table className="w-full min-w-[900px] text-sm" dir="rtl">
                           <thead className="bg-muted/60 text-xs font-extrabold">
                             <tr>
                               <th className="px-3 py-3 text-right">الكود</th>
@@ -1519,11 +1572,18 @@ function NewOrder() {
                               <th className="px-3 py-3 text-right">الوحدة</th>
                               <th className="px-3 py-3 text-right">السعر</th>
                               <th className="px-3 py-3 text-right">الإجمالي</th>
+                              <th className="px-3 py-3 text-right">الإجراء</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y">
                             {analysisResult.items.map((item, index) => {
                               const isEditing = editingItemId === item.id;
+                              const displayName =
+                                item.quoteName?.trim() ||
+                                item.product?.name_ar ||
+                                item.description ||
+                                item.raw_text ||
+                                "صنف غير محدد";
                               const lineTotal =
                                 item.priceAmount !== null
                                   ? Number(item.priceAmount) * Number(item.quantity || 0)
@@ -1532,8 +1592,7 @@ function NewOrder() {
                               return (
                                 <tr
                                   key={item.id}
-                                  onClick={() => setEditingItemId(item.id)}
-                                  className={`cursor-pointer transition-colors hover:bg-accent/5 ${isEditing ? "bg-accent/10" : ""}`}
+                                  className={isEditing ? "bg-accent/10" : ""}
                                 >
                                   <td className="px-3 py-3 align-top">
                                     <div className="font-mono font-extrabold text-primary">
@@ -1543,132 +1602,87 @@ function NewOrder() {
                                       ثقة {Math.round((item.confidence ?? 0) * 100)}%
                                     </div>
                                   </td>
+
                                   <td className="px-3 py-3 align-top">
-                                    <div className="min-w-[300px] space-y-2">
-                                      <Select
-                                        value={item.product?.id ?? ""}
-                                        onValueChange={(value) => {
-                                          setEditingItemId(item.id);
-                                          handleProductSelect(index, value);
-                                        }}
-                                      >
-                                        <SelectTrigger
-                                          className="h-10 w-full bg-background font-bold"
-                                          onClick={(event) => event.stopPropagation()}
-                                        >
-                                          <SelectValue placeholder="اختر الصنف" />
-                                        </SelectTrigger>
-                                        <SelectContent className="max-h-80" onClick={(event) => event.stopPropagation()}>
-                                          <div className="border-b p-2">
-                                            <Input
-                                              autoFocus
-                                              value={productSearches[item.id] ?? ""}
-                                              onChange={(event) =>
-                                                setProductSearches((previous) => ({
-                                                  ...previous,
-                                                  [item.id]: event.target.value,
-                                                }))
-                                              }
-                                              placeholder="ابحث بالاسم أو الكود أو الماركة..."
-                                              className="h-9"
-                                              onPointerDown={(event) => event.stopPropagation()}
-                                              onMouseDown={(event) => event.stopPropagation()}
-                                              onFocus={(event) => event.stopPropagation()}
-                                              onKeyDown={(event) => {
-                                                event.stopPropagation();
-                                                if (event.key === "Escape") {
-                                                  event.preventDefault();
-                                                  setProductSearches((previous) => ({
-                                                    ...previous,
-                                                    [item.id]: "",
-                                                  }));
-                                                }
-                                              }}
-                                            />
-                                          </div>
-                                          {(() => {
-                                            const filtered = filterProductOptions(productSearches[item.id] ?? "");
-                                            const visible = filtered.slice(0, MAX_RENDERED_PRODUCT_RESULTS);
-                                            if (!filtered.length) {
-                                              return (
-                                                <div className="px-3 py-2 text-sm text-muted-foreground">
-                                                  لا توجد منتجات مطابقة للبحث
-                                                </div>
-                                              );
-                                            }
-                                            return (
-                                              <>
-                                                {visible.map((option) => (
-                                                  <SelectItem key={option.value} value={option.value}>
-                                                    {option.label}
-                                                  </SelectItem>
-                                                ))}
-                                                {filtered.length > visible.length && (
-                                                  <div className="border-t px-3 py-2 text-center text-[11px] text-muted-foreground">
-                                                    عرض {visible.length} من {filtered.length} نتيجة — ضيّق البحث.
-                                                  </div>
-                                                )}
-                                              </>
-                                            );
-                                          })()}
-                                        </SelectContent>
-                                      </Select>
-                                      <div className="text-xs font-semibold">
-                                        {item.product?.name_ar ?? item.description ?? item.raw_text ?? "صنف غير محدد"}
-                                      </div>
+                                    <div className="min-w-[280px]">
+                                      <div className="font-bold text-foreground">{displayName}</div>
                                       {item.product?.name_en && (
-                                        <div className="text-[10px] text-muted-foreground" dir="ltr">
+                                        <div className="mt-1 text-[10px] text-muted-foreground" dir="ltr">
                                           {item.product.name_en}
                                         </div>
                                       )}
-                                      <div className="text-[10px] text-muted-foreground">
-                                        {isEditing ? "وضع التعديل مفعل" : "اضغط للتعديل"}
+                                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                        {item.product ? (
+                                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                                            <Database className="h-3 w-3" />
+                                            مطابق لقاعدة الأصناف
+                                          </span>
+                                        ) : (
+                                          <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                                            يحتاج اختيار صنف
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                   </td>
+
                                   <td className="px-3 py-3 align-top">
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      value={item.quantity || 0}
-                                      onChange={(event) => handleQuantityChange(index, Number(event.target.value))}
-                                      onClick={(event) => event.stopPropagation()}
-                                      className="h-10 w-28 font-bold"
-                                    />
+                                    <div className="rounded-lg bg-muted/50 px-3 py-2 font-extrabold tabular-nums">
+                                      {Number(item.quantity || 0)}
+                                    </div>
                                   </td>
+
                                   <td className="px-3 py-3 align-top">
-                                    <Input
-                                      value={item.unit || ""}
-                                      onChange={(event) => handleUnitChange(index, event.target.value)}
-                                      onClick={(event) => event.stopPropagation()}
-                                      className="h-10 w-28"
-                                      placeholder="الوحدة"
-                                    />
+                                    <div className="rounded-lg bg-muted/50 px-3 py-2 font-bold">
+                                      {item.unit || "—"}
+                                    </div>
                                   </td>
+
                                   <td className="px-3 py-3 align-top">
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      step="0.001"
-                                      value={item.priceAmount ?? ""}
-                                      onChange={(event) => handlePriceChange(index, Number(event.target.value))}
-                                      onClick={(event) => event.stopPropagation()}
-                                      placeholder={item.priceAmount === null ? "غير متاح" : "السعر"}
-                                      className="h-10 w-32 font-bold"
-                                    />
-                                    <p className="mt-1 max-w-[180px] text-[10px] text-muted-foreground">
+                                    <div className="rounded-lg bg-muted/50 px-3 py-2 font-extrabold tabular-nums">
+                                      {item.priceAmount !== null ? Number(item.priceAmount).toFixed(3) : "—"}
+                                    </div>
+                                    <p className="mt-1 text-[10px] text-muted-foreground">
                                       {item.priceLabel === "سعر يدوي"
                                         ? "سعر يدوي"
                                         : item.priceAmount === null && item.basePriceAmount != null
-                                          ? `الأساس: ${Number(item.basePriceAmount).toFixed(3)} د.ك / ${item.basePriceUnit || item.product?.unit || "الوحدة"} — يلزم تحويل`
-                                          : item.priceLabel}
+                                          ? "الأساس: " + Number(item.basePriceAmount).toFixed(3) + " د.ك / " + (item.basePriceUnit || item.product?.unit || "الوحدة")
+                                          : item.priceLabel || "بانتظار السعر"}
                                     </p>
+                                    {item.priceAmount !== null && item.priceType !== "manual_quote" && (
+                                      <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                                        <Database className="h-3 w-3" />
+                                        من قاعدة الأسعار
+                                      </span>
+                                    )}
                                   </td>
+
                                   <td className="px-3 py-3 align-top">
                                     <div className="rounded-lg bg-muted/60 px-3 py-2 text-left font-extrabold tabular-nums">
                                       {lineTotal !== null ? lineTotal.toFixed(3) : "—"}
                                     </div>
                                     <div className="mt-1 text-[10px] text-muted-foreground">د.ك</div>
+                                  </td>
+
+                                  <td className="px-3 py-3 align-top">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant={isEditing ? "default" : "outline"}
+                                      onClick={() => isEditing ? handleSaveEditing() : handleStartEditing(index)}
+                                    >
+                                      {isEditing ? (
+                                        <>
+                                          <Check className="ml-1 h-4 w-4" />
+                                          حفظ
+                                        </>
+                                      ) : (
+                                        <>
+                                          <PenLine className="ml-1 h-4 w-4" />
+                                          تعديل
+                                        </>
+                                      )}
+                                    </Button>
                                   </td>
                                 </tr>
                               );
@@ -1676,7 +1690,7 @@ function NewOrder() {
                           </tbody>
                           <tfoot className="border-t bg-muted/40">
                             <tr>
-                              <td colSpan={5} className="px-3 py-4 text-left font-extrabold">إجمالي الطلبية</td>
+                              <td colSpan={6} className="px-3 py-4 text-left font-extrabold">إجمالي الطلبية</td>
                               <td className="px-3 py-4 text-left text-lg font-black tabular-nums">
                                 {analysisResult.items
                                   .reduce(
@@ -1698,17 +1712,23 @@ function NewOrder() {
                       <div className="space-y-3 p-3 md:hidden" dir="rtl">
                         {analysisResult.items.map((item, index) => {
                           const isEditing = editingItemId === item.id;
+                          const displayName =
+                            item.quoteName?.trim() ||
+                            item.product?.name_ar ||
+                            item.description ||
+                            item.raw_text ||
+                            "صنف غير محدد";
                           const lineTotal =
                             item.priceAmount !== null
                               ? Number(item.priceAmount) * Number(item.quantity || 0)
                               : null;
 
                           return (
-                            <button
+                            <div
                               key={item.id}
-                              type="button"
-                              onClick={() => setEditingItemId(item.id)}
-                              className={`block w-full rounded-xl border bg-background p-3 text-right shadow-sm transition ${isEditing ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "hover:bg-muted/30"}`}
+                              className={isEditing
+                                ? "rounded-xl border bg-background p-3 shadow-sm border-primary bg-primary/5 ring-1 ring-primary/20"
+                                : "rounded-xl border bg-background p-3 shadow-sm"}
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1">
@@ -1720,14 +1740,24 @@ function NewOrder() {
                                       ثقة {Math.round((item.confidence ?? 0) * 100)}%
                                     </span>
                                   </div>
-                                  <p className="line-clamp-2 text-sm font-extrabold">
-                                    {item.product?.name_ar ?? item.description ?? item.raw_text ?? "صنف غير محدد"}
-                                  </p>
+                                  <p className="line-clamp-2 text-sm font-extrabold">{displayName}</p>
                                   {item.product?.name_en && (
                                     <p className="mt-1 line-clamp-1 text-[10px] text-muted-foreground" dir="ltr">
                                       {item.product.name_en}
                                     </p>
                                   )}
+                                  <div className="mt-2">
+                                    {item.product ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                                        <Database className="h-3 w-3" />
+                                        بيانات الصنف من القاعدة
+                                      </span>
+                                    ) : (
+                                      <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                                        يحتاج اختيار صنف
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="shrink-0 text-left">
                                   <p className="text-[10px] text-muted-foreground">الإجمالي</p>
@@ -1754,11 +1784,32 @@ function NewOrder() {
                                 </div>
                               </div>
 
-                              <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
-                                <span>{isEditing ? "تم اختيار الصنف للتعديل أدناه" : "اضغط هنا للتعديل واختيار الصنف"}</span>
-                                <span className="font-bold text-primary">✎ تعديل</span>
+                              <div className="mt-3 flex items-center justify-between gap-2">
+                                <span className="text-[10px] text-muted-foreground">
+                                  {item.priceAmount !== null && item.priceType !== "manual_quote"
+                                    ? "السعر مقروء تلقائيًا من قاعدة الأسعار"
+                                    : item.priceLabel || "السعر غير متاح"}
+                                </span>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant={isEditing ? "default" : "outline"}
+                                  onClick={() => isEditing ? handleSaveEditing() : handleStartEditing(index)}
+                                >
+                                  {isEditing ? (
+                                    <>
+                                      <Check className="ml-1 h-4 w-4" />
+                                      حفظ
+                                    </>
+                                  ) : (
+                                    <>
+                                      <PenLine className="ml-1 h-4 w-4" />
+                                      تعديل
+                                    </>
+                                  )}
+                                </Button>
                               </div>
-                            </button>
+                            </div>
                           );
                         })}
 
@@ -1785,105 +1836,245 @@ function NewOrder() {
                       <div className="border-t bg-background p-4">
                         {analysisResult.items.map((item, index) => {
                           if (editingItemId !== item.id) return null;
+                          const displayName =
+                            item.quoteName?.trim() ||
+                            item.product?.name_ar ||
+                            item.description ||
+                            item.raw_text ||
+                            "صنف غير محدد";
+                          const search = productSearches[item.id] ?? "";
+                          const filtered = filterProductOptions(search);
+                          const visible = filtered.slice(0, 8);
+                          const smartMatch =
+                            !filtered.length && search.trim().length >= 2
+                              ? findLocalProductMatch(search, products, "", productAliases)
+                              : null;
+                          const lineTotal =
+                            item.priceAmount !== null
+                              ? Number(item.priceAmount) * Number(item.quantity || 0)
+                              : null;
+
                           return (
-                            <div key={`editor-${item.id}`} className="rounded-lg border bg-muted/20 p-3">
-                              <div className="mb-2 flex items-center justify-between gap-2">
-                                <p className="font-bold">تعديل الصنف: {item.product?.name_ar || item.description}</p>
+                            <div key={"editor-" + item.id} className="rounded-xl border-2 border-primary/20 bg-muted/20 p-4">
+                              <div className="mb-4 flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-base font-extrabold">تعديل الصنف</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    عدّل فقط ما تحتاجه. البيانات الأصلية من قاعدة البيانات تبقى كما هي.
+                                  </p>
+                                </div>
                                 <Button
                                   type="button"
-                                  size="sm"
+                                  size="icon"
                                   variant="outline"
-                                  onClick={() => setEditingItemId(null)}
+                                  onClick={handleCancelEditing}
+                                  aria-label="إلغاء التعديل"
                                 >
-                                  إغلاق التعديل
+                                  <X className="h-4 w-4" />
                                 </Button>
                               </div>
-                              <div className="mb-3 rounded-lg border bg-background p-3">
-                                <Label className="text-xs font-bold">بحث واختيار الصنف من قاعدة البيانات</Label>
-                                <Input
-                                  value={productSearches[item.id] ?? ""}
-                                  onChange={(event) =>
-                                    setProductSearches((previous) => ({
-                                      ...previous,
-                                      [item.id]: event.target.value,
-                                    }))
-                                  }
-                                  placeholder="اكتب الاسم أو الكود أو الماركة أو الموديل..."
-                                  className="mt-2 h-10"
-                                  dir="rtl"
-                                />
-                                <div className="mt-2 max-h-56 overflow-y-auto rounded-md border">
-                                  {(() => {
-                                    const search = productSearches[item.id] ?? "";
-                                    const filtered = filterProductOptions(search);
-                                    const visible = filtered.slice(0, 60);
-                                    if (!products.length) {
-                                      return (
-                                        <div className="px-3 py-3 text-sm text-destructive">
-                                          لم يتم تحميل قاعدة الأصناف. أعد تحميل الصفحة ثم جرّب مرة أخرى.
-                                        </div>
-                                      );
-                                    }
-                                    if (!filtered.length) {
-                                      return (
+
+                              <div className="grid gap-4 lg:grid-cols-2">
+                                <div className="space-y-2 lg:col-span-2">
+                                  <Label>اختيار الصنف من قاعدة البيانات</Label>
+                                  <div className="relative">
+                                    <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                    <Input
+                                      value={search}
+                                      onChange={(event) =>
+                                        setProductSearches((previous) => ({
+                                          ...previous,
+                                          [item.id]: event.target.value,
+                                        }))
+                                      }
+                                      placeholder="ابحث بالاسم أو الكود أو الماركة أو الموديل..."
+                                      className="h-11 pr-9"
+                                      dir="rtl"
+                                    />
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    اكتب جزءًا من الاسم أو الكود. ستظهر لك عدد محدود من النتائج الأقرب بدل قائمة طويلة.
+                                  </p>
+
+                                  {search.trim() && (
+                                    <div className="rounded-lg border bg-background shadow-sm">
+                                      {visible.length > 0 ? (
+                                        visible.map((option) => {
+                                          const product = productById.get(option.value);
+                                          return (
+                                            <button
+                                              key={option.value}
+                                              type="button"
+                                              className="block w-full border-b px-3 py-3 text-right transition last:border-b-0 hover:bg-muted"
+                                              onClick={() => {
+                                                handleProductSelect(index, option.value);
+                                                setProductSearches((previous) => ({
+                                                  ...previous,
+                                                  [item.id]: "",
+                                                }));
+                                              }}
+                                            >
+                                              <div className="font-bold">{option.label}</div>
+                                              {product && (
+                                                <div className="mt-1 text-[10px] text-muted-foreground">
+                                                  {product.brand || "بدون ماركة"} · {product.unit || "بدون وحدة"}
+                                                </div>
+                                              )}
+                                            </button>
+                                          );
+                                        })
+                                      ) : smartMatch?.product ? (
+                                        <button
+                                          type="button"
+                                          className="block w-full px-3 py-3 text-right hover:bg-muted"
+                                          onClick={() => {
+                                            handleProductSelect(index, smartMatch.product.id);
+                                            setProductSearches((previous) => ({
+                                              ...previous,
+                                              [item.id]: "",
+                                            }));
+                                          }}
+                                        >
+                                          <div className="mb-1 text-[10px] font-bold text-primary">اقتراح ذكي قريب من البحث</div>
+                                          <div className="font-bold">
+                                            {smartMatch.product.name_ar} — {smartMatch.product.sku}
+                                          </div>
+                                          <div className="mt-1 text-[10px] text-muted-foreground">
+                                            {smartMatch.product.brand || "بدون ماركة"} · {smartMatch.product.unit || "بدون وحدة"}
+                                          </div>
+                                        </button>
+                                      ) : (
                                         <div className="px-3 py-3 text-sm text-muted-foreground">
-                                          لا توجد نتائج مطابقة. جرّب جزءًا من الاسم أو الكود.
+                                          لا توجد مطابقة. جرّب جزءًا أقصر من الاسم أو الكود.
                                         </div>
-                                      );
-                                    }
-                                    return visible.map((option) => (
-                                      <button
-                                        key={option.value}
-                                        type="button"
-                                        className="block w-full border-b px-3 py-2 text-right text-xs hover:bg-muted last:border-b-0"
-                                        onClick={() => {
-                                          handleProductSelect(index, option.value);
-                                          setProductSearches((previous) => ({
-                                            ...previous,
-                                            [item.id]: option.label,
-                                          }));
-                                        }}
-                                      >
-                                        <span className="font-bold">{option.label}</span>
-                                      </button>
-                                    ));
-                                  })()}
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
-                                {(() => {
-                                  const count = filterProductOptions(productSearches[item.id] ?? "").length;
-                                  return count > 60 ? (
-                                    <p className="mt-1 text-[10px] text-muted-foreground">
-                                      عرض أول 60 من {count} نتيجة — ضيّق البحث للحصول على الصنف المطلوب.
+
+                                <div className="space-y-2">
+                                  <Label>اسم الصنف في العرض</Label>
+                                  <Input
+                                    value={item.quoteName ?? item.product?.name_ar ?? item.description ?? ""}
+                                    onChange={(event) =>
+                                      patchReviewItem(index, (current) => ({
+                                        ...current,
+                                        quoteName: event.target.value,
+                                      }))
+                                    }
+                                    placeholder={displayName}
+                                  />
+                                  <p className="text-[10px] text-muted-foreground">
+                                    هذا الاسم يغيّر اسم السطر في عرض السعر فقط، ولا يغيّر اسم المنتج الأصلي في قاعدة البيانات.
+                                  </p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-2">
+                                    <Label>الكمية</Label>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      step="0.001"
+                                      value={item.quantity || 0}
+                                      onChange={(event) => handleQuantityChange(index, Number(event.target.value))}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>الوحدة</Label>
+                                    <Input
+                                      value={item.unit || ""}
+                                      onChange={(event) => handleUnitChange(index, event.target.value)}
+                                      placeholder="الوحدة"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label>السعر</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    step="0.001"
+                                    value={item.priceAmount ?? ""}
+                                    onChange={(event) => handlePriceChange(index, Number(event.target.value))}
+                                    placeholder="السعر"
+                                  />
+                                  <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                                    {item.priceType !== "manual_quote" && item.priceAmount !== null ? (
+                                      <span className="inline-flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-300">
+                                        <Database className="h-3 w-3" />
+                                        السعر الحالي من قاعدة الأسعار
+                                      </span>
+                                    ) : (
+                                      <span className="font-bold text-amber-700 dark:text-amber-300">
+                                        تم تعديل السعر يدويًا لهذا العرض
+                                      </span>
+                                    )}
+                                    <span className="text-muted-foreground">{item.priceLabel}</span>
+                                  </div>
+                                </div>
+
+                                <div className="rounded-lg border bg-background p-3 lg:col-span-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                      <p className="text-xs font-bold">البيانات الحالية</p>
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        {item.product?.sku ? "الكود " + item.product.sku : "لم يتم اختيار صنف من القاعدة"}
+                                        {item.product?.brand ? " · " + item.product.brand : ""}
+                                      </p>
+                                    </div>
+                                    <p className="text-sm font-black tabular-nums">
+                                      {lineTotal !== null ? lineTotal.toFixed(3) : "—"} د.ك
                                     </p>
-                                  ) : null;
-                                })()}
+                                  </div>
+                                </div>
                               </div>
 
-                              <div className="flex flex-wrap gap-2">
+                              <div className="mt-4 flex flex-wrap gap-2">
                                 <Button
-                                  size="sm"
+                                  type="button"
+                                  onClick={handleSaveEditing}
+                                >
+                                  <Check className="ml-1 h-4 w-4" />
+                                  حفظ التعديل
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={handleCancelEditing}
+                                >
+                                  إلغاء
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
                                   onClick={() => handleAcceptMatch(index)}
                                   disabled={!item.product}
                                 >
-                                  اعتماد الصنف
+                                  اعتماد المطابقة
                                 </Button>
                                 <Button
-                                  size="sm"
+                                  type="button"
                                   variant="outline"
                                   onClick={() => handleRejectLine(index)}
                                 >
                                   رفض السطر
                                 </Button>
                                 <Button
-                                  size="sm"
+                                  type="button"
                                   variant="destructive"
-                                  onClick={() => handleDeleteLine(index)}
+                                  onClick={() => {
+                                    handleDeleteLine(index);
+                                    setEditingSnapshot(null);
+                                    setEditingItemId(null);
+                                  }}
                                 >
                                   <Trash2 className="ml-1 h-4 w-4" />
                                   حذف الصنف
                                 </Button>
                                 <Button
-                                  size="sm"
+                                  type="button"
                                   variant="secondary"
                                   onClick={() => void handleSaveAlias(index)}
                                   disabled={!item.product}
@@ -1891,8 +2082,9 @@ function NewOrder() {
                                   حفظ الاختصار مستقبلًا
                                 </Button>
                               </div>
+
                               {item.notes && (
-                                <p className="mt-2 text-[11px] text-amber-600">ملاحظات: {item.notes}</p>
+                                <p className="mt-3 text-[11px] text-amber-600">ملاحظات: {item.notes}</p>
                               )}
                             </div>
                           );
