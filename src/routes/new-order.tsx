@@ -214,7 +214,26 @@ function parseLocalOcrText(text: string) {
     const startMatch = line.match(new RegExp(`^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?\\s+(.+)$`, "i"));
     const endMatch = line.match(new RegExp(`^(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?$`, "i"));
 
-    if (startMatch) {
+    // Table OCR often returns columns in this order:
+    // amount | unit-price | UNIT | QTY | DESCRIPTION | SKU | LINE NO.
+    // The quantity is the number immediately AFTER the unit, not the price
+    // immediately BEFORE it. Prefer this deterministic table pattern first.
+    const tableUnitMatch = line.match(
+      /(?:^|\\s)(roll|rolls|rOLL|pkt|pkts|pack|packet|رول|لفة|باكيت|باك|كرتون|حبة|قطعة|pcs?|pieces?)(?:\\s+)([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)/i,
+    );
+    const numberBeforeUnit = line.match(
+      /([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s+(roll|rolls|pkt|pkts|pack|packet|رول|لفة|باكيت|باك|كرتون|حبة|قطعة|pcs?|pieces?)(?:\\s|$)/i,
+    );
+
+    if (tableUnitMatch) {
+      quantity = Number(String(tableUnitMatch[2] ?? "").replace(/[٠-٩]/g, (c: string) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(",", "."));
+      unit = normalizeUnitValue(tableUnitMatch[1] ?? "");
+      description = line;
+    } else if (numberBeforeUnit) {
+      quantity = Number(String(numberBeforeUnit[1] ?? "").replace(/[٠-٩]/g, (c: string) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(",", "."));
+      unit = normalizeUnitValue(numberBeforeUnit[2] ?? "");
+      description = line;
+    } else if (startMatch) {
       quantity = Number(String(startMatch[1] ?? "").replace(/[٠-٩]/g, (c: string) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(",", "."));
       unit = startMatch[2] ?? "";
       description = startMatch[3].trim();
@@ -369,7 +388,7 @@ function normalizeUnitValue(value: string): string {
     "كرتون": "كرتون", "كرتونه": "كرتون", "carton": "كرتون", "cartons": "كرتون", "box": "كرتون", "boxes": "كرتون",
     "علبة": "علبة", "علب": "علبة",
     "رول": "رول", "لفة": "رول", "roll": "رول", "rolls": "رول",
-    "باكيت": "باكيت", "باك": "باكيت", "pack": "باكيت", "packs": "باكيت", "packet": "باكيت", "packets": "باكيت",
+    "باكيت": "باكيت", "باك": "باكيت", "pkt": "باكيت", "pkts": "باكيت", "pack": "باكيت", "packs": "باكيت", "packet": "باكيت", "packets": "باكيت",
     "متر": "متر", "m": "متر", "meter": "متر", "meters": "متر",
     "سم": "سم", "cm": "سم",
     "مم": "مم", "mm": "مم",
@@ -467,12 +486,16 @@ function findLocalProductMatch(
 
   const prepared = products.map((product) => prepareProductForMatch(product, aliases));
 
-  // SKU is the strongest signal. Resolve exact numeric OCR/SKU text before
-  // doing any fuzzy matching across the catalog.
+  // SKU is the strongest signal. A scanned table row usually contains
+  // the SKU together with the description, quantity and prices, so do not
+  // require the entire OCR line to be numeric. Resolve any exact 3–8 digit
+  // token that exists in the catalog before fuzzy matching.
   for (const query of queries) {
-    if (!/^\\d+$/.test(query)) continue;
-    const exactSku = prepared.find((entry) => entry.sku === query);
-    if (exactSku) return { product: exactSku.product, score: 1.25 };
+    const skuTokens = query.match(/\\b\\d{3,8}\\b/g) ?? [];
+    for (const sku of skuTokens) {
+      const exactSku = prepared.find((entry) => entry.sku === sku);
+      if (exactSku) return { product: exactSku.product, score: 1.25 };
+    }
   }
 
   // Narrow candidates cheaply using distinctive query tokens/numeric fragments.
@@ -1280,7 +1303,7 @@ function NewOrder() {
             fileType: first.type || first.name,
             text,
           }),
-        }, 45000);
+        }, 90000);
 
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data?.error || "تعذر تشغيل محرك القراءة الذكي.");
@@ -1378,7 +1401,10 @@ function NewOrder() {
           quoteName: match?.product.name_ar ?? undefined,
           confidence,
           product: match?.product ?? null,
-          unit: normalizeUnitValue(match?.product?.unit ?? "") || normalizeUnitValue(item.unit ?? "") || "حبة",
+          // The order's requested unit must win. The catalog unit is only
+          // a fallback because one product can legitimately be ordered as رول/باكيت
+          // even when its master unit is حبة and a unit conversion exists.
+          unit: normalizeUnitValue(item.unit ?? "") || normalizeUnitValue(match?.product?.unit ?? "") || "حبة",
           matchReason: match
             ? "تمت المطابقة مع قاعدة المنتجات — الاسم والبيانات من Supabase"
             : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة",
