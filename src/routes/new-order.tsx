@@ -1659,8 +1659,7 @@ function NewOrder() {
                                 item.raw_text ||
                                 "صنف غير محدد";
                               const lineTotal =
-                                item.priceAmount !== null &&
-                                (!item.basePriceUnit || !item.unit || item.unit.trim().toLowerCase() === item.basePriceUnit.trim().toLowerCase() || item.priceType === "manual_quote")
+                                item.priceAmount !== null && Number.isFinite(Number(item.priceAmount))
                                   ? Number(item.priceAmount) * Number(item.quantity || 0)
                                   : null;
 
@@ -1889,8 +1888,7 @@ function NewOrder() {
                             item.raw_text ||
                             "صنف غير محدد";
                           const lineTotal =
-                            item.priceAmount !== null &&
-                            (!item.basePriceUnit || !item.unit || item.unit.trim().toLowerCase() === item.basePriceUnit.trim().toLowerCase() || item.priceType === "manual_quote")
+                            item.priceAmount !== null && Number.isFinite(Number(item.priceAmount))
                               ? Number(item.priceAmount) * Number(item.quantity || 0)
                               : null;
 
