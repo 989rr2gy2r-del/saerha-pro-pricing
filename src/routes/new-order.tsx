@@ -323,78 +323,72 @@ async function readImageLocally(file: File, onProgress?: (value: number) => void
 const PRODUCT_SELECT_FIELDS =
   "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, unit, description";
 
+const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
+  [/\\bpipe(?:s)?\\b/gi, "بايب"], [/\\belbow(?:s)?\\b/gi, "كوع"],
+  [/\\btee(?:s)?\\b/gi, "تي"], [/\\bcoupling(?:s)?\\b/gi, "وصلة"],
+  [/\\bcoupler(?:s)?\\b/gi, "وصلة"], [/\\bsocket(?:s)?\\b/gi, "سكت"],
+  [/\\badapter(?:s)?\\b/gi, "أدبتر"], [/\\badaptor(?:s)?\\b/gi, "أدبتر"],
+  [/\\bconnector(?:s)?\\b/gi, "موصل"], [/\\bclamp(?:s)?\\b/gi, "كلبس"],
+  [/\\bbox(?:es)?\\b/gi, "صندوق"], [/\\bnipple(?:s)?\\b/gi, "نبل"],
+  [/\\bvalve(?:s)?\\b/gi, "محبس"], [/\\breducer(?:s)?\\b/gi, "مخفض"],
+  [/\\bunion(?:s)?\\b/gi, "وصلة"], [/\\bflexible\\b/gi, "فليكسيبل"],
+  [/\\bblack\\b/gi, "اسود"], [/\\bwhite\\b/gi, "ابيض"],
+  [/\\bgreen\\b/gi, "اخضر"], [/\\bred\\b/gi, "احمر"], [/\\bblue\\b/gi, "ازرق"],
+  [/\\broll(?:s)?\\b/gi, "رول"], [/\\bpiece(?:s)?\\b/gi, "قطعة"],
+  [/\\bpcs\\b/gi, "قطعة"], [/\\bpc\\b/gi, "قطعة"],
+  [/\\bcarton(?:s)?\\b/gi, "كرتون"], [/\\bpacket(?:s)?\\b/gi, "باكيت"],
+  [/\\bpack(?:s)?\\b/gi, "باكيت"], [/\\bmm\\b/gi, "مم"], [/\\bcm\\b/gi, "سم"],
+  [/\\binch(?:es)?\\b/gi, "انش"],
+];
+
 function normalizeForMatch(value: string): string {
-  return value
+  let normalized = String(value ?? "")
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\\u0300-\\u036f]/g, "")
     .replace(/[٠-٩]/g, (char) => "٠١٢٣٤٥٦٧٨٩".indexOf(char).toString())
-    .replace(/[أآإ]/g, "ا")
-    .replace(/ى/g, "ي")
-    .replace(/ؤ/g, "و")
-    .replace(/ئ/g, "ي")
-    .replace(/ء/g, "")
-    .replace(/ـ/g, "")
-    .replace(/[ة]/g, "ة")
-    .replace(/[`~!@#$%^&*()_+=\]{}\\|;:'",<>/?]/g, " ")
-    .replace(/[_/\\-]+/g, " ")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/[أآإ]/g, "ا").replace(/ى/g, "ي").replace(/ؤ/g, "و").replace(/ئ/g, "ي").replace(/ء/g, "")
+    .replace(/ـ/g, "").replace(/[ة]/g, "ة")
+    .replace(/[\`~!@#$%^&*()_+=\]{}\\|;:'",<>/?]/g, " ")
+    .replace(/[_/\\-]+/g, " ").toLowerCase();
+  for (const [pattern, replacement] of PRODUCT_SYNONYMS) normalized = normalized.replace(pattern, replacement);
+  normalized = normalized
+    .replace(/(\\d+(?:\\.\\d+)?)\\s*(?:مم|mm)\\b/gi, "$1 مم")
+    .replace(/(\\d+(?:\\.\\d+)?)\\s*(?:سم|cm)\\b/gi, "$1 سم")
+    .replace(/(\\d+(?:\\.\\d+)?)\\s*(?:انش|inch|in)\\b/gi, "$1 انش")
+    .replace(/(\\d+)\\s*["”″]/g, "$1 انش")
+    .replace(/\\s+/g, " ").trim();
+  return normalized;
 }
 
-function normalizeUnitValue(value: string): string {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "";
-  const key = raw.toLowerCase();
-  const aliases: Record<string, string> = {
-    pc: "حبة",
-    pcs: "حبة",
-    piece: "حبة",
-    pieces: "حبة",
-    ea: "حبة",
-    each: "حبة",
-    pkt: "PKT",
-    packet: "PKT",
-    packets: "PKT",
-    pack: "PKT",
-    packs: "PKT",
-    roll: "رول",
-    rolls: "رول",
-    "لف": "رول",
-    "لفة": "رول",
-  };
-  return aliases[key] ?? raw;
+function matchTokens(value: string): string[] {
+  return normalizeForMatch(value).split(" ").map((token) => token.trim()).filter(Boolean);
+}
+
+function similarityScore(a: string, b: string): number {
+  const normalizedA = normalizeForMatch(a);
+  const normalizedB = normalizeForMatch(b);
+  if (!normalizedA || !normalizedB) return 0;
+  if (normalizedA === normalizedB) return 1;
+  const aTokens = matchTokens(normalizedA);
+  const bTokens = matchTokens(normalizedB);
+  const tokenHits = aTokens.filter((token) => bTokens.some((candidate) => candidate === token || candidate.includes(token) || token.includes(candidate))).length;
+  if (!tokenHits) return 0;
+  const tokenScore = tokenHits / Math.max(aTokens.length, bTokens.length);
+  const queryCoverage = tokenHits / aTokens.length;
+  const numericA = aTokens.filter((token) => /^\\d+(?:\\.\\d+)?$/.test(token));
+  const numericB = bTokens.filter((token) => /^\\d+(?:\\.\\d+)?$/.test(token));
+  const numericHits = numericA.filter((token) => numericB.includes(token)).length;
+  const numericScore = numericA.length ? numericHits / numericA.length : 0;
+  return Math.min(1.25, tokenScore * 0.65 + queryCoverage * 0.25 + numericScore * 0.35);
 }
 
 function getPriceLookupKey(priceType: string): string {
   const map: Record<string, string> = {
-    retail: "Retail",
-    reseller: "Reseller",
-    customer_special: "Customer Special",
-    manual_quote: "Manual Quote",
-    unit_price: "Unit Price",
-    price_after_discount: "Price After Discount",
-    retail_min: "Retail Min",
+    retail: "Retail", reseller: "Reseller", customer_special: "Customer Special", manual_quote: "Manual Quote",
+    unit_price: "Unit Price", price_after_discount: "Price After Discount", retail_min: "Retail Min",
   };
-
   return map[priceType] ?? priceType;
 }
-
-function similarityScore(a: string, b: string): number {
-  if (!a || !b) return 0;
-  if (a === b) return 1;
-  if (a.includes(b) || b.includes(a)) {
-    return Math.min(a.length, b.length) / Math.max(a.length, b.length) * 0.95;
-  }
-  const aTokens = a.split(" ").filter(Boolean);
-  const bTokens = b.split(" ").filter(Boolean);
-  if (!aTokens.length || !bTokens.length) return 0;
-  const tokenHits = aTokens.filter((token) =>
-    bTokens.some((candidate) => candidate === token || candidate.includes(token) || token.includes(candidate)),
-  ).length;
-  return tokenHits / Math.max(aTokens.length, bTokens.length);
-}
-
 type PreparedProductMatch = {
   product: ProductRecord;
   sku: string;
@@ -463,11 +457,10 @@ function findLocalProductMatch(
   // This avoids scoring all 4,583 products for every OCR line.
   const candidateSet = new Set<PreparedProductMatch>();
   for (const query of queries) {
-    const tokens = query.split(" ").filter((token) => token.length >= 2);
-    const usefulToken = tokens.sort((a, b) => b.length - a.length)[0];
-    if (usefulToken) {
+    const tokens = matchTokens(query).filter((token) => token.length >= 2);
+    for (const token of tokens.slice(0, 8)) {
       for (const entry of prepared) {
-        if (entry.haystack.includes(usefulToken)) candidateSet.add(entry);
+        if (entry.haystack.includes(token)) candidateSet.add(entry);
       }
     }
   }
@@ -502,7 +495,7 @@ function findLocalProductMatch(
   }).sort((a, b) => b.score - a.score);
 
   const best = scored[0];
-  if (!best || best.score < 0.58) return null;
+  if (!best || best.score < 0.70) return null;
   return best;
 }
 
