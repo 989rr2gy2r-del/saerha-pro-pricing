@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import * as XLSX from "xlsx";
-import { Check, Database, FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Search, Trash2, Upload, X } from "lucide-react";
+import { Check, Database as DatabaseIcon, FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Search, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -1614,7 +1614,7 @@ function NewOrder() {
                                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                                         {item.product ? (
                                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-                                            <Database className="h-3 w-3" />
+                                            <DatabaseIcon className="h-3 w-3" />
                                             مطابق لقاعدة الأصناف
                                           </span>
                                         ) : (
@@ -1651,7 +1651,7 @@ function NewOrder() {
                                     </p>
                                     {item.priceAmount !== null && item.priceType !== "manual_quote" && (
                                       <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
-                                        <Database className="h-3 w-3" />
+                                        <DatabaseIcon className="h-3 w-3" />
                                         من قاعدة الأسعار
                                       </span>
                                     )}
@@ -1749,7 +1749,7 @@ function NewOrder() {
                                   <div className="mt-2">
                                     {item.product ? (
                                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-                                        <Database className="h-3 w-3" />
+                                        <DatabaseIcon className="h-3 w-3" />
                                         بيانات الصنف من القاعدة
                                       </span>
                                     ) : (
@@ -2003,7 +2003,7 @@ function NewOrder() {
                                   <div className="flex flex-wrap items-center gap-2 text-[10px]">
                                     {item.priceType !== "manual_quote" && item.priceAmount !== null ? (
                                       <span className="inline-flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-300">
-                                        <Database className="h-3 w-3" />
+                                        <DatabaseIcon className="h-3 w-3" />
                                         السعر الحالي من قاعدة الأسعار
                                       </span>
                                     ) : (
