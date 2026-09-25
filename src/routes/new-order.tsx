@@ -635,6 +635,7 @@ function NewOrder() {
     bottom?: number;
   } | null>(null);
   const productPickerTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const keyboardFieldRefs = useRef<Record<string, HTMLElement | null>>({});
   const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   const [skuErrors, setSkuErrors] = useState<Record<string, string>>({});
   // Keep numeric drafts as text while the user types so a decimal separator
@@ -989,6 +990,31 @@ function NewOrder() {
     }));
   };
 
+  const focusOrderField = (index: number, field: "sku" | "product" | "quantity" | "unit" | "price" | "discount") => {
+    const item = analysisResult?.items[index];
+    if (!item) return;
+    const target = keyboardFieldRefs.current[`${item.id}:${field}`];
+    if (!target) return;
+    window.requestAnimationFrame(() => {
+      target.focus();
+      if (target instanceof HTMLInputElement) target.select();
+    });
+  };
+
+  const focusNextOrderField = (index: number, field: "sku" | "product" | "quantity" | "unit" | "price" | "discount") => {
+    const order: Array<"sku" | "product" | "quantity" | "unit" | "price" | "discount"> = [
+      "sku", "product", "quantity", "unit", "price", "discount",
+    ];
+    const position = order.indexOf(field);
+    if (position >= 0 && position < order.length - 1) {
+      focusOrderField(index, order[position + 1]);
+      return;
+    }
+    if (position === order.length - 1 && index < (analysisResult?.items.length ?? 0) - 1) {
+      focusOrderField(index + 1, "sku");
+    }
+  };
+
   const finishSkuEdit = (index: number) => {
     const item = analysisResult?.items[index];
     if (!item) return;
@@ -1268,50 +1294,21 @@ function NewOrder() {
     }));
   };
 
-  const handleDiscountTypeChange = (index: number, type: "percent" | "amount") => {
-    const current = analysisResult?.items[index];
-    if (!current) return;
-    patchReviewItem(index, (item) => ({
-      ...item,
-      discountType: type,
-      discountValue:
-        type === "percent"
-          ? Math.min(100, Math.max(0, Number(item.discountPercent ?? 0)))
-          : Math.max(0, Number(item.discountValue ?? 0)),
-      discountPercent:
-        type === "percent"
-          ? Math.min(100, Math.max(0, Number(item.discountPercent ?? item.discountValue ?? 0)))
-          : item.discountPercent,
-    }));
-    setDiscountDrafts((previous) => {
-      const next = { ...previous };
-      delete next[current.id];
-      return next;
-    });
-  };
-
   const handleDiscountChange = (index: number, value: number) => {
-    const item = analysisResult?.items[index];
-    if (!item) return;
-    const type = item.discountType ?? "percent";
     const normalized = Number.isFinite(value) ? Math.max(0, value) : 0;
-    const discount = type === "percent" ? Math.min(100, normalized) : normalized;
+    const discount = Math.min(100, normalized);
     patchReviewItem(index, (current) => ({
       ...current,
-      discountType: type,
+      discountType: "percent",
       discountValue: discount,
-      discountPercent: type === "percent" ? discount : current.discountPercent,
+      discountPercent: discount,
     }));
   };
 
   const beginDiscountEdit = (index: number) => {
     const item = analysisResult?.items[index];
     if (!item) return;
-    const type = item.discountType ?? "percent";
-    const value =
-      type === "percent"
-        ? Math.min(100, Math.max(0, Number(item.discountPercent ?? item.discountValue ?? 0)))
-        : Math.max(0, Number(item.discountValue ?? 0));
+    const value = Math.min(100, Math.max(0, Number(item.discountPercent ?? item.discountValue ?? 0)));
     setDiscountDrafts((previous) => ({
       ...previous,
       [item.id]: String(value),
@@ -1392,16 +1389,10 @@ function NewOrder() {
       item.priceAmount !== null && Number.isFinite(Number(item.priceAmount))
         ? Number(item.priceAmount) * Number(item.quantity || 0)
         : 0;
-    const type = item.discountType ?? "percent";
-    const rawValue =
-      type === "percent"
-        ? Number(item.discountPercent ?? item.discountValue ?? 0)
-        : Number(item.discountValue ?? 0);
-    const value = Number.isFinite(rawValue) ? Math.max(0, rawValue) : 0;
-    const discountAmount =
-      type === "percent"
-        ? lineSubtotal * (Math.min(100, value) / 100)
-        : Math.min(lineSubtotal, value);
+    const type = "percent" as const;
+    const rawValue = Number(item.discountPercent ?? item.discountValue ?? 0);
+    const value = Number.isFinite(rawValue) ? Math.min(100, Math.max(0, rawValue)) : 0;
+    const discountAmount = lineSubtotal * (value / 100);
     return {
       type,
       value: type === "percent" ? Math.min(100, value) : value,
@@ -2255,6 +2246,9 @@ function NewOrder() {
                                 >
                                   <td className="px-3 py-3 align-top">
                                     <Input
+                                      ref={(node) => {
+                                        keyboardFieldRefs.current[`${item.id}:sku`] = node;
+                                      }}
                                       type="text"
                                       inputMode="numeric"
                                       value={skuDrafts[item.id] ?? item.product?.sku ?? ""}
@@ -2275,6 +2269,7 @@ function NewOrder() {
                                         if (event.key === "Enter") {
                                           event.preventDefault();
                                           finishSkuEdit(index);
+                                          focusNextOrderField(index, "sku");
                                         }
                                       }}
                                       placeholder="الكود / الباركود"
@@ -2297,13 +2292,20 @@ function NewOrder() {
                                       <button
                                         ref={(node) => {
                                           productPickerTriggerRefs.current[item.id] = node;
+                                          keyboardFieldRefs.current[`${item.id}:product`] = node;
                                         }}
                                         type="button"
                                         className={openProductPickerId === item.id
                                           ? "w-full cursor-pointer rounded-lg border-2 border-primary bg-background px-3 py-2 text-right shadow-sm"
                                           : "w-full cursor-pointer rounded-lg border border-transparent bg-muted/50 px-3 py-2 text-right transition hover:border-primary/40 hover:bg-background"}
-                                        title="تحرير/بحث عن الصنف"
+                                        title="تحرير/بحث عن الصنف — Enter للانتقال للكمية"
                                         onClick={() => handleOpenProductPicker(index)}
+                                        onKeyDown={(event) => {
+                                          if (event.key === "Enter") {
+                                            event.preventDefault();
+                                            focusNextOrderField(index, "product");
+                                          }
+                                        }}
                                       >
                                         <div className="flex items-start justify-between gap-3">
                                           <div className="min-w-0">
@@ -2425,6 +2427,9 @@ function NewOrder() {
 
                                   <td className="px-3 py-3 align-top">
                                     <Input
+                                      ref={(node) => {
+                                        keyboardFieldRefs.current[`${item.id}:quantity`] = node;
+                                      }}
                                       type="text"
                                       inputMode="numeric"
                                       pattern="[0-9]*"
@@ -2438,7 +2443,7 @@ function NewOrder() {
                                         if (event.key === "Enter") {
                                           event.preventDefault();
                                           finishNumericEdit(index, "quantity");
-                                          event.currentTarget.blur();
+                                          focusNextOrderField(index, "quantity");
                                         }
                                       }}
                                       onBlur={() => finishNumericEdit(index, "quantity")}
@@ -2449,11 +2454,30 @@ function NewOrder() {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <Select value={item.unit || "حبة"} onValueChange={(value) => handleUnitChange(index, value)}><SelectTrigger className="h-10 w-32 cursor-pointer font-bold" title="اختيار الوحدة"><SelectValue placeholder="اختر الوحدة" /></SelectTrigger><SelectContent>{["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent></Select>
+                                    <Select value={item.unit || "حبة"} onValueChange={(value) => handleUnitChange(index, value)}>
+                                      <SelectTrigger
+                                        ref={(node) => {
+                                          keyboardFieldRefs.current[`${item.id}:unit`] = node;
+                                        }}
+                                        className="h-10 w-32 cursor-pointer font-bold"
+                                        title="اختيار الوحدة — Enter للانتقال للسعر"
+                                        onKeyDown={(event) => {
+                                          if (event.key === "Enter") {
+                                            event.preventDefault();
+                                            focusNextOrderField(index, "unit");
+                                          }
+                                        }}
+                                      >
+                                        <SelectValue placeholder="اختر الوحدة" />
+                                      </SelectTrigger>
+                                      <SelectContent>{["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent></Select>
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
                                     <Input
+                                      ref={(node) => {
+                                        keyboardFieldRefs.current[`${item.id}:price`] = node;
+                                      }}
                                       type="text"
                                       inputMode="decimal"
                                       value={numericDrafts[item.id]?.price ?? (item.priceAmount == null ? "" : String(item.priceAmount))}
@@ -2466,7 +2490,7 @@ function NewOrder() {
                                         if (event.key === "Enter") {
                                           event.preventDefault();
                                           finishNumericEdit(index, "price");
-                                          event.currentTarget.blur();
+                                          focusNextOrderField(index, "price");
                                         }
                                       }}
                                       onBlur={() => finishNumericEdit(index, "price")}
@@ -2492,28 +2516,13 @@ function NewOrder() {
 
                                   <td className="px-3 py-3 align-top">
                                     <div className="flex items-center gap-2">
-                                      <Select
-                                        value={item.discountType ?? "percent"}
-                                        onValueChange={(value) =>
-                                          handleDiscountTypeChange(index, value === "amount" ? "amount" : "percent")
-                                        }
-                                      >
-                                        <SelectTrigger className="h-10 w-32 cursor-pointer font-bold" title="اختيار نوع الخصم">
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="percent">نسبة %</SelectItem>
-                                          <SelectItem value="amount">مبلغ د.ك</SelectItem>
-                                        </SelectContent>
-                                      </Select>
                                       <Input
+                                        ref={(node) => {
+                                          keyboardFieldRefs.current[`${item.id}:discount`] = node;
+                                        }}
                                         type="text"
                                         inputMode="decimal"
-                                        value={discountDrafts[item.id] ?? String(
-                                          item.discountType === "amount"
-                                            ? Number(item.discountValue ?? 0)
-                                            : Number(item.discountPercent ?? item.discountValue ?? 0)
-                                        )}
+                                        value={discountDrafts[item.id] ?? String(Math.min(100, Math.max(0, Number(item.discountPercent ?? item.discountValue ?? 0))))}
                                         onFocus={(event) => {
                                           beginDiscountEdit(index);
                                           event.currentTarget.select();
@@ -2523,18 +2532,17 @@ function NewOrder() {
                                           if (event.key === "Enter") {
                                             event.preventDefault();
                                             finishDiscountEdit(index);
-                                            event.currentTarget.blur();
+                                            focusNextOrderField(index, "discount");
                                           }
                                         }}
                                         onBlur={() => finishDiscountEdit(index)}
                                         className="h-10 w-24 font-bold tabular-nums"
-                                        aria-label={item.discountType === "amount" ? "قيمة الخصم بالمبلغ" : "نسبة الخصم"}
-                                        title="تحرير الخصم"
+                                        aria-label="نسبة خصم الصنف"
+                                        title="تحرير نسبة الخصم فقط"
                                       />
+                                      <span className="font-black text-muted-foreground">%</span>
                                     </div>
-                                    <div className="mt-1 text-[10px] text-muted-foreground">
-                                      {item.discountType === "amount" ? "خصم مبلغ ثابت على الصنف" : "0–100%"}
-                                    </div>
+                                    <div className="mt-1 text-[10px] text-muted-foreground">0–100% فقط</div>
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
@@ -2998,142 +3006,3 @@ function NewOrder() {
                                             onFocus={(event) => event.currentTarget.select()}
                                             onChange={(event) => updateInvoiceDiscountDraft("amount", event.target.value)}
                                             onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); finishInvoiceDiscountEdit("amount"); event.currentTarget.blur(); } }}
-                                            onBlur={() => finishInvoiceDiscountEdit("amount")}
-                                            placeholder="المبلغ د.ك" className="h-10 font-bold tabular-nums" aria-label="مبلغ خصم الفاتورة كاملة" />
-                                        </div>
-                                      ) : (
-                                        <Input type="text" inputMode="decimal"
-                                          value={invoiceDiscountType === "percent" ? invoiceDiscountPercentDraft : invoiceDiscountAmountDraft}
-                                          onFocus={(event) => event.currentTarget.select()}
-                                          onChange={(event) => updateInvoiceDiscountDraft(invoiceDiscountType === "percent" ? "percent" : "amount", event.target.value)}
-                                          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); finishInvoiceDiscountEdit(invoiceDiscountType === "percent" ? "percent" : "amount"); event.currentTarget.blur(); } }}
-                                          onBlur={() => finishInvoiceDiscountEdit(invoiceDiscountType === "percent" ? "percent" : "amount")}
-                                          placeholder={invoiceDiscountType === "percent" ? "0" : "0.000"}
-                                          className="h-10 font-bold tabular-nums" aria-label="خصم الفاتورة كاملة" />
-                                      )}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2 border-t pt-3">
-                              <div className="flex items-center justify-between gap-3 text-sm">
-                                <span>إجمالي الأصناف قبل الخصومات</span>
-                                <span className="font-bold tabular-nums">{calculateOrderTotals(analysisResult.items).rawSubtotal.toFixed(3)} د.ك</span>
-                              </div>
-                              <div className="flex items-center justify-between gap-3 text-sm">
-                                <span>خصم الأصناف</span>
-                                <span className="font-bold tabular-nums">-{calculateOrderTotals(analysisResult.items).lineDiscountTotal.toFixed(3)} د.ك</span>
-                              </div>
-                              <div className="flex items-center justify-between gap-3 text-sm">
-                                <span>خصم الفاتورة</span>
-                                <span className="font-bold tabular-nums">-{calculateOrderTotals(analysisResult.items).invoiceDiscountAmount.toFixed(3)} د.ك</span>
-                              </div>
-                              <div className="flex items-center justify-between gap-3 border-t pt-2 text-lg">
-                                <span className="font-black">الإجمالي النهائي</span>
-                                <span className="font-black tabular-nums">{calculateOrderTotals(analysisResult.items).finalTotal.toFixed(3)} د.ك</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      لم يتم استخراج أصناف واضحة من الملف.
-                    </p>
-                  )}
-                  {analysisResult.notes && (
-                    <p className="rounded-lg bg-muted p-3 text-sm">
-                      <strong>ملاحظات:</strong> {analysisResult.notes}
-                    </p>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {sources.map((s) => (
-            <Card key={s.label} className="shadow-card">
-              <CardContent className="flex flex-col items-center gap-2 p-4 text-center">
-                <s.icon className="h-6 w-6 text-primary" />
-                <p className="text-sm font-bold">{s.label}</p>
-                <p className="text-[11px] text-muted-foreground">{s.hint}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="text-base">بيانات الطلبية</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 lg:grid-cols-2">
-            <div className="space-y-2">
-              <Label>العميل</Label>
-              <Select
-                value={customerId}
-                onValueChange={setCustomerId}
-                disabled={customersLoading || customers.length === 0}
-              >
-                <SelectTrigger className="h-12">
-                  <SelectValue
-                    placeholder={customersLoading ? "جاري تحميل العملاء..." : "اختر عميلاً"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.length > 0 ? (
-                    customers.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name} — {c.company || "بدون شركة"}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">
-                      {customersError || "لا توجد عملاء في قاعدة البيانات."}
-                    </div>
-                  )}
-                </SelectContent>
-              </Select>
-              {!customersLoading && customers.length === 0 && !customersError && (
-                <p className="text-xs text-muted-foreground">لا توجد عملاء في قاعدة البيانات.</p>
-              )}
-              {customersError && <p className="text-xs text-destructive">{customersError}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label>مصدر الطلبية</Label>
-              <Select defaultValue="image">
-                <SelectTrigger className="h-12">
-                  <SelectValue placeholder="اختر المصدر" />
-                </SelectTrigger>
-                <SelectContent>
-                  {["image", "pdf", "excel", "text", "handwriting"].map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2 lg:col-span-2">
-              <Label>نص الطلبية (اختياري)</Label>
-              <Textarea rows={5} placeholder="الصق نص الطلبية هنا إن كانت مكتوبة..." />
-            </div>
-            <div className="space-y-2 lg:col-span-2">
-              <Label>ملاحظات</Label>
-              <Textarea rows={3} placeholder="ملاحظات إضافية عن الطلبية" />
-            </div>
-            <Button
-              size="lg"
-              className="h-14 w-full text-base font-extrabold lg:col-span-2"
-              onClick={() => void createQuoteFromAnalysis()}
-            >
-              إنشاء عرض سعر
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    </AppShell>
-  );
-}
