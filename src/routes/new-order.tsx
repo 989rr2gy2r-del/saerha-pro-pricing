@@ -2261,6 +2261,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                           if (event.key === "Enter") {
                                             event.preventDefault();
                                             if (item.product) {
+                                              handleCloseProductPicker();
                                               focusOrderField(index, "quantity");
                                             } else {
                                               handleOpenProductPicker(index);
