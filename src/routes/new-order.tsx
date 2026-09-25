@@ -635,8 +635,8 @@ function NewOrder() {
     bottom?: number;
   } | null>(null);
   const productPickerTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const keyboardFieldRefs = useRef<Record<string, HTMLElement | null>>({});
-  const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
+    const keyboardFieldRefs = useRef<Record<string, HTMLElement | null>>({});
+const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   const [skuErrors, setSkuErrors] = useState<Record<string, string>>({});
   // Keep numeric drafts as text while the user types so a decimal separator
   // such as "11." is not lost on every React render.
@@ -988,9 +988,7 @@ function NewOrder() {
       ...previous,
       [item.id]: item.product?.sku ?? item.sourceSku ?? "",
     }));
-  };
-
-  const focusOrderField = (index: number, field: "sku" | "product" | "quantity" | "unit" | "price" | "discount") => {
+  };  const focusOrderField = (index: number, field: "sku" | "product" | "quantity" | "unit" | "price" | "discount") => {
     const item = analysisResult?.items[index];
     if (!item) return;
     const target = keyboardFieldRefs.current[`${item.id}:${field}`];
@@ -1002,18 +1000,13 @@ function NewOrder() {
   };
 
   const focusNextOrderField = (index: number, field: "sku" | "product" | "quantity" | "unit" | "price" | "discount") => {
-    const order: Array<"sku" | "product" | "quantity" | "unit" | "price" | "discount"> = [
-      "sku", "product", "quantity", "unit", "price", "discount",
-    ];
+    const order: Array<"sku" | "product" | "quantity" | "unit" | "price" | "discount"> = ["sku", "product", "quantity", "unit", "price", "discount"];
     const position = order.indexOf(field);
-    if (position >= 0 && position < order.length - 1) {
-      focusOrderField(index, order[position + 1]);
-      return;
-    }
-    if (position === order.length - 1 && index < (analysisResult?.items.length ?? 0) - 1) {
-      focusOrderField(index + 1, "sku");
-    }
+    if (position < order.length - 1) focusOrderField(index, order[position + 1]);
+    else if (index < (analysisResult?.items.length ?? 0) - 1) focusOrderField(index + 1, "sku");
   };
+
+
 
   const finishSkuEdit = (index: number) => {
     const item = analysisResult?.items[index];
@@ -1309,10 +1302,7 @@ function NewOrder() {
     const item = analysisResult?.items[index];
     if (!item) return;
     const value = Math.min(100, Math.max(0, Number(item.discountPercent ?? item.discountValue ?? 0)));
-    setDiscountDrafts((previous) => ({
-      ...previous,
-      [item.id]: String(value),
-    }));
+    setDiscountDrafts((previous) => ({ ...previous, [item.id]: String(value) }));
   };
 
   const updateDiscountDraft = (index: number, rawValue: string) => {
@@ -2246,9 +2236,7 @@ function NewOrder() {
                                 >
                                   <td className="px-3 py-3 align-top">
                                     <Input
-                                      ref={(node) => {
-                                        keyboardFieldRefs.current[`${item.id}:sku`] = node;
-                                      }}
+                                      ref={(node) => { keyboardFieldRefs.current[`${item.id}:sku`] = node; }}
                                       type="text"
                                       inputMode="numeric"
                                       value={skuDrafts[item.id] ?? item.product?.sku ?? ""}
@@ -2427,9 +2415,7 @@ function NewOrder() {
 
                                   <td className="px-3 py-3 align-top">
                                     <Input
-                                      ref={(node) => {
-                                        keyboardFieldRefs.current[`${item.id}:quantity`] = node;
-                                      }}
+                                      ref={(node) => { keyboardFieldRefs.current[`${item.id}:quantity`] = node; }}
                                       type="text"
                                       inputMode="numeric"
                                       pattern="[0-9]*"
@@ -2454,11 +2440,8 @@ function NewOrder() {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <Select value={item.unit || "حبة"} onValueChange={(value) => handleUnitChange(index, value)}>
-                                      <SelectTrigger
-                                        ref={(node) => {
-                                          keyboardFieldRefs.current[`${item.id}:unit`] = node;
-                                        }}
+                                    <Select value={item.unit || "حبة"} onValueChange={(value) => handleUnitChange(index, value)}><SelectTrigger
+                                        ref={(node) => { keyboardFieldRefs.current[`${item.id}:unit`] = node; }}
                                         className="h-10 w-32 cursor-pointer font-bold"
                                         title="اختيار الوحدة — Enter للانتقال للسعر"
                                         onKeyDown={(event) => {
@@ -2467,17 +2450,12 @@ function NewOrder() {
                                             focusNextOrderField(index, "unit");
                                           }
                                         }}
-                                      >
-                                        <SelectValue placeholder="اختر الوحدة" />
-                                      </SelectTrigger>
-                                      <SelectContent>{["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent></Select>
+                                      ><SelectValue placeholder="اختر الوحدة" /></SelectTrigger><SelectContent>{["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent></Select>
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
                                     <Input
-                                      ref={(node) => {
-                                        keyboardFieldRefs.current[`${item.id}:price`] = node;
-                                      }}
+                                      ref={(node) => { keyboardFieldRefs.current[`${item.id}:price`] = node; }}
                                       type="text"
                                       inputMode="decimal"
                                       value={numericDrafts[item.id]?.price ?? (item.priceAmount == null ? "" : String(item.priceAmount))}
@@ -2513,16 +2491,13 @@ function NewOrder() {
                                       </span>
                                     )}
                                   </td>
-
                                   <td className="px-3 py-3 align-top">
                                     <div className="flex items-center gap-2">
                                       <Input
-                                        ref={(node) => {
-                                          keyboardFieldRefs.current[`${item.id}:discount`] = node;
-                                        }}
+                                        ref={(node) => { keyboardFieldRefs.current[`${item.id}:discount`] = node; }}
                                         type="text"
                                         inputMode="decimal"
-                                        value={discountDrafts[item.id] ?? String(Math.min(100, Math.max(0, Number(item.discountPercent ?? item.discountValue ?? 0))))}
+                                        value={discountDrafts[item.id] ?? String(Number(item.discountPercent ?? item.discountValue ?? 0))}
                                         onFocus={(event) => {
                                           beginDiscountEdit(index);
                                           event.currentTarget.select();
@@ -3006,3 +2981,142 @@ function NewOrder() {
                                             onFocus={(event) => event.currentTarget.select()}
                                             onChange={(event) => updateInvoiceDiscountDraft("amount", event.target.value)}
                                             onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); finishInvoiceDiscountEdit("amount"); event.currentTarget.blur(); } }}
+                                            onBlur={() => finishInvoiceDiscountEdit("amount")}
+                                            placeholder="المبلغ د.ك" className="h-10 font-bold tabular-nums" aria-label="مبلغ خصم الفاتورة كاملة" />
+                                        </div>
+                                      ) : (
+                                        <Input type="text" inputMode="decimal"
+                                          value={invoiceDiscountType === "percent" ? invoiceDiscountPercentDraft : invoiceDiscountAmountDraft}
+                                          onFocus={(event) => event.currentTarget.select()}
+                                          onChange={(event) => updateInvoiceDiscountDraft(invoiceDiscountType === "percent" ? "percent" : "amount", event.target.value)}
+                                          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); finishInvoiceDiscountEdit(invoiceDiscountType === "percent" ? "percent" : "amount"); event.currentTarget.blur(); } }}
+                                          onBlur={() => finishInvoiceDiscountEdit(invoiceDiscountType === "percent" ? "percent" : "amount")}
+                                          placeholder={invoiceDiscountType === "percent" ? "0" : "0.000"}
+                                          className="h-10 font-bold tabular-nums" aria-label="خصم الفاتورة كاملة" />
+                                      )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 border-t pt-3">
+                              <div className="flex items-center justify-between gap-3 text-sm">
+                                <span>إجمالي الأصناف قبل الخصومات</span>
+                                <span className="font-bold tabular-nums">{calculateOrderTotals(analysisResult.items).rawSubtotal.toFixed(3)} د.ك</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3 text-sm">
+                                <span>خصم الأصناف</span>
+                                <span className="font-bold tabular-nums">-{calculateOrderTotals(analysisResult.items).lineDiscountTotal.toFixed(3)} د.ك</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3 text-sm">
+                                <span>خصم الفاتورة</span>
+                                <span className="font-bold tabular-nums">-{calculateOrderTotals(analysisResult.items).invoiceDiscountAmount.toFixed(3)} د.ك</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3 border-t pt-2 text-lg">
+                                <span className="font-black">الإجمالي النهائي</span>
+                                <span className="font-black tabular-nums">{calculateOrderTotals(analysisResult.items).finalTotal.toFixed(3)} د.ك</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      لم يتم استخراج أصناف واضحة من الملف.
+                    </p>
+                  )}
+                  {analysisResult.notes && (
+                    <p className="rounded-lg bg-muted p-3 text-sm">
+                      <strong>ملاحظات:</strong> {analysisResult.notes}
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {sources.map((s) => (
+            <Card key={s.label} className="shadow-card">
+              <CardContent className="flex flex-col items-center gap-2 p-4 text-center">
+                <s.icon className="h-6 w-6 text-primary" />
+                <p className="text-sm font-bold">{s.label}</p>
+                <p className="text-[11px] text-muted-foreground">{s.hint}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="text-base">بيانات الطلبية</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-2">
+              <Label>العميل</Label>
+              <Select
+                value={customerId}
+                onValueChange={setCustomerId}
+                disabled={customersLoading || customers.length === 0}
+              >
+                <SelectTrigger className="h-12">
+                  <SelectValue
+                    placeholder={customersLoading ? "جاري تحميل العملاء..." : "اختر عميلاً"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.length > 0 ? (
+                    customers.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name} — {c.company || "بدون شركة"}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      {customersError || "لا توجد عملاء في قاعدة البيانات."}
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
+              {!customersLoading && customers.length === 0 && !customersError && (
+                <p className="text-xs text-muted-foreground">لا توجد عملاء في قاعدة البيانات.</p>
+              )}
+              {customersError && <p className="text-xs text-destructive">{customersError}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>مصدر الطلبية</Label>
+              <Select defaultValue="image">
+                <SelectTrigger className="h-12">
+                  <SelectValue placeholder="اختر المصدر" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["image", "pdf", "excel", "text", "handwriting"].map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 lg:col-span-2">
+              <Label>نص الطلبية (اختياري)</Label>
+              <Textarea rows={5} placeholder="الصق نص الطلبية هنا إن كانت مكتوبة..." />
+            </div>
+            <div className="space-y-2 lg:col-span-2">
+              <Label>ملاحظات</Label>
+              <Textarea rows={3} placeholder="ملاحظات إضافية عن الطلبية" />
+            </div>
+            <Button
+              size="lg"
+              className="h-14 w-full text-base font-extrabold lg:col-span-2"
+              onClick={() => void createQuoteFromAnalysis()}
+            >
+              إنشاء عرض سعر
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </AppShell>
+  );
+}
