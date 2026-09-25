@@ -2350,7 +2350,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                         </div>
                                       </button>
 
-                                      {openProductPickerId === item.id && productPickerPosition && (
+                                      {openProductPickerId === item.id && (
                                         <div
                                           className="absolute right-0 top-[calc(100%+8px)] z-[100] w-full rounded-xl border bg-background p-2 shadow-2xl"
                                         >
@@ -2385,7 +2385,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
                                           <div
                                         className="mt-2 overflow-y-auto rounded-lg border"
-                                        style={{ maxHeight: productPickerPosition.maxHeight }}
+                                        style={{ maxHeight: 288 }}
                                       >
                                             {(() => {
                                               const search = productSearches[item.id] ?? "";
@@ -2734,17 +2734,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                     )}
                                   </button>
 
-                                  {openProductPickerId === item.id && productPickerPosition && typeof document !== "undefined" && document.body && createPortal(
-                                    <div
-                                      className="fixed z-[100] rounded-xl border bg-background p-2 shadow-2xl"
-                                      style={{
-                                        left: productPickerPosition.left,
-                                        width: productPickerPosition.width,
-                                        ...(productPickerPosition.placement === "bottom"
-                                          ? { top: productPickerPosition.top }
-                                          : { bottom: productPickerPosition.bottom }),
-                                      }}
-                                    >
+                                  {openProductPickerId === item.id && (
+                                    <div className="absolute right-0 top-[calc(100%+8px)] z-[100] w-full max-w-[560px] rounded-xl border bg-background p-2 shadow-2xl">
                                       <div className="flex items-center gap-2">
                                         <div className="relative flex-1">
                                           <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -2816,7 +2807,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                         })()}
                                       </div>
                                     </div>
-                                  , document.body)}
+                                  )}
 
                                   <div className="mt-2">
                                     {item.product ? (
