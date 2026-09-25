@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import * as XLSX from "xlsx";
-import { Database as DatabaseIcon, FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Search, Trash2, Upload, X } from "lucide-react";
+import { Check, Database as DatabaseIcon, FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Search, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -791,10 +791,20 @@ function NewOrder() {
     });
   };
 
+  const handleStartEditing = (index: number) => {
+    const item = analysisResult?.items[index];
+    if (!item) return;
+    setEditingSnapshot({ itemId: item.id, item: { ...item } });
+    setEditingItemId(item.id);
+    setOpenProductPickerId(null);
+  };
+
   const handleOpenProductPicker = (index: number) => {
     const item = analysisResult?.items[index];
     if (!item) return;
 
+    setEditingItemId(null);
+    setEditingSnapshot(null);
     setOpenProductPickerId(item.id);
     setProductSearches((previous) => ({
       ...previous,
@@ -803,6 +813,29 @@ function NewOrder() {
   };
 
   const handleCloseProductPicker = () => {
+    setOpenProductPickerId(null);
+  };
+
+  const handleCancelEditing = () => {
+    const snapshot = editingSnapshot;
+    if (snapshot) {
+      setAnalysisResult((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: prev.items.map((item) =>
+            item.id === snapshot.itemId ? snapshot.item : item,
+          ),
+        };
+      });
+    }
+    setEditingSnapshot(null);
+    setEditingItemId(null);
+  };
+
+  const handleSaveEditing = () => {
+    setEditingSnapshot(null);
+    setEditingItemId(null);
     setOpenProductPickerId(null);
   };
 
@@ -844,6 +877,31 @@ function NewOrder() {
     }
   };
 
+  const handleAcceptMatch = (index: number) => {
+    const current = analysisResult?.items[index];
+    if (current?.product) void recordCorrection(current, "accepted");
+    patchReviewItem(index, (item) => ({
+      ...item,
+      accepted: true,
+      rejected: false,
+      status: item.product ? "HIGH_CONFIDENCE" : "UNMATCHED",
+      matchReason: item.product
+        ? "تمت مراجعة المنتج والموافقة عليه"
+        : "يجب اختيار منتج قبل التأكيد",
+    }));
+  };
+
+  const handleRejectLine = (index: number) => {
+    patchReviewItem(index, (item) => ({
+      ...item,
+      product: null,
+      rejected: true,
+      accepted: false,
+      status: "UNMATCHED",
+      matchReason: "تم رفض السطر من قبل المستخدم",
+    }));
+  };
+
   const handleDeleteLine = (index: number) => {
     const item = analysisResult?.items[index];
     if (!item) return;
@@ -880,12 +938,11 @@ function NewOrder() {
     const item = analysisResult?.items[index];
     if (!item) return;
     const draft = String(skuDrafts[item.id] ?? "").trim();
+    if (!draft) return;
     const normalized = normalizeForMatch(draft);
-    if (!normalized) return;
-
-    const selected = products.find((product) => normalizeForMatch(product.sku) === normalized);
-    if (selected) {
-      void handleProductSelect(index, selected.id);
+    const exact = products.find((product) => normalizeForMatch(product.sku) === normalized);
+    if (exact) {
+      void handleProductSelect(index, exact.id);
       setSkuDrafts((previous) => {
         const next = { ...previous };
         delete next[item.id];
@@ -893,11 +950,7 @@ function NewOrder() {
       });
       return;
     }
-
-    setProductSearches((previous) => ({
-      ...previous,
-      [item.id]: draft,
-    }));
+    setProductSearches((previous) => ({ ...previous, [item.id]: draft }));
     setOpenProductPickerId(item.id);
   };
 
@@ -1234,6 +1287,26 @@ function NewOrder() {
       return next;
     });
   };
+
+  const handleSaveAlias = async (index: number) => {
+    const item = analysisResult?.items[index];
+    if (!item?.product) return;
+
+    const aliasText =
+      item.raw_text || item.description || item.product.name_ar || item.product.name_en || "";
+    if (!aliasText.trim()) return;
+
+    const normalizedText = normalizeForMatch(aliasText);
+    if (!normalizedText) return;
+
+    try {
+      await recordCorrection(item, "alias_added", true);
+      setAnalysisError("");
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : "تعذر حفظ الاختصار.");
+    }
+  };
+
 
   const handlePasteOrder = async () => {
     const text = pastedOrderText.trim();
@@ -1871,12 +1944,12 @@ function NewOrder() {
                                         }))
                                       }
                                       onBlur={() => finishSkuEdit(index)}
-                                      placeholder="الكود"
-                                      className="h-10 w-28 font-mono font-extrabold tabular-nums"
-                                      aria-label="كود الصنف أو الباركود"
+                                      placeholder="الكود / الباركود"
+                                      className="h-10 w-32 font-mono font-extrabold tabular-nums"
+                                      aria-label="الكود أو الباركود"
                                     />
                                     <div className="mt-1 text-[10px] text-muted-foreground">
-                                      اكتب الكود أو اضغط اسم الصنف للبحث
+                                      اكتب الكود مباشرة
                                     </div>
                                   </td>
 
@@ -2120,10 +2193,10 @@ function NewOrder() {
                                       onBlur={() => finishSkuEdit(index)}
                                       placeholder="الكود / الباركود"
                                       className="h-9 w-32 font-mono text-xs font-black tabular-nums"
-                                      aria-label="كود الصنف أو الباركود"
+                                      aria-label="الكود أو الباركود"
                                     />
                                     <span className="text-[10px] text-muted-foreground">
-                                      اضغط اسم الصنف للبحث
+                                      اكتب الكود
                                     </span>
                                   </div>
 
@@ -2332,6 +2405,222 @@ function NewOrder() {
                         </div>
                       </div>
 
+                      <div className="border-t bg-background p-4">
+                        {analysisResult.items.map((item, index) => {
+                          if (editingItemId !== item.id) return null;
+                          const displayName =
+                            item.quoteName?.trim() ||
+                            item.product?.name_ar ||
+                            item.description ||
+                            item.raw_text ||
+                            "صنف غير محدد";
+                          const search = productSearches[item.id] ?? "";
+                          const filtered = filterProductOptions(search);
+                          const visible = filtered.slice(0, 8);
+                          const smartMatch =
+                            !filtered.length && search.trim().length >= 2
+                              ? findLocalProductMatch(search, products, "", productAliases)
+                              : null;
+                          const lineTotal =
+                            item.priceAmount !== null
+                              ? Number(item.priceAmount) * Number(item.quantity || 0)
+                              : null;
+
+                          return (
+                            <div key={"editor-" + item.id} className="rounded-xl border-2 border-primary/20 bg-muted/20 p-4">
+                              <div className="mb-4 flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-base font-extrabold">تعديل الصنف</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    عدّل فقط ما تحتاجه. البيانات الأصلية من قاعدة البيانات تبقى كما هي.
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="outline"
+                                  onClick={handleCancelEditing}
+                                  aria-label="إلغاء التعديل"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+
+                              <div className="grid gap-4 lg:grid-cols-2">
+                                <div className="rounded-lg border bg-background p-3 lg:col-span-2">
+                                  <p className="text-xs font-bold">اختيار الصنف</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    اضغط على اسم الصنف داخل الصف لاختيار صنف آخر من قاعدة البيانات. عند الاختيار سيُجلب السعر المناسب تلقائيًا.
+                                  </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label>اسم الصنف في العرض</Label>
+                                  <Input
+                                    value={item.quoteName ?? item.product?.name_ar ?? item.description ?? ""}
+                                    onChange={(event) =>
+                                      patchReviewItem(index, (current) => ({
+                                        ...current,
+                                        quoteName: event.target.value,
+                                      }))
+                                    }
+                                    placeholder={displayName}
+                                  />
+                                  <p className="text-[10px] text-muted-foreground">
+                                    هذا الاسم يغيّر اسم السطر في عرض السعر فقط، ولا يغيّر اسم المنتج الأصلي في قاعدة البيانات.
+                                  </p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-2">
+                                    <Label>الكمية</Label>
+                                    <Input
+                                      type="text"
+                                      inputMode="numeric"
+                                      pattern="[0-9]*"
+                                      min={0}
+                                      step="1"
+                                      value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? "")}
+                                      onFocus={() => beginNumericEdit(index, "quantity")}
+                                      onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)}
+                                      onBlur={() => finishNumericEdit(index, "quantity")}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>الوحدة</Label>
+                                    <Select
+                                      value={item.unit || "حبة"}
+                                      onValueChange={(value) => handleUnitChange(index, value)}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="اختر الوحدة" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {["حبة", "كرتون", "علبة", "رول", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "طقم", "كيس", "صندوق"].map(
+                                          (unit) => (
+                                            <SelectItem key={unit} value={unit}>
+                                              {unit}
+                                            </SelectItem>
+                                          ),
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label>السعر</Label>
+                                  <Input
+                                    type="text"
+                                    inputMode="decimal"
+                                    min={0}
+                                    step="0.001"
+                                    value={numericDrafts[item.id]?.price ?? (item.priceAmount == null ? "" : String(item.priceAmount))}
+                                    onFocus={() => beginNumericEdit(index, "price")}
+                                    onChange={(event) => updateNumericDraft(index, "price", event.target.value)}
+                                    onBlur={() => finishNumericEdit(index, "price")}
+                                    placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"}
+                                  />
+                                  <p className="text-[10px] text-muted-foreground">
+                                    السعر يظهر تلقائيًا من قاعدة الأسعار، ويمكنك استبداله يدويًا لهذا العرض فقط.
+                                  </p>
+                                  <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                                    {item.priceType !== "manual_quote" && item.priceAmount !== null ? (
+                                      <span className="inline-flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-300">
+                                        <DatabaseIcon className="h-3 w-3" />
+                                        السعر الحالي من قاعدة الأسعار
+                                      </span>
+                                    ) : (
+                                      <span className="font-bold text-amber-700 dark:text-amber-300">
+                                        تم تعديل السعر يدويًا لهذا العرض
+                                      </span>
+                                    )}
+                                    <span className="text-muted-foreground">{item.priceLabel}</span>
+                                  </div>
+                                </div>
+
+                                <div className="rounded-lg border bg-background p-3 lg:col-span-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                      <p className="text-xs font-bold">البيانات الحالية</p>
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        {item.product?.sku ? "الكود " + item.product.sku : "لم يتم اختيار صنف من القاعدة"}
+                                        {item.product?.brand ? " · " + item.product.brand : ""}
+                                      </p>
+                                    </div>
+                                    <p className="text-sm font-black tabular-nums">
+                                      {lineTotal !== null ? lineTotal.toFixed(3) : "—"} د.ك
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  onClick={handleSaveEditing}
+                                >
+                                  <Check className="ml-1 h-4 w-4" />
+                                  حفظ التعديل
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={handleCancelEditing}
+                                >
+                                  إلغاء
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => handleAcceptMatch(index)}
+                                  disabled={!item.product}
+                                >
+                                  اعتماد المطابقة
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => handleRejectLine(index)}
+                                >
+                                  رفض السطر
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  onClick={() => {
+                                    handleDeleteLine(index);
+                                    setEditingSnapshot(null);
+                                    setEditingItemId(null);
+                                    setOpenProductPickerId(null);
+                                  }}
+                                >
+                                  <Trash2 className="ml-1 h-4 w-4" />
+                                  حذف الصنف
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  onClick={() => void handleSaveAlias(index)}
+                                  disabled={!item.product}
+                                >
+                                  حفظ الاختصار مستقبلًا
+                                </Button>
+                              </div>
+
+                              {item.notes && (
+                                <p className="mt-3 text-[11px] text-amber-600">ملاحظات: {item.notes}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      لم يتم استخراج أصناف واضحة من الملف.
+                    </p>
+                  )}
                   {analysisResult.notes && (
                     <p className="rounded-lg bg-muted p-3 text-sm">
                       <strong>ملاحظات:</strong> {analysisResult.notes}
