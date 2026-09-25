@@ -1378,6 +1378,29 @@ function NewOrder() {
     setInvoiceDiscountDraft(String(capped));
   };
 
+  const getLineDiscountDetails = (item: ReviewItem) => {
+    const lineSubtotal =
+      item.priceAmount !== null && Number.isFinite(Number(item.priceAmount))
+        ? Number(item.priceAmount) * Number(item.quantity || 0)
+        : 0;
+    const type = item.discountType ?? "percent";
+    const rawValue =
+      type === "percent"
+        ? Number(item.discountPercent ?? item.discountValue ?? 0)
+        : Number(item.discountValue ?? 0);
+    const value = Number.isFinite(rawValue) ? Math.max(0, rawValue) : 0;
+    const discountAmount =
+      type === "percent"
+        ? lineSubtotal * (Math.min(100, value) / 100)
+        : Math.min(lineSubtotal, value);
+    return {
+      type,
+      value: type === "percent" ? Math.min(100, value) : value,
+      discountAmount,
+      lineTotal: Math.max(0, lineSubtotal - discountAmount),
+    };
+  };
+
   const calculateOrderTotals = (items: ReviewItem[]) => {
     const rawSubtotal = items.reduce(
       (sum, item) =>
@@ -1388,30 +1411,7 @@ function NewOrder() {
       0,
     );
 
-    const getLineDiscountDetails = (item: ReviewItem) => {
-      const lineSubtotal =
-        item.priceAmount !== null && Number.isFinite(Number(item.priceAmount))
-          ? Number(item.priceAmount) * Number(item.quantity || 0)
-          : 0;
-      const type = item.discountType ?? "percent";
-      const rawValue =
-        type === "percent"
-          ? Number(item.discountPercent ?? item.discountValue ?? 0)
-          : Number(item.discountValue ?? 0);
-      const value = Number.isFinite(rawValue) ? Math.max(0, rawValue) : 0;
-      const discountAmount =
-        type === "percent"
-          ? lineSubtotal * (Math.min(100, value) / 100)
-          : Math.min(lineSubtotal, value);
-      return {
-        type,
-        value: type === "percent" ? Math.min(100, value) : value,
-        discountAmount,
-        lineTotal: Math.max(0, lineSubtotal - discountAmount),
-      };
-    };
-
-    const lineDiscountTotal = items.reduce(
+      const lineDiscountTotal = items.reduce(
       (sum, item) => sum + getLineDiscountDetails(item).discountAmount,
       0,
     );
