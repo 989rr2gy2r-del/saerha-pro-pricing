@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import * as XLSX from "xlsx";
-import { Check, Database as DatabaseIcon, FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Search, Trash2, Upload, X } from "lucide-react";
+import { Check, Database as DatabaseIcon, FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Pencil, Search, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
