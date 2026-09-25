@@ -2299,6 +2299,14 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                       {openProductPickerId === item.id && (
                                         <div
                                           className="absolute right-0 top-[calc(100%+6px)] z-[100] w-full min-w-[300px] overflow-hidden rounded-xl border bg-background p-2 shadow-2xl"
+                                          onKeyDownCapture={(event) => {
+                                            if (event.key === "Enter" && item.product) {
+                                              event.preventDefault();
+                                              event.stopPropagation();
+                                              handleCloseProductPicker();
+                                              focusOrderField(index, "quantity");
+                                            }
+                                          }}
                                         >
                                           <div className="flex items-center gap-2 border-b pb-2">
                                             <div className="relative flex-1">
