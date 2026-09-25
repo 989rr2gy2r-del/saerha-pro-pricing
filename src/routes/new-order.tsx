@@ -880,16 +880,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     });
   };
 
-  const focusProductField = (index: number) => {
-    const item = analysisResult?.items[index];
-    if (!item) return;
-    if (openProductPickerId !== item.id) {
-      handleOpenProductPicker(index);
-    }
-    const trigger = productPickerTriggerRefs.current[item.id];
-    if (trigger) focusAndSelectField(trigger);
-  };
-
   const handleCloseProductPicker = () => {
     setOpenProductPickerId(null);
     setProductPickerPosition(null);
@@ -1014,6 +1004,9 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     const target = keyboardFieldRefs.current[`${item.id}:${field}`];
     if (!target) return;
     window.requestAnimationFrame(() => {
+      if (field === "product") {
+        handleOpenProductPicker(index);
+      }
       target.focus();
       if (target instanceof HTMLInputElement) target.select();
     });
@@ -2264,7 +2257,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                         beginSkuEdit(index);
                                         event.currentTarget.select();
                                       }}
-                                      onMouseEnter={(event) => focusAndSelectField(event.currentTarget)}
                                       onChange={(event) => {
                                         setSkuDrafts((previous) => ({
                                           ...previous,
@@ -2312,8 +2304,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                           : "w-full cursor-pointer rounded-lg border border-transparent bg-muted/50 px-3 py-2 text-right transition hover:border-primary/40 hover:bg-background"}
                                         title="تحرير/بحث عن الصنف — Enter للانتقال للكمية"
                                         onClick={() => handleOpenProductPicker(index)}
-                                        onFocus={() => focusProductField(index)}
-                                        onMouseEnter={() => focusProductField(index)}
                                         onKeyDown={(event) => {
                                           if (event.key === "Enter") {
                                             event.preventDefault();
@@ -2451,7 +2441,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                         beginNumericEdit(index, "quantity");
                                         event.currentTarget.select();
                                       }}
-                                      onMouseEnter={(event) => focusAndSelectField(event.currentTarget)}
                                       onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)}
                                       onKeyDown={(event) => {
                                         if (event.key === "Enter") {
@@ -2472,8 +2461,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                         ref={(node) => { keyboardFieldRefs.current[`${item.id}:unit`] = node; }}
                                         className="h-10 w-32 cursor-pointer font-bold"
                                         title="اختيار الوحدة — Enter للانتقال للسعر"
-                                        onMouseEnter={(event) => focusAndSelectField(event.currentTarget)}
-                                        onKeyDown={(event) => {
+                                          onKeyDown={(event) => {
                                           if (event.key === "Enter") {
                                             event.preventDefault();
                                             focusNextOrderField(index, "unit");
@@ -2531,8 +2519,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                           beginDiscountEdit(index);
                                           event.currentTarget.select();
                                         }}
-                                        onMouseEnter={(event) => focusAndSelectField(event.currentTarget)}
-                                        onChange={(event) => updateDiscountDraft(index, event.target.value)}
+                                          onChange={(event) => updateDiscountDraft(index, event.target.value)}
                                         onKeyDown={(event) => {
                                           if (event.key === "Enter") {
                                             event.preventDefault();
@@ -2694,7 +2681,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                         beginSkuEdit(index);
                                         event.currentTarget.select();
                                       }}
-                                      onMouseEnter={(event) => focusAndSelectField(event.currentTarget)}
                                       onChange={(event) => {
                                         setSkuDrafts((previous) => ({
                                           ...previous,
@@ -2891,7 +2877,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                         beginNumericEdit(index, "price");
                                         event.currentTarget.select();
                                       }}
-                                    onMouseEnter={(event) => focusAndSelectField(event.currentTarget)}
                                     onChange={(event) => updateNumericDraft(index, "price", event.target.value)}
                                     onKeyDown={(event) => {
                                       if (event.key === "Enter") {
