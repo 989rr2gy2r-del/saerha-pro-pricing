@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import * as XLSX from "xlsx";
 import { Check, Database as DatabaseIcon, FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Search, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { createPortal } from "react-dom";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
@@ -2351,16 +2350,9 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                         </div>
                                       </button>
 
-                                      {openProductPickerId === item.id && productPickerPosition && typeof document !== "undefined" && document.body && createPortal(
+                                      {openProductPickerId === item.id && productPickerPosition && (
                                         <div
-                                          className="fixed z-[100] rounded-xl border bg-background p-2 shadow-2xl"
-                                          style={{
-                                            left: productPickerPosition.left,
-                                            width: productPickerPosition.width,
-                                            ...(productPickerPosition.placement === "bottom"
-                                              ? { top: productPickerPosition.top }
-                                              : { bottom: productPickerPosition.bottom }),
-                                          }}
+                                          className="absolute right-0 top-[calc(100%+8px)] z-[100] w-full rounded-xl border bg-background p-2 shadow-2xl"
                                         >
                                           <div className="flex items-center gap-2 border-b pb-2">
                                             <div className="relative flex-1">
@@ -2439,7 +2431,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                             })()}
                                           </div>
                                         </div>
-                                      , document.body)}
+                                      )}
                                     </div>
                                   </td>
 
