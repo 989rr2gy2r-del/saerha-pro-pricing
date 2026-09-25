@@ -2128,7 +2128,7 @@ function NewOrder() {
                                         </div>
                                       </button>
 
-                                      {openProductPickerId === item.id && productPickerPosition && createPortal(
+                                      {openProductPickerId === item.id && productPickerPosition && typeof document !== "undefined" && document.body && createPortal(
                                         <div
                                           className="fixed z-[100] rounded-xl border bg-background p-2 shadow-2xl"
                                           style={{
@@ -2215,7 +2215,7 @@ function NewOrder() {
                                             })()}
                                           </div>
                                         </div>
-                                      )}
+                                      , document.body)}
                                     </div>
                                   </td>
 
@@ -2438,7 +2438,7 @@ function NewOrder() {
                                     )}
                                   </button>
 
-                                  {openProductPickerId === item.id && productPickerPosition && createPortal(
+                                  {openProductPickerId === item.id && productPickerPosition && typeof document !== "undefined" && document.body && createPortal(
                                     <div
                                       className="fixed z-[100] rounded-xl border bg-background p-2 shadow-2xl"
                                       style={{
@@ -2520,7 +2520,7 @@ function NewOrder() {
                                         })()}
                                       </div>
                                     </div>
-                                  )}
+                                  , document.body)}
 
                                   <div className="mt-2">
                                     {item.product ? (
