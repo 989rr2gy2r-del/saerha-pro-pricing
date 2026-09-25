@@ -627,6 +627,7 @@ function NewOrder() {
     placement: "top" | "bottom";
     left: number;
     width: number;
+    maxHeight: number;
     top?: number;
     bottom?: number;
   } | null>(null);
@@ -819,20 +820,24 @@ function NewOrder() {
     const spaceAbove = rect.top - gap - viewportPadding;
     const placement: "top" | "bottom" =
       spaceBelow >= estimatedHeight || spaceBelow >= spaceAbove ? "bottom" : "top";
+    const availableSpace = placement === "bottom" ? spaceBelow : spaceAbove;
+    const maxHeight = Math.max(96, Math.min(288, availableSpace - 84));
 
     if (placement === "bottom") {
       setProductPickerPosition({
         placement,
         left,
         width,
-        top: Math.min(window.innerHeight - viewportPadding - 160, rect.bottom + gap),
+        maxHeight,
+        top: Math.min(window.innerHeight - viewportPadding - 120, rect.bottom + gap),
       });
     } else {
       setProductPickerPosition({
         placement,
         left,
         width,
-        bottom: Math.min(window.innerHeight - viewportPadding - 160, window.innerHeight - rect.top + gap),
+        maxHeight,
+        bottom: Math.min(window.innerHeight - viewportPadding - 120, window.innerHeight - rect.top + gap),
       });
     }
   };
@@ -2088,7 +2093,10 @@ function NewOrder() {
                                             </Button>
                                           </div>
 
-                                          <div className="mt-2 max-h-[min(18rem,calc(100vh-120px))] overflow-y-auto rounded-lg border">
+                                          <div
+                                        className="mt-2 overflow-y-auto rounded-lg border"
+                                        style={{ maxHeight: productPickerPosition.maxHeight }}
+                                      >
                                             {(() => {
                                               const search = productSearches[item.id] ?? "";
                                               const filtered = filterProductOptions(search);
@@ -2364,7 +2372,10 @@ function NewOrder() {
                                         </Button>
                                       </div>
 
-                                      <div className="mt-2 max-h-[min(18rem,calc(100vh-120px))] overflow-y-auto rounded-lg border">
+                                      <div
+                                        className="mt-2 overflow-y-auto rounded-lg border"
+                                        style={{ maxHeight: productPickerPosition.maxHeight }}
+                                      >
                                         {(() => {
                                           const search = productSearches[item.id] ?? "";
                                           const filtered = filterProductOptions(search);
