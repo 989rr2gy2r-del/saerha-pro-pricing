@@ -641,8 +641,9 @@ function NewOrder() {
   // such as "11." is not lost on every React render.
   const [numericDrafts, setNumericDrafts] = useState<Record<string, { quantity?: string; price?: string }>>({});
   const [discountDrafts, setDiscountDrafts] = useState<Record<string, string>>({});
-  const [invoiceDiscountType, setInvoiceDiscountType] = useState<"percent" | "amount">("percent");
-  const [invoiceDiscountDraft, setInvoiceDiscountDraft] = useState("0");
+  const [invoiceDiscountType, setInvoiceDiscountType] = useState<"percent" | "amount" | "both">("percent");
+  const [invoiceDiscountPercentDraft, setInvoiceDiscountPercentDraft] = useState("0");
+  const [invoiceDiscountAmountDraft, setInvoiceDiscountAmountDraft] = useState("0");
 
   const productOptions = useMemo(
     () =>
@@ -815,10 +816,12 @@ function NewOrder() {
     const rect = trigger.getBoundingClientRect();
     const gap = 8;
     const viewportPadding = 14;
-    const width = Math.min(620, Math.max(280, window.innerWidth - viewportPadding * 2));
-    const rightAlignedLeft = window.innerWidth - rect.right;
+    const width = Math.min(
+      560,
+      Math.max(300, Math.min(rect.width, window.innerWidth - viewportPadding * 2)),
+    );
     const left = Math.min(
-      Math.max(viewportPadding, rightAlignedLeft),
+      Math.max(viewportPadding, rect.left),
       Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
     );
     const estimatedHeight = Math.min(380, Math.max(220, window.innerHeight - viewportPadding * 2));
@@ -835,7 +838,7 @@ function NewOrder() {
         left,
         width,
         maxHeight,
-        top: Math.min(window.innerHeight - viewportPadding - 120, rect.bottom + gap),
+        top: Math.min(window.innerHeight - viewportPadding - 96, rect.bottom + gap),
       });
     } else {
       setProductPickerPosition({
@@ -843,7 +846,7 @@ function NewOrder() {
         left,
         width,
         maxHeight,
-        bottom: Math.min(window.innerHeight - viewportPadding - 120, window.innerHeight - rect.top + gap),
+        bottom: Math.max(viewportPadding, window.innerHeight - rect.top + gap),
       });
     }
   };
@@ -968,7 +971,8 @@ function NewOrder() {
     setOpenProductPickerId(null);
     setDiscountDrafts({});
     setInvoiceDiscountType("percent");
-    setInvoiceDiscountDraft("0");
+    setInvoiceDiscountPercentDraft("0");
+    setInvoiceDiscountAmountDraft("0");
     setProgress(0);
     setLastAnalyzedKey("");
   };
@@ -1364,18 +1368,20 @@ function NewOrder() {
   const normalizeDecimalDraft = (value: string) =>
     value.replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(/,/g, ".").replace(/\s/g, "");
 
-  const updateInvoiceDiscountDraft = (rawValue: string) => {
+  const updateInvoiceDiscountDraft = (kind: "percent" | "amount", rawValue: string) => {
     const normalized = normalizeDecimalDraft(rawValue);
     if (!/^\d*(?:\.\d*)?$/.test(normalized)) return;
-    setInvoiceDiscountDraft(normalized);
+    if (kind === "percent") setInvoiceDiscountPercentDraft(normalized);
+    else setInvoiceDiscountAmountDraft(normalized);
   };
 
-  const finishInvoiceDiscountEdit = () => {
-    const normalized = normalizeDecimalDraft(invoiceDiscountDraft);
+  const finishInvoiceDiscountEdit = (kind: "percent" | "amount") => {
+    const raw = kind === "percent" ? invoiceDiscountPercentDraft : invoiceDiscountAmountDraft;
+    const normalized = normalizeDecimalDraft(raw);
     const parsed = Number(normalized);
     const value = normalized === "" || !Number.isFinite(parsed) ? 0 : Math.max(0, parsed);
-    const capped = invoiceDiscountType === "percent" ? Math.min(100, value) : value;
-    setInvoiceDiscountDraft(String(capped));
+    if (kind === "percent") setInvoiceDiscountPercentDraft(String(Math.min(100, value)));
+    else setInvoiceDiscountAmountDraft(String(value));
   };
 
   const getLineDiscountDetails = (item: ReviewItem) => {
@@ -1417,13 +1423,17 @@ function NewOrder() {
     );
 
     const afterLineDiscount = Math.max(0, rawSubtotal - lineDiscountTotal);
-    const invoiceDiscountInput = Number(normalizeDecimalDraft(invoiceDiscountDraft));
-    const invoiceDiscountValue =
-      Number.isFinite(invoiceDiscountInput) ? Math.max(0, invoiceDiscountInput) : 0;
-    const invoiceDiscountAmount =
-      invoiceDiscountType === "percent"
-        ? afterLineDiscount * (Math.min(100, invoiceDiscountValue) / 100)
-        : Math.min(afterLineDiscount, invoiceDiscountValue);
+    const invoicePercentInput = Number(normalizeDecimalDraft(invoiceDiscountPercentDraft));
+    const invoiceAmountInput = Number(normalizeDecimalDraft(invoiceDiscountAmountDraft));
+    const invoicePercent = Number.isFinite(invoicePercentInput) ? Math.min(100, Math.max(0, invoicePercentInput)) : 0;
+    const invoiceAmount = Number.isFinite(invoiceAmountInput) ? Math.max(0, invoiceAmountInput) : 0;
+    // With both selected: percentage first, then fixed amount.
+    const percentDiscountAmount =
+      invoiceDiscountType === "amount" ? 0 : afterLineDiscount * (invoicePercent / 100);
+    const afterInvoicePercent = Math.max(0, afterLineDiscount - percentDiscountAmount);
+    const fixedDiscountAmount =
+      invoiceDiscountType === "percent" ? 0 : Math.min(afterInvoicePercent, invoiceAmount);
+    const invoiceDiscountAmount = Math.min(afterLineDiscount, percentDiscountAmount + fixedDiscountAmount);
     const totalDiscount = lineDiscountTotal + invoiceDiscountAmount;
     const finalTotal = Math.max(0, afterLineDiscount - invoiceDiscountAmount);
 
@@ -1960,7 +1970,11 @@ function NewOrder() {
               ? `خصم الأصناف: ${orderTotals.lineDiscountTotal.toFixed(3)} د.ك`
               : "",
             orderTotals.invoiceDiscountAmount > 0
-              ? `خصم الفاتورة: ${invoiceDiscountType === "percent" ? `${Math.min(100, Math.max(0, Number(invoiceDiscountDraft || 0))).toFixed(3)}%` : `${orderTotals.invoiceDiscountAmount.toFixed(3)} د.ك`}`
+              ? `خصم الفاتورة: ${invoiceDiscountType === "percent"
+                ? `${Number(invoiceDiscountPercentDraft || 0).toFixed(3)}%`
+                : invoiceDiscountType === "amount"
+                  ? `${Number(invoiceDiscountAmountDraft || 0).toFixed(3)} د.ك`
+                  : `${Number(invoiceDiscountPercentDraft || 0).toFixed(3)}% + ${Number(invoiceDiscountAmountDraft || 0).toFixed(3)} د.ك`}`
               : "",
           ].filter(Boolean).join(" — "),
         })
@@ -2466,39 +2480,51 @@ function NewOrder() {
                                       <Label className="text-xs font-extrabold">نوع خصم الفاتورة كاملة</Label>
                                       <Select
                                         value={invoiceDiscountType}
-                                        onValueChange={(value) => setInvoiceDiscountType(value === "amount" ? "amount" : "percent")}
+                                        onValueChange={(value) =>
+                                          setInvoiceDiscountType(
+                                            value === "amount" ? "amount" : value === "both" ? "both" : "percent",
+                                          )
+                                        }
                                       >
                                         <SelectTrigger className="h-10 font-bold">
                                           <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          <SelectItem value="percent">خصم بالمية %</SelectItem>
-                                          <SelectItem value="amount">خصم مبلغ د.ك</SelectItem>
+                                          <SelectItem value="percent">نسبة %</SelectItem>
+                                          <SelectItem value="amount">مبلغ د.ك</SelectItem>
+                                          <SelectItem value="both">نسبة % + مبلغ د.ك</SelectItem>
                                         </SelectContent>
                                       </Select>
                                     </div>
                                     <div className="space-y-1">
                                       <Label className="text-xs font-extrabold">
-                                        {invoiceDiscountType === "percent" ? "نسبة الخصم على كامل الفاتورة" : "مبلغ الخصم على كامل الفاتورة"}
+                                        {"قيمة خصم الفاتورة كاملة"}
                                       </Label>
-                                      <Input
-                                        type="text"
-                                        inputMode="decimal"
-                                        value={invoiceDiscountDraft}
-                                        onFocus={(event) => event.currentTarget.select()}
-                                        onChange={(event) => updateInvoiceDiscountDraft(event.target.value)}
-                                        onKeyDown={(event) => {
-                                          if (event.key === "Enter") {
-                                            event.preventDefault();
-                                            finishInvoiceDiscountEdit();
-                                            event.currentTarget.blur();
-                                          }
-                                        }}
-                                        onBlur={finishInvoiceDiscountEdit}
-                                        placeholder={invoiceDiscountType === "percent" ? "0" : "0.000"}
-                                        className="h-10 font-bold tabular-nums"
-                                        aria-label="خصم الفاتورة كاملة"
-                                      />
+                                      {invoiceDiscountType === "both" ? (
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <Input type="text" inputMode="decimal" value={invoiceDiscountPercentDraft}
+                                            onFocus={(event) => event.currentTarget.select()}
+                                            onChange={(event) => updateInvoiceDiscountDraft("percent", event.target.value)}
+                                            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); finishInvoiceDiscountEdit("percent"); event.currentTarget.blur(); } }}
+                                            onBlur={() => finishInvoiceDiscountEdit("percent")}
+                                            placeholder="النسبة %" className="h-10 font-bold tabular-nums" aria-label="نسبة خصم الفاتورة كاملة" />
+                                          <Input type="text" inputMode="decimal" value={invoiceDiscountAmountDraft}
+                                            onFocus={(event) => event.currentTarget.select()}
+                                            onChange={(event) => updateInvoiceDiscountDraft("amount", event.target.value)}
+                                            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); finishInvoiceDiscountEdit("amount"); event.currentTarget.blur(); } }}
+                                            onBlur={() => finishInvoiceDiscountEdit("amount")}
+                                            placeholder="المبلغ د.ك" className="h-10 font-bold tabular-nums" aria-label="مبلغ خصم الفاتورة كاملة" />
+                                        </div>
+                                      ) : (
+                                        <Input type="text" inputMode="decimal"
+                                          value={invoiceDiscountType === "percent" ? invoiceDiscountPercentDraft : invoiceDiscountAmountDraft}
+                                          onFocus={(event) => event.currentTarget.select()}
+                                          onChange={(event) => updateInvoiceDiscountDraft(invoiceDiscountType === "percent" ? "percent" : "amount", event.target.value)}
+                                          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); finishInvoiceDiscountEdit(invoiceDiscountType === "percent" ? "percent" : "amount"); event.currentTarget.blur(); } }}
+                                          onBlur={() => finishInvoiceDiscountEdit(invoiceDiscountType === "percent" ? "percent" : "amount")}
+                                          placeholder={invoiceDiscountType === "percent" ? "0" : "0.000"}
+                                          className="h-10 font-bold tabular-nums" aria-label="خصم الفاتورة كاملة" />
+                                      )}
                                       <p className="text-[10px] text-muted-foreground">
                                         {invoiceDiscountType === "percent" ? "يمكن إدخال نسبة صحيحة أو كسرية من 0 إلى 100." : "يمكن إدخال أي مبلغ صحيح أو كسري، ولن يتجاوز قيمة الفاتورة."}
                                       </p>
@@ -2870,7 +2896,11 @@ function NewOrder() {
                                 <Label className="text-xs font-extrabold">نوع خصم الفاتورة كاملة</Label>
                                 <Select
                                   value={invoiceDiscountType}
-                                  onValueChange={(value) => setInvoiceDiscountType(value === "amount" ? "amount" : "percent")}
+                                  onValueChange={(value) =>
+                                          setInvoiceDiscountType(
+                                            value === "amount" ? "amount" : value === "both" ? "both" : "percent",
+                                          )
+                                        }
                                 >
                                   <SelectTrigger className="h-10 font-bold">
                                     <SelectValue />
@@ -2883,26 +2913,33 @@ function NewOrder() {
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-xs font-extrabold">
-                                  {invoiceDiscountType === "percent" ? "نسبة الخصم على كامل الفاتورة" : "مبلغ الخصم على كامل الفاتورة"}
+                                  {"قيمة خصم الفاتورة كاملة"}
                                 </Label>
-                                <Input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={invoiceDiscountDraft}
-                                  onFocus={(event) => event.currentTarget.select()}
-                                  onChange={(event) => updateInvoiceDiscountDraft(event.target.value)}
-                                  onKeyDown={(event) => {
-                                    if (event.key === "Enter") {
-                                      event.preventDefault();
-                                      finishInvoiceDiscountEdit();
-                                      event.currentTarget.blur();
-                                    }
-                                  }}
-                                  onBlur={finishInvoiceDiscountEdit}
-                                  placeholder={invoiceDiscountType === "percent" ? "0" : "0.000"}
-                                  className="h-10 font-bold tabular-nums"
-                                  aria-label="خصم الفاتورة كاملة"
-                                />
+                                {invoiceDiscountType === "both" ? (
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <Input type="text" inputMode="decimal" value={invoiceDiscountPercentDraft}
+                                            onFocus={(event) => event.currentTarget.select()}
+                                            onChange={(event) => updateInvoiceDiscountDraft("percent", event.target.value)}
+                                            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); finishInvoiceDiscountEdit("percent"); event.currentTarget.blur(); } }}
+                                            onBlur={() => finishInvoiceDiscountEdit("percent")}
+                                            placeholder="النسبة %" className="h-10 font-bold tabular-nums" aria-label="نسبة خصم الفاتورة كاملة" />
+                                          <Input type="text" inputMode="decimal" value={invoiceDiscountAmountDraft}
+                                            onFocus={(event) => event.currentTarget.select()}
+                                            onChange={(event) => updateInvoiceDiscountDraft("amount", event.target.value)}
+                                            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); finishInvoiceDiscountEdit("amount"); event.currentTarget.blur(); } }}
+                                            onBlur={() => finishInvoiceDiscountEdit("amount")}
+                                            placeholder="المبلغ د.ك" className="h-10 font-bold tabular-nums" aria-label="مبلغ خصم الفاتورة كاملة" />
+                                        </div>
+                                      ) : (
+                                        <Input type="text" inputMode="decimal"
+                                          value={invoiceDiscountType === "percent" ? invoiceDiscountPercentDraft : invoiceDiscountAmountDraft}
+                                          onFocus={(event) => event.currentTarget.select()}
+                                          onChange={(event) => updateInvoiceDiscountDraft(invoiceDiscountType === "percent" ? "percent" : "amount", event.target.value)}
+                                          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); finishInvoiceDiscountEdit(invoiceDiscountType === "percent" ? "percent" : "amount"); event.currentTarget.blur(); } }}
+                                          onBlur={() => finishInvoiceDiscountEdit(invoiceDiscountType === "percent" ? "percent" : "amount")}
+                                          placeholder={invoiceDiscountType === "percent" ? "0" : "0.000"}
+                                          className="h-10 font-bold tabular-nums" aria-label="خصم الفاتورة كاملة" />
+                                      )}
                               </div>
                             </div>
 
