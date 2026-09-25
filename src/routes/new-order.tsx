@@ -2079,6 +2079,15 @@ function NewOrder() {
                                       <Button
                                         type="button"
                                         size="sm"
+                                        variant="outline"
+                                        onClick={() => handleStartEditing(index)}
+                                      >
+                                        <Pencil className="ml-1 h-4 w-4" />
+                                        تعديل
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
                                         variant="destructive"
                                         onClick={() => {
                                           handleDeleteLine(index);
@@ -2312,6 +2321,15 @@ function NewOrder() {
                                 <Button
                                   type="button"
                                   size="sm"
+                                  variant="outline"
+                                  onClick={() => handleStartEditing(index)}
+                                >
+                                  <Pencil className="ml-1 h-4 w-4" />
+                                  تعديل
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
                                   variant="destructive"
                                   onClick={() => {
                                     handleDeleteLine(index);
@@ -2389,10 +2407,23 @@ function NewOrder() {
 
                               <div className="grid gap-4 lg:grid-cols-2">
                                 <div className="rounded-lg border bg-background p-3 lg:col-span-2">
-                                  <p className="text-xs font-bold">اختيار الصنف</p>
-                                  <p className="mt-1 text-xs text-muted-foreground">
-                                    اضغط على اسم الصنف داخل الصف لاختيار صنف آخر من قاعدة البيانات. عند الاختيار سيُجلب السعر المناسب تلقائيًا.
-                                  </p>
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                      <p className="text-xs font-bold">اختيار الصنف من قاعدة البيانات</p>
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        ابحث بالاسم أو الكود أو الماركة ثم اختر الصنف الصحيح. عند الاختيار سيُجلب الاسم وSKU والوحدة والسعر من قاعدة البيانات تلقائيًا.
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleOpenProductPicker(index)}
+                                    >
+                                      <Search className="ml-1 h-4 w-4" />
+                                      بحث عن صنف
+                                    </Button>
+                                  </div>
                                 </div>
 
                                 <div className="space-y-2">
