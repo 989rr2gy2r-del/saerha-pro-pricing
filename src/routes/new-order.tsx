@@ -2498,7 +2498,7 @@ function NewOrder() {
                                           handleDiscountTypeChange(index, value === "amount" ? "amount" : "percent")
                                         }
                                       >
-                                        <SelectTrigger className="h-10 w-32 font-bold">
+                                        <SelectTrigger className="h-10 w-32 cursor-pointer font-bold" title="اختيار نوع الخصم">
                                           <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -2529,6 +2529,7 @@ function NewOrder() {
                                         onBlur={() => finishDiscountEdit(index)}
                                         className="h-10 w-24 font-bold tabular-nums"
                                         aria-label={item.discountType === "amount" ? "قيمة الخصم بالمبلغ" : "نسبة الخصم"}
+                                        title="تحرير الخصم"
                                       />
                                     </div>
                                     <div className="mt-1 text-[10px] text-muted-foreground">
