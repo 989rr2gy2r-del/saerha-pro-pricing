@@ -2033,8 +2033,7 @@ function NewOrder() {
                                                 ...(currentOption ? [currentOption] : []),
                                                 ...filtered.filter((option) => option.value !== item.product?.id),
                                               ];
-                                              const smartMatch = null;
-
+                                              
                                               return visible.length > 0 ? (
                                                 visible.map((option) => {
                                                   const product = productById.get(option.value);
@@ -2060,20 +2059,6 @@ function NewOrder() {
                                                     </button>
                                                   );
                                                 })
-                                              ) : smartMatch?.product ? (
-                                                <button
-                                                  type="button"
-                                                  className="block w-full px-3 py-3 text-right hover:bg-muted"
-                                                  onClick={() => {
-                                                    handleProductSelect(index, smartMatch.product.id);
-                                                    handleCloseProductPicker();
-                                                  }}
-                                                >
-                                                  <div className="mb-1 text-[10px] font-bold text-primary">اقتراح ذكي قريب من البحث</div>
-                                                  <div className="font-bold">
-                                                    {smartMatch.product.name_ar} — {smartMatch.product.sku}
-                                                  </div>
-                                                </button>
                                               ) : (
                                                 <div className="px-3 py-4 text-sm text-muted-foreground">
                                                   لا توجد مطابقة. جرّب جزءًا أقصر من الاسم أو الكود.
@@ -2306,8 +2291,7 @@ function NewOrder() {
                                             ...(currentOption ? [currentOption] : []),
                                             ...filtered.filter((option) => option.value !== item.product?.id),
                                           ];
-                                          const smartMatch = null;
-
+                                          
                                           return visible.length > 0 ? (
                                             visible.map((option) => {
                                               const product = productById.get(option.value);
@@ -2328,20 +2312,6 @@ function NewOrder() {
                                                 </button>
                                               );
                                             })
-                                          ) : smartMatch?.product ? (
-                                            <button
-                                              type="button"
-                                              className="block w-full px-3 py-3 text-right hover:bg-muted"
-                                              onClick={() => {
-                                                handleProductSelect(index, smartMatch.product.id);
-                                                handleCloseProductPicker();
-                                              }}
-                                            >
-                                              <div className="mb-1 text-[10px] font-bold text-primary">اقتراح ذكي قريب من البحث</div>
-                                              <div className="font-bold">
-                                                {smartMatch.product.name_ar} — {smartMatch.product.sku}
-                                              </div>
-                                            </button>
                                           ) : (
                                             <div className="px-3 py-4 text-sm text-muted-foreground">
                                               لا توجد مطابقة. جرّب جزءًا أقصر من الاسم أو الكود.
@@ -2476,112 +2446,3 @@ function NewOrder() {
                                       ? Number(item.priceAmount) * Number(item.quantity || 0)
                                       : 0),
                                   0,
-                                )
-                                .toFixed(3)}{" "}
-                              د.ك
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      لم يتم استخراج أصناف واضحة من الملف.
-                    </p>
-                  )}
-                  {analysisResult.notes && (
-                    <p className="rounded-lg bg-muted p-3 text-sm">
-                      <strong>ملاحظات:</strong> {analysisResult.notes}
-                    </p>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {sources.map((s) => (
-            <Card key={s.label} className="shadow-card">
-              <CardContent className="flex flex-col items-center gap-2 p-4 text-center">
-                <s.icon className="h-6 w-6 text-primary" />
-                <p className="text-sm font-bold">{s.label}</p>
-                <p className="text-[11px] text-muted-foreground">{s.hint}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="text-base">بيانات الطلبية</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 lg:grid-cols-2">
-            <div className="space-y-2">
-              <Label>العميل</Label>
-              <Select
-                value={customerId}
-                onValueChange={setCustomerId}
-                disabled={customersLoading || customers.length === 0}
-              >
-                <SelectTrigger className="h-12">
-                  <SelectValue
-                    placeholder={customersLoading ? "جاري تحميل العملاء..." : "اختر عميلاً"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.length > 0 ? (
-                    customers.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name} — {c.company || "بدون شركة"}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">
-                      {customersError || "لا توجد عملاء في قاعدة البيانات."}
-                    </div>
-                  )}
-                </SelectContent>
-              </Select>
-              {!customersLoading && customers.length === 0 && !customersError && (
-                <p className="text-xs text-muted-foreground">لا توجد عملاء في قاعدة البيانات.</p>
-              )}
-              {customersError && <p className="text-xs text-destructive">{customersError}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label>مصدر الطلبية</Label>
-              <Select defaultValue="image">
-                <SelectTrigger className="h-12">
-                  <SelectValue placeholder="اختر المصدر" />
-                </SelectTrigger>
-                <SelectContent>
-                  {["image", "pdf", "excel", "text", "handwriting"].map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2 lg:col-span-2">
-              <Label>نص الطلبية (اختياري)</Label>
-              <Textarea rows={5} placeholder="الصق نص الطلبية هنا إن كانت مكتوبة..." />
-            </div>
-            <div className="space-y-2 lg:col-span-2">
-              <Label>ملاحظات</Label>
-              <Textarea rows={3} placeholder="ملاحظات إضافية عن الطلبية" />
-            </div>
-            <Button
-              size="lg"
-              className="h-14 w-full text-base font-extrabold lg:col-span-2"
-              onClick={() => void createQuoteFromAnalysis()}
-            >
-              إنشاء عرض سعر
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    </AppShell>
-  );
-}
