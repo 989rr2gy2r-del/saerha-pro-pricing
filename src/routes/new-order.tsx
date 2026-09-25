@@ -2727,9 +2727,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                   </div>
 
                                   <button
-                                    ref={(node) => {
-                                      productPickerTriggerRefs.current[item.id] = node;
-                                    }}
+                                    ref={(node) => setMobileProductPickerTrigger(item.id, node)}
                                     type="button"
                                     className={openProductPickerId === item.id
                                       ? "w-full rounded-lg border-2 border-primary bg-background p-2 text-right"
