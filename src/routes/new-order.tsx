@@ -791,6 +791,21 @@ function NewOrder() {
     });
   };
 
+  const handleOpenProductPicker = (index: number) => {
+    const item = analysisResult?.items[index];
+    if (!item) return;
+
+    setOpenProductPickerId(item.id);
+    setProductSearches((previous) => ({
+      ...previous,
+      [item.id]: item.product?.name_ar || item.description || item.raw_text || "",
+    }));
+  };
+
+  const handleCloseProductPicker = () => {
+    setOpenProductPickerId(null);
+  };
+
   const recordCorrection = async (
     item: ReviewItem,
     action: "accepted" | "corrected" | "alias_added",
