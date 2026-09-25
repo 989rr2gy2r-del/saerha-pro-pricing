@@ -62,6 +62,7 @@ type ReviewItem = {
   basePriceUnit?: string;
   priceType: string | null;
   priceLabel: string;
+  discountPercent?: number;
   quoteName?: string;
   sourceSku?: string;
   sourceUnitPrice?: number | null;
@@ -637,6 +638,7 @@ function NewOrder() {
   // Keep numeric drafts as text while the user types so a decimal separator
   // such as "11." is not lost on every React render.
   const [numericDrafts, setNumericDrafts] = useState<Record<string, { quantity?: string; price?: string }>>({});
+  const [discountDrafts, setDiscountDrafts] = useState<Record<string, string>>({});
 
   const productOptions = useMemo(
     () =>
@@ -960,6 +962,7 @@ function NewOrder() {
     setSkuDrafts({});
     setSkuErrors({});
     setOpenProductPickerId(null);
+    setDiscountDrafts({});
     setProgress(0);
     setLastAnalyzedKey("");
   };
@@ -1250,6 +1253,42 @@ function NewOrder() {
       ...item,
       quantity: normalizeQuantity(value),
     }));
+  };
+
+  const handleDiscountChange = (index: number, value: number) => {
+    const discount = Math.min(100, Math.max(0, Number.isFinite(value) ? value : 0));
+    patchReviewItem(index, (item) => ({ ...item, discountPercent: discount }));
+  };
+
+  const beginDiscountEdit = (index: number) => {
+    const item = analysisResult?.items[index];
+    if (!item) return;
+    setDiscountDrafts((previous) => ({
+      ...previous,
+      [item.id]: String(Math.min(100, Math.max(0, Number(item.discountPercent ?? 0)))),
+    }));
+  };
+
+  const updateDiscountDraft = (index: number, rawValue: string) => {
+    const item = analysisResult?.items[index];
+    if (!item) return;
+    const normalized = normalizeDecimalDraft(rawValue);
+    if (!/^\d*(?:\.\d*)?$/.test(normalized)) return;
+    setDiscountDrafts((previous) => ({ ...previous, [item.id]: normalized }));
+  };
+
+  const finishDiscountEdit = (index: number) => {
+    const item = analysisResult?.items[index];
+    if (!item) return;
+    const draft = discountDrafts[item.id];
+    if (draft == null) return;
+    const parsed = Number(normalizeDecimalDraft(draft));
+    handleDiscountChange(index, draft === "" ? 0 : parsed);
+    setDiscountDrafts((previous) => {
+      const next = { ...previous };
+      delete next[item.id];
+      return next;
+    });
   };
 
   const handleUnitChange = (index: number, value: string) => {
@@ -1785,7 +1824,19 @@ function NewOrder() {
       }
 
       const subtotal = quoteLines.reduce(
-        (sum, line) => sum + Number(line.priceAmount ?? 0) * Number(line.quantity || 0),
+        (sum, line) => {
+          const lineSubtotal = Number(line.priceAmount ?? 0) * Number(line.quantity || 0);
+          const discount = Math.min(100, Math.max(0, Number(line.discountPercent ?? 0)));
+          return sum + lineSubtotal * (1 - discount / 100);
+        },
+        0,
+      );
+      const totalDiscount = quoteLines.reduce(
+        (sum, line) => {
+          const lineSubtotal = Number(line.priceAmount ?? 0) * Number(line.quantity || 0);
+          const discount = Math.min(100, Math.max(0, Number(line.discountPercent ?? 0)));
+          return sum + lineSubtotal * (discount / 100);
+        },
         0,
       );
 
@@ -1797,9 +1848,9 @@ function NewOrder() {
           issue_date: new Date().toISOString().slice(0, 10),
           expiry_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
           price_type: quoteLines[0]?.priceType ?? "retail",
-          discount_amount: 0,
+          discount_amount: totalDiscount,
           tax_amount: 0,
-          subtotal,
+          subtotal: subtotal + totalDiscount,
           total: subtotal,
           currency: "KWD",
           status: "draft",
@@ -1823,8 +1874,14 @@ function NewOrder() {
               quantity: Number(line.quantity || 0),
               unit: line.unit || line.product.unit || "حبة",
               unit_price: Number(line.priceAmount ?? 0),
-              discount_amount: 0,
-              line_total: Number(line.priceAmount ?? 0) * Number(line.quantity || 0),
+              discount_amount:
+                Number(line.priceAmount ?? 0) *
+                Number(line.quantity || 0) *
+                (Math.min(100, Math.max(0, Number(line.discountPercent ?? 0))) / 100),
+              line_total:
+                Number(line.priceAmount ?? 0) *
+                Number(line.quantity || 0) *
+                (1 - Math.min(100, Math.max(0, Number(line.discountPercent ?? 0))) / 100),
               applied_price_type: (line.priceType ?? "retail") as
                 "retail" | "reseller" | "customer_special" | "manual_quote",
               is_manual_price: line.priceType === "manual_quote",
@@ -1968,6 +2025,7 @@ function NewOrder() {
                               <th className="px-3 py-3 text-right">الكمية</th>
                               <th className="px-3 py-3 text-right">الوحدة</th>
                               <th className="px-3 py-3 text-right">السعر</th>
+                              <th className="px-3 py-3 text-right">الخصم %</th>
                               <th className="px-3 py-3 text-right">الإجمالي</th>
                               <th className="px-3 py-3 text-right">الإجراء</th>
                             </tr>
@@ -1980,10 +2038,14 @@ function NewOrder() {
                                 item.description ||
                                 item.raw_text ||
                                 "صنف غير محدد";
-                              const lineTotal =
+                              const lineSubtotal =
                                 item.priceAmount !== null && Number.isFinite(Number(item.priceAmount))
                                   ? Number(item.priceAmount) * Number(item.quantity || 0)
                                   : null;
+                              const discountPercent = Math.min(100, Math.max(0, Number(item.discountPercent ?? 0)));
+                              const discountAmount =
+                                lineSubtotal !== null ? lineSubtotal * (discountPercent / 100) : 0;
+                              const lineTotal = lineSubtotal !== null ? lineSubtotal - discountAmount : null;
 
                               return (
                                 <tr
@@ -2223,6 +2285,30 @@ function NewOrder() {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
+                                    <Input
+                                      type="text"
+                                      inputMode="decimal"
+                                      value={discountDrafts[item.id] ?? String(item.discountPercent ?? 0)}
+                                      onFocus={(event) => {
+                                        beginDiscountEdit(index);
+                                        event.currentTarget.select();
+                                      }}
+                                      onChange={(event) => updateDiscountDraft(index, event.target.value)}
+                                      onKeyDown={(event) => {
+                                        if (event.key === "Enter") {
+                                          event.preventDefault();
+                                          finishDiscountEdit(index);
+                                          event.currentTarget.blur();
+                                        }
+                                      }}
+                                      onBlur={() => finishDiscountEdit(index)}
+                                      className="h-10 w-24 font-bold tabular-nums"
+                                      aria-label="الخصم بالنسبة المئوية"
+                                    />
+                                    <div className="mt-1 text-[10px] text-muted-foreground">0–100%</div>
+                                  </td>
+
+                                  <td className="px-3 py-3 align-top">
                                     <div className="rounded-lg bg-muted/60 px-3 py-2 text-left font-extrabold tabular-nums">
                                       {lineTotal !== null ? lineTotal.toFixed(3) : "—"}
                                     </div>
@@ -2250,15 +2336,18 @@ function NewOrder() {
                           </tbody>
                           <tfoot className="border-t bg-muted/40">
                             <tr>
-                              <td colSpan={6} className="px-3 py-4 text-left font-extrabold">إجمالي الطلبية</td>
+                              <td colSpan={7} className="px-3 py-4 text-left font-extrabold">إجمالي الطلبية بعد الخصم</td>
                               <td className="px-3 py-4 text-left text-lg font-black tabular-nums">
                                 {analysisResult.items
                                   .reduce(
-                                    (sum, item) =>
-                                      sum +
-                                      (item.priceAmount !== null
-                                        ? Number(item.priceAmount) * Number(item.quantity || 0)
-                                        : 0),
+                                    (sum, item) => {
+                                      const subtotal =
+                                        item.priceAmount !== null
+                                          ? Number(item.priceAmount) * Number(item.quantity || 0)
+                                          : 0;
+                                      const discount = Math.min(100, Math.max(0, Number(item.discountPercent ?? 0)));
+                                      return sum + subtotal * (1 - discount / 100);
+                                    },
                                     0,
                                   )
                                   .toFixed(3)}{" "}
@@ -2277,10 +2366,14 @@ function NewOrder() {
                             item.description ||
                             item.raw_text ||
                             "صنف غير محدد";
-                          const lineTotal =
+                          const lineSubtotal =
                             item.priceAmount !== null && Number.isFinite(Number(item.priceAmount))
                               ? Number(item.priceAmount) * Number(item.quantity || 0)
                               : null;
+                          const discountPercent = Math.min(100, Math.max(0, Number(item.discountPercent ?? 0)));
+                          const discountAmount =
+                            lineSubtotal !== null ? lineSubtotal * (discountPercent / 100) : 0;
+                          const lineTotal = lineSubtotal !== null ? lineSubtotal - discountAmount : null;
 
                           return (
                             <div
@@ -2504,6 +2597,29 @@ function NewOrder() {
                                     className="font-bold tabular-nums"
                                   />
                                 </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">الخصم %</Label>
+                                  <Input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={discountDrafts[item.id] ?? String(item.discountPercent ?? 0)}
+                                    onFocus={(event) => {
+                                      beginDiscountEdit(index);
+                                      event.currentTarget.select();
+                                    }}
+                                    onChange={(event) => updateDiscountDraft(index, event.target.value)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        finishDiscountEdit(index);
+                                        event.currentTarget.blur();
+                                      }
+                                    }}
+                                    onBlur={() => finishDiscountEdit(index)}
+                                    placeholder="0"
+                                    className="font-bold tabular-nums"
+                                  />
+                                </div>
                               </div>
 
                               <div className="mt-3 grid grid-cols-3 gap-2 border-t pt-3 text-xs">
@@ -2519,6 +2635,12 @@ function NewOrder() {
                                   <p className="text-[10px] text-muted-foreground">السعر</p>
                                   <p className="mt-0.5 font-extrabold tabular-nums">
                                     {item.priceAmount !== null ? Number(item.priceAmount).toFixed(3) : "—"}
+                                  </p>
+                                </div>
+                                <div className="rounded-lg bg-muted/50 px-2 py-2">
+                                  <p className="text-[10px] text-muted-foreground">الخصم</p>
+                                  <p className="mt-0.5 font-extrabold tabular-nums">
+                                    {Number(item.discountPercent ?? 0).toFixed(2)}%
                                   </p>
                                 </div>
                               </div>
