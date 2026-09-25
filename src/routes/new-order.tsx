@@ -250,7 +250,7 @@ function parseLocalOcrText(text: string) {
       id: `ocr-${Date.now()}-${index}`,
       description,
       raw_text: line,
-      quantity: Number.isFinite(quantity) ? quantity : 0,
+      quantity: normalizeQuantity(quantity),
       unit,
       confidence: 0.45,
       notes: "تمت القراءة محليًا من الصورة؛ راجع السطر قبل اعتماد العرض.",
@@ -414,6 +414,10 @@ function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
     break;
   }
   return { sku, unit, quantity };
+}
+
+function normalizeQuantity(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
 }
 
 function normalizeUnitValue(value: string): string {
@@ -1161,7 +1165,7 @@ function NewOrder() {
   const handleQuantityChange = (index: number, value: number) => {
     patchReviewItem(index, (item) => ({
       ...item,
-      quantity: Number.isFinite(value) ? Math.max(0, value) : 0,
+      quantity: normalizeQuantity(value),
     }));
   };
 
@@ -1455,7 +1459,7 @@ function NewOrder() {
           item["normalized_description_ar"] ?? item["arabic_name"] ?? item["description"] ?? item["raw_text"] ?? "",
         ).trim(),
         raw_text: String(item["raw_text"] ?? item["description"] ?? "").trim(),
-        quantity: Number(item["quantity"] ?? 0),
+        quantity: normalizeQuantity(Number(item["quantity"] ?? 0)),
         unit: String(item["unit"] ?? "").trim(),
         sourceSku: String(item["sku"] ?? "").trim(),
         sourceUnitPrice: item["unit_price"] == null ? null : Number(item["unit_price"]),
@@ -1514,10 +1518,8 @@ function NewOrder() {
           quoteName: match?.product.name_ar ?? undefined,
           quantity:
             sourceSignals.quantity && sourceSignals.quantity > 0
-              ? sourceSignals.quantity
-              : Number.isFinite(item.quantity)
-                ? item.quantity
-                : 0,
+              ? normalizeQuantity(sourceSignals.quantity)
+              : normalizeQuantity(item.quantity),
           confidence,
           product: match?.product ?? null,
           sourceSku: sourceSignals.sku || item.sourceSku || "",
@@ -1640,7 +1642,7 @@ function NewOrder() {
         if (manualPrice !== null) {
           return {
             ...item,
-            quantity: Number(item.quantity),
+            quantity: normalizeQuantity(Number(item.quantity)),
             unit: requestedUnit,
             priceAmount: manualPrice,
             priceType: "manual_quote",
@@ -1671,7 +1673,7 @@ function NewOrder() {
             priceAmount: null,
             priceType: null,
             priceLabel: "لا يوجد سعر مناسب",
-            quantity: conversion.quantity,
+            quantity: normalizeQuantity(conversion.quantity),
             unit: item.product!.unit || requestedUnit,
           };
         }
@@ -2039,7 +2041,7 @@ function NewOrder() {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <Input type="text" inputMode="decimal" value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? 0)} onFocus={() => beginNumericEdit(index, "quantity")} onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)} onBlur={() => finishNumericEdit(index, "quantity")} className="h-10 w-28 font-bold tabular-nums" aria-label="الكمية" />
+                                    <Input type="text" inputMode="numeric" pattern="[0-9]*" value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? 0)} onFocus={() => beginNumericEdit(index, "quantity")} onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)} onBlur={() => finishNumericEdit(index, "quantity")} className="h-10 w-28 font-bold tabular-nums" aria-label="الكمية" />
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
@@ -2266,7 +2268,7 @@ function NewOrder() {
                               <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border bg-muted/20 p-3 sm:grid-cols-3">
                                 <div className="space-y-1">
                                   <Label className="text-xs">الكمية</Label>
-                                  <Input type="text" inputMode="decimal" value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? 0)} onFocus={() => beginNumericEdit(index, "quantity")} onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)} onBlur={() => finishNumericEdit(index, "quantity")} className="font-bold tabular-nums" />
+                                  <Input type="text" inputMode="numeric" pattern="[0-9]*" value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? 0)} onFocus={() => beginNumericEdit(index, "quantity")} onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)} onBlur={() => finishNumericEdit(index, "quantity")} className="font-bold tabular-nums" />
                                 </div>
                                 <div className="space-y-1">
                                   <Label className="text-xs">الوحدة</Label>
@@ -2413,9 +2415,10 @@ function NewOrder() {
                                     <Label>الكمية</Label>
                                     <Input
                                       type="text"
-                                      inputMode="decimal"
+                                      inputMode="numeric"
+                                      pattern="[0-9]*"
                                       min={0}
-                                      step="0.001"
+                                      step="1"
                                       value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? "")}
                                       onFocus={() => beginNumericEdit(index, "quantity")}
                                       onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)}
