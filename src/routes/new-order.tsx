@@ -2280,6 +2280,7 @@ function NewOrder() {
                                       placeholder="الكود / الباركود"
                                       className="h-10 w-32 font-mono font-extrabold tabular-nums"
                                       aria-label="الكود أو الباركود"
+                                      title="تحرير الكود ثم اضغط Enter"
                                     />
                                     <div className="mt-1 text-[10px] text-muted-foreground">
                                       اكتب الكود ثم Enter
@@ -2299,13 +2300,14 @@ function NewOrder() {
                                         }}
                                         type="button"
                                         className={openProductPickerId === item.id
-                                          ? "w-full rounded-lg border-2 border-primary bg-background px-3 py-2 text-right shadow-sm"
-                                          : "w-full rounded-lg border border-transparent bg-muted/50 px-3 py-2 text-right transition hover:border-primary/40 hover:bg-background"}
+                                          ? "w-full cursor-pointer rounded-lg border-2 border-primary bg-background px-3 py-2 text-right shadow-sm"
+                                          : "w-full cursor-pointer rounded-lg border border-transparent bg-muted/50 px-3 py-2 text-right transition hover:border-primary/40 hover:bg-background"}
+                                        title="تحرير/بحث عن الصنف"
                                         onClick={() => handleOpenProductPicker(index)}
                                       >
                                         <div className="flex items-start justify-between gap-3">
                                           <div className="min-w-0">
-                                            <div className="font-bold text-foreground">{displayName}</div>
+                                            <div className="flex items-center gap-2 font-bold text-foreground"><PenLine className="h-3.5 w-3.5 shrink-0 text-primary" />{displayName}</div>
                                             {item.product?.name_en && (
                                               <div className="mt-1 text-[10px] text-muted-foreground" dir="ltr">
                                                 {item.product.name_en}
@@ -2442,11 +2444,12 @@ function NewOrder() {
                                       onBlur={() => finishNumericEdit(index, "quantity")}
                                       className="h-10 w-28 font-bold tabular-nums"
                                       aria-label="الكمية"
+                                      title="تحرير الكمية"
                                     />
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <Select value={item.unit || "حبة"} onValueChange={(value) => handleUnitChange(index, value)}><SelectTrigger className="h-10 w-32 font-bold"><SelectValue placeholder="اختر الوحدة" /></SelectTrigger><SelectContent>{["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent></Select>
+                                    <Select value={item.unit || "حبة"} onValueChange={(value) => handleUnitChange(index, value)}><SelectTrigger className="h-10 w-32 cursor-pointer font-bold" title="اختيار الوحدة"><SelectValue placeholder="اختر الوحدة" /></SelectTrigger><SelectContent>{["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent></Select>
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
@@ -2470,6 +2473,7 @@ function NewOrder() {
                                       placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"}
                                       className="h-10 w-32 font-bold tabular-nums"
                                       aria-label="السعر"
+                                      title="تحرير السعر"
                                     />
                                     <p className="mt-1 text-[10px] text-muted-foreground">
                                       {item.priceLabel === "سعر يدوي"
