@@ -1203,8 +1203,11 @@ function NewOrder() {
   const updateNumericDraft = (index: number, field: "quantity" | "price", rawValue: string) => {
     const item = analysisResult?.items[index];
     if (!item) return;
-    const value = normalizeDecimalDraft(rawValue);
-    if (!/^\\d*(?:\\.\\d*)?$/.test(value)) return;
+    const normalized = normalizeDecimalDraft(rawValue);
+    const value = field === "quantity"
+      ? normalized.replace(/\\.\\d*$/, "")
+      : normalized;
+    if (field === "quantity" ? !/^\\d*$/.test(value) : !/^\\d*(?:\\.\\d*)?$/.test(value)) return;
 
     setNumericDrafts((prev) => ({
       ...prev,
@@ -1212,7 +1215,6 @@ function NewOrder() {
     }));
 
     // Keep the input text intact while the user is typing.
-    // In particular, do not turn "" or "." into 0 and destroy a decimal draft.
     if (value === "" || value === ".") return;
 
     const parsed = Number(value);
