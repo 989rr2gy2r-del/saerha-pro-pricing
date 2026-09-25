@@ -2299,14 +2299,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                       {openProductPickerId === item.id && (
                                         <div
                                           className="absolute right-0 top-[calc(100%+6px)] z-[100] w-full min-w-[300px] overflow-hidden rounded-xl border bg-background p-2 shadow-2xl"
-                                          onKeyDownCapture={(event) => {
-                                            if (event.key === "Enter" && item.product) {
-                                              event.preventDefault();
-                                              event.stopPropagation();
-                                              handleCloseProductPicker();
-                                              focusOrderField(index, "quantity");
-                                            }
-                                          }}
                                         >
                                           <div className="flex items-center gap-2 border-b pb-2">
                                             <div className="relative flex-1">
@@ -2324,6 +2316,20 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                                 className="h-10 pr-9"
                                                 dir="rtl"
                                                 onFocus={(event) => event.currentTarget.select()}
+                                                onKeyDown={(event) => {
+                                                  if (event.key !== "Enter") return;
+                                                  event.preventDefault();
+                                                  const search = (productSearches[item.id] ?? "").trim();
+                                                  const filtered = filterProductOptions(search);
+                                                  const currentOption = item.product
+                                                    ? productOptions.find((option) => option.value === item.product?.id)
+                                                    : null;
+                                                  const firstOption = filtered[0] ?? currentOption;
+                                                  if (!firstOption) return;
+                                                  handleProductSelect(index, firstOption.value);
+                                                  handleCloseProductPicker();
+                                                  focusOrderField(index, "quantity");
+                                                }}
                                               />
                                             </div>
                                             <Button
@@ -2360,9 +2366,11 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                                       key={option.value}
                                                       type="button"
                                                       className="grid w-full grid-cols-[90px_1fr] gap-3 border-b px-3 py-2.5 text-right last:border-b-0 hover:bg-muted"
-                                                      onClick={() => {
+                                                      onClick={(event) => {
+                                                        event.preventDefault();
                                                         handleProductSelect(index, option.value);
                                                         handleCloseProductPicker();
+                                                        focusOrderField(index, "quantity");
                                                       }}
                                                     >
                                                       <span className="font-mono text-xs font-black text-primary">
