@@ -2249,7 +2249,11 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                         onKeyDown={(event) => {
                                           if (event.key === "Enter") {
                                             event.preventDefault();
-                                            focusNextOrderField(index, "product");
+                                            if (item.product) {
+                                              focusOrderField(index, "quantity");
+                                            } else {
+                                              handleOpenProductPicker(index);
+                                            }
                                           }
                                         }}
                                       >
