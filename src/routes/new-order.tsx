@@ -1223,7 +1223,7 @@ function NewOrder() {
         ? normalized.replace(/\D/g, "")
         : normalized.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1");
 
-    if (field === "quantity" ? !/^\\d*$/.test(value) : !/^\\d*(?:\\.\\d*)?$/.test(value)) {
+    if (field === "quantity" ? !/^\d*$/.test(value) : !/^\d*(?:\.\d*)?$/.test(value)) {
       return;
     }
 
