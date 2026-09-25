@@ -623,6 +623,7 @@ function NewOrder() {
   const [productSearches, setProductSearches] = useState<Record<string, string>>({});
   const [openProductPickerId, setOpenProductPickerId] = useState<string | null>(null);
   const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
+  const [skuErrors, setSkuErrors] = useState<Record<string, string>>({});
   // Keep numeric drafts as text while the user types so a decimal separator
   // such as "11." is not lost on every React render.
   const [numericDrafts, setNumericDrafts] = useState<Record<string, { quantity?: string; price?: string }>>({});
@@ -798,7 +799,7 @@ function NewOrder() {
     setOpenProductPickerId(item.id);
     setProductSearches((previous) => ({
       ...previous,
-      [item.id]: item.product?.name_ar || item.description || item.raw_text || "",
+      [item.id]: "",
     }));
   };
 
@@ -887,6 +888,7 @@ function NewOrder() {
     setUploadedFiles([]);
     setProductSearches({});
     setSkuDrafts({});
+    setSkuErrors({});
     setOpenProductPickerId(null);
     setProgress(0);
     setLastAnalyzedKey("");
@@ -905,20 +907,35 @@ function NewOrder() {
     const item = analysisResult?.items[index];
     if (!item) return;
     const draft = String(skuDrafts[item.id] ?? "").trim();
-    if (!draft) return;
-    const normalized = normalizeForMatch(draft);
-    const exact = products.find((product) => normalizeForMatch(product.sku) === normalized);
-    if (exact) {
-      void handleProductSelect(index, exact.id);
-      setSkuDrafts((previous) => {
-        const next = { ...previous };
-        delete next[item.id];
-        return next;
-      });
+
+    if (!draft) {
+      setSkuErrors((previous) => ({ ...previous, [item.id]: "اكتب كود الصنف أولًا." }));
       return;
     }
-    setProductSearches((previous) => ({ ...previous, [item.id]: draft }));
-    setOpenProductPickerId(item.id);
+
+    const normalized = normalizeForMatch(draft);
+    const exact = products.find((product) => normalizeForMatch(product.sku) === normalized);
+
+    if (!exact) {
+      setSkuErrors((previous) => ({
+        ...previous,
+        [item.id]: "الكود غير موجود في قاعدة البيانات.",
+      }));
+      return;
+    }
+
+    setSkuErrors((previous) => {
+      const next = { ...previous };
+      delete next[item.id];
+      return next;
+    });
+
+    void handleProductSelect(index, exact.id);
+    setSkuDrafts((previous) => {
+      const next = { ...previous };
+      delete next[item.id];
+      return next;
+    });
   };
 
   const handleProductSelect = (index: number, productId: string) => {
@@ -1907,20 +1924,36 @@ function NewOrder() {
                                       inputMode="numeric"
                                       value={skuDrafts[item.id] ?? item.product?.sku ?? ""}
                                       onFocus={() => beginSkuEdit(index)}
-                                      onChange={(event) =>
+                                      onChange={(event) => {
                                         setSkuDrafts((previous) => ({
                                           ...previous,
                                           [item.id]: event.target.value,
-                                        }))
-                                      }
-                                      onBlur={() => finishSkuEdit(index)}
+                                        }));
+                                        setSkuErrors((previous) => {
+                                          if (!previous[item.id]) return previous;
+                                          const next = { ...previous };
+                                          delete next[item.id];
+                                          return next;
+                                        });
+                                      }}
+                                      onKeyDown={(event) => {
+                                        if (event.key === "Enter") {
+                                          event.preventDefault();
+                                          finishSkuEdit(index);
+                                        }
+                                      }}
                                       placeholder="الكود / الباركود"
                                       className="h-10 w-32 font-mono font-extrabold tabular-nums"
                                       aria-label="الكود أو الباركود"
                                     />
                                     <div className="mt-1 text-[10px] text-muted-foreground">
-                                      اكتب الكود مباشرة
+                                      اكتب الكود ثم Enter
                                     </div>
+                                    {skuErrors[item.id] && (
+                                      <p className="mt-1 text-[10px] font-semibold text-destructive">
+                                        {skuErrors[item.id]}
+                                      </p>
+                                    )}
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
@@ -1999,11 +2032,8 @@ function NewOrder() {
                                               const visible = [
                                                 ...(currentOption ? [currentOption] : []),
                                                 ...filtered.filter((option) => option.value !== item.product?.id),
-                                              ].slice(0, 8);
-                                              const smartMatch =
-                                                !visible.length && search.trim().length >= 2
-                                                  ? findLocalProductMatch(search, products, "", productAliases)
-                                                  : null;
+                                              ];
+                                              const smartMatch = null;
 
                                               return visible.length > 0 ? (
                                                 visible.map((option) => {
@@ -2057,7 +2087,24 @@ function NewOrder() {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <Input type="text" inputMode="numeric" pattern="[0-9]*" value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? 0)} onFocus={() => beginNumericEdit(index, "quantity")} onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)} onBlur={() => finishNumericEdit(index, "quantity")} className="h-10 w-28 font-bold tabular-nums" aria-label="الكمية" />
+                                    <Input
+                                      type="text"
+                                      inputMode="numeric"
+                                      pattern="[0-9]*"
+                                      value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? 0)}
+                                      onFocus={() => beginNumericEdit(index, "quantity")}
+                                      onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)}
+                                      onKeyDown={(event) => {
+                                        if (event.key === "Enter") {
+                                          event.preventDefault();
+                                          finishNumericEdit(index, "quantity");
+                                          event.currentTarget.blur();
+                                        }
+                                      }}
+                                      onBlur={() => finishNumericEdit(index, "quantity")}
+                                      className="h-10 w-28 font-bold tabular-nums"
+                                      aria-label="الكمية"
+                                    />
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
@@ -2065,7 +2112,24 @@ function NewOrder() {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <Input type="text" inputMode="decimal" value={numericDrafts[item.id]?.price ?? (item.priceAmount == null ? "" : String(item.priceAmount))} onFocus={() => beginNumericEdit(index, "price")} onChange={(event) => updateNumericDraft(index, "price", event.target.value)} onBlur={() => finishNumericEdit(index, "price")} placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"} className="h-10 w-32 font-bold tabular-nums" aria-label="السعر" />
+                                    <Input
+                                      type="text"
+                                      inputMode="decimal"
+                                      value={numericDrafts[item.id]?.price ?? (item.priceAmount == null ? "" : String(item.priceAmount))}
+                                      onFocus={() => beginNumericEdit(index, "price")}
+                                      onChange={(event) => updateNumericDraft(index, "price", event.target.value)}
+                                      onKeyDown={(event) => {
+                                        if (event.key === "Enter") {
+                                          event.preventDefault();
+                                          finishNumericEdit(index, "price");
+                                          event.currentTarget.blur();
+                                        }
+                                      }}
+                                      onBlur={() => finishNumericEdit(index, "price")}
+                                      placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"}
+                                      className="h-10 w-32 font-bold tabular-nums"
+                                      aria-label="السعر"
+                                    />
                                     <p className="mt-1 text-[10px] text-muted-foreground">
                                       {item.priceLabel === "سعر يدوي"
                                         ? "سعر يدوي"
@@ -2154,20 +2218,36 @@ function NewOrder() {
                                       inputMode="numeric"
                                       value={skuDrafts[item.id] ?? item.product?.sku ?? ""}
                                       onFocus={() => beginSkuEdit(index)}
-                                      onChange={(event) =>
+                                      onChange={(event) => {
                                         setSkuDrafts((previous) => ({
                                           ...previous,
                                           [item.id]: event.target.value,
-                                        }))
-                                      }
-                                      onBlur={() => finishSkuEdit(index)}
+                                        }));
+                                        setSkuErrors((previous) => {
+                                          if (!previous[item.id]) return previous;
+                                          const next = { ...previous };
+                                          delete next[item.id];
+                                          return next;
+                                        });
+                                      }}
+                                      onKeyDown={(event) => {
+                                        if (event.key === "Enter") {
+                                          event.preventDefault();
+                                          finishSkuEdit(index);
+                                        }
+                                      }}
                                       placeholder="الكود / الباركود"
                                       className="h-9 w-32 font-mono text-xs font-black tabular-nums"
                                       aria-label="الكود أو الباركود"
                                     />
                                     <span className="text-[10px] text-muted-foreground">
-                                      اكتب الكود
+                                      اكتب الكود ثم Enter
                                     </span>
+                                    {skuErrors[item.id] && (
+                                      <p className="absolute right-0 top-full z-10 mt-1 w-max max-w-[260px] text-[10px] font-semibold text-destructive">
+                                        {skuErrors[item.id]}
+                                      </p>
+                                    )}
                                   </div>
 
                                   <button
@@ -2225,11 +2305,8 @@ function NewOrder() {
                                           const visible = [
                                             ...(currentOption ? [currentOption] : []),
                                             ...filtered.filter((option) => option.value !== item.product?.id),
-                                          ].slice(0, 8);
-                                          const smartMatch =
-                                            !visible.length && search.trim().length >= 2
-                                              ? findLocalProductMatch(search, products, "", productAliases)
-                                              : null;
+                                          ];
+                                          const smartMatch = null;
 
                                           return visible.length > 0 ? (
                                             visible.map((option) => {
@@ -2299,7 +2376,23 @@ function NewOrder() {
                               <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border bg-muted/20 p-3 sm:grid-cols-3">
                                 <div className="space-y-1">
                                   <Label className="text-xs">الكمية</Label>
-                                  <Input type="text" inputMode="numeric" pattern="[0-9]*" value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? 0)} onFocus={() => beginNumericEdit(index, "quantity")} onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)} onBlur={() => finishNumericEdit(index, "quantity")} className="font-bold tabular-nums" />
+                                  <Input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? 0)}
+                                    onFocus={() => beginNumericEdit(index, "quantity")}
+                                    onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        finishNumericEdit(index, "quantity");
+                                        event.currentTarget.blur();
+                                      }
+                                    }}
+                                    onBlur={() => finishNumericEdit(index, "quantity")}
+                                    className="font-bold tabular-nums"
+                                  />
                                 </div>
                                 <div className="space-y-1">
                                   <Label className="text-xs">الوحدة</Label>
@@ -2310,7 +2403,23 @@ function NewOrder() {
                                 </div>
                                 <div className="space-y-1">
                                   <Label className="text-xs">السعر</Label>
-                                  <Input type="text" inputMode="decimal" value={numericDrafts[item.id]?.price ?? (item.priceAmount == null ? "" : String(item.priceAmount))} onFocus={() => beginNumericEdit(index, "price")} onChange={(event) => updateNumericDraft(index, "price", event.target.value)} onBlur={() => finishNumericEdit(index, "price")} placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"} className="font-bold tabular-nums" />
+                                  <Input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={numericDrafts[item.id]?.price ?? (item.priceAmount == null ? "" : String(item.priceAmount))}
+                                    onFocus={() => beginNumericEdit(index, "price")}
+                                    onChange={(event) => updateNumericDraft(index, "price", event.target.value)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        finishNumericEdit(index, "price");
+                                        event.currentTarget.blur();
+                                      }
+                                    }}
+                                    onBlur={() => finishNumericEdit(index, "price")}
+                                    placeholder={item.priceAmount === null ? "جاري جلب السعر..." : "السعر"}
+                                    className="font-bold tabular-nums"
+                                  />
                                 </div>
                               </div>
 
