@@ -2245,7 +2245,18 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                           ? "w-full cursor-pointer rounded-lg border-2 border-primary bg-background px-3 py-2 text-right shadow-sm"
                                           : "w-full cursor-pointer rounded-lg border border-transparent bg-muted/50 px-3 py-2 text-right transition hover:border-primary/40 hover:bg-background"}
                                         title="تحرير/بحث عن الصنف — Enter للانتقال للكمية"
-                                        onClick={() => handleOpenProductPicker(index)}
+                                        onClick={(event) => {
+                                          if (event.detail === 0) {
+                                            if (item.product) {
+                                              handleCloseProductPicker();
+                                              focusOrderField(index, "quantity");
+                                            } else {
+                                              handleOpenProductPicker(index);
+                                            }
+                                            return;
+                                          }
+                                          handleOpenProductPicker(index);
+                                        }}
                                         onKeyDown={(event) => {
                                           if (event.key === "Enter") {
                                             event.preventDefault();
