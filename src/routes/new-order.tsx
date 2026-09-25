@@ -2397,7 +2397,7 @@ function NewOrder() {
                                       <Label className="text-xs font-extrabold">نوع خصم الفاتورة كاملة</Label>
                                       <Select
                                         value={invoiceDiscountType}
-                                        onValueChange={(value: "percent" | "amount") => setInvoiceDiscountType(value)}
+                                        onValueChange={(value) => setInvoiceDiscountType(value === "amount" ? "amount" : "percent")}
                                       >
                                         <SelectTrigger className="h-10 font-bold">
                                           <SelectValue />
@@ -2779,7 +2779,7 @@ function NewOrder() {
                                 <Label className="text-xs font-extrabold">نوع خصم الفاتورة كاملة</Label>
                                 <Select
                                   value={invoiceDiscountType}
-                                  onValueChange={(value: "percent" | "amount") => setInvoiceDiscountType(value)}
+                                  onValueChange={(value) => setInvoiceDiscountType(value === "amount" ? "amount" : "percent")}
                                 >
                                   <SelectTrigger className="h-10 font-bold">
                                     <SelectValue />
