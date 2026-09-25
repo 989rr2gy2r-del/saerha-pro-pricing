@@ -814,7 +814,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     });
   };
 
-  const updateProductPickerPosition = (itemId: string) => {
+  const setProductPickerTrigger = (itemId: string, node: HTMLButtonElement | null) => {\n    if (node && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0) {\n      productPickerTriggerRefs.current[itemId] = node;\n      return;\n    }\n    if (!node && productPickerTriggerRefs.current[itemId]) {\n      const current = productPickerTriggerRefs.current[itemId];\n      if (!current || current.getBoundingClientRect().width === 0 || current.getBoundingClientRect().height === 0) {\n        productPickerTriggerRefs.current[itemId] = null;\n      }\n    }\n  };\n\n  const updateProductPickerPosition = (itemId: string) => {
     const trigger = productPickerTriggerRefs.current[itemId];
     if (!trigger) return;
 
