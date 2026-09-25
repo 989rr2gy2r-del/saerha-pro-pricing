@@ -639,6 +639,8 @@ function NewOrder() {
   // such as "11." is not lost on every React render.
   const [numericDrafts, setNumericDrafts] = useState<Record<string, { quantity?: string; price?: string }>>({});
   const [discountDrafts, setDiscountDrafts] = useState<Record<string, string>>({});
+  const [invoiceDiscountType, setInvoiceDiscountType] = useState<"percent" | "amount">("percent");
+  const [invoiceDiscountDraft, setInvoiceDiscountDraft] = useState("0");
 
   const productOptions = useMemo(
     () =>
@@ -963,6 +965,8 @@ function NewOrder() {
     setSkuErrors({});
     setOpenProductPickerId(null);
     setDiscountDrafts({});
+    setInvoiceDiscountType("percent");
+    setInvoiceDiscountDraft("0");
     setProgress(0);
     setLastAnalyzedKey("");
   };
@@ -1321,6 +1325,63 @@ function NewOrder() {
 
   const normalizeDecimalDraft = (value: string) =>
     value.replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(/,/g, ".").replace(/\s/g, "");
+
+  const updateInvoiceDiscountDraft = (rawValue: string) => {
+    const normalized = normalizeDecimalDraft(rawValue);
+    if (!/^\d*(?:\.\d*)?$/.test(normalized)) return;
+    setInvoiceDiscountDraft(normalized);
+  };
+
+  const finishInvoiceDiscountEdit = () => {
+    const normalized = normalizeDecimalDraft(invoiceDiscountDraft);
+    const parsed = Number(normalized);
+    const value = normalized === "" || !Number.isFinite(parsed) ? 0 : Math.max(0, parsed);
+    const capped = invoiceDiscountType === "percent" ? Math.min(100, value) : value;
+    setInvoiceDiscountDraft(String(capped));
+  };
+
+  const calculateOrderTotals = (items: ReviewItem[]) => {
+    const rawSubtotal = items.reduce(
+      (sum, item) =>
+        sum +
+        (item.priceAmount !== null && Number.isFinite(Number(item.priceAmount))
+          ? Number(item.priceAmount) * Number(item.quantity || 0)
+          : 0),
+      0,
+    );
+
+    const lineDiscountTotal = items.reduce(
+      (sum, item) => {
+        const lineSubtotal =
+          item.priceAmount !== null && Number.isFinite(Number(item.priceAmount))
+            ? Number(item.priceAmount) * Number(item.quantity || 0)
+            : 0;
+        const discount = Math.min(100, Math.max(0, Number(item.discountPercent ?? 0)));
+        return sum + lineSubtotal * (discount / 100);
+      },
+      0,
+    );
+
+    const afterLineDiscount = Math.max(0, rawSubtotal - lineDiscountTotal);
+    const invoiceDiscountInput = Number(normalizeDecimalDraft(invoiceDiscountDraft));
+    const invoiceDiscountValue =
+      Number.isFinite(invoiceDiscountInput) ? Math.max(0, invoiceDiscountInput) : 0;
+    const invoiceDiscountAmount =
+      invoiceDiscountType === "percent"
+        ? afterLineDiscount * (Math.min(100, invoiceDiscountValue) / 100)
+        : Math.min(afterLineDiscount, invoiceDiscountValue);
+    const totalDiscount = lineDiscountTotal + invoiceDiscountAmount;
+    const finalTotal = Math.max(0, afterLineDiscount - invoiceDiscountAmount);
+
+    return {
+      rawSubtotal,
+      lineDiscountTotal,
+      afterLineDiscount,
+      invoiceDiscountAmount,
+      totalDiscount,
+      finalTotal,
+    };
+  };
 
   const updateNumericDraft = (index: number, field: "quantity" | "price", rawValue: string) => {
     const item = analysisResult?.items[index];
@@ -1823,22 +1884,7 @@ function NewOrder() {
         return;
       }
 
-      const subtotal = quoteLines.reduce(
-        (sum, line) => {
-          const lineSubtotal = Number(line.priceAmount ?? 0) * Number(line.quantity || 0);
-          const discount = Math.min(100, Math.max(0, Number(line.discountPercent ?? 0)));
-          return sum + lineSubtotal * (1 - discount / 100);
-        },
-        0,
-      );
-      const totalDiscount = quoteLines.reduce(
-        (sum, line) => {
-          const lineSubtotal = Number(line.priceAmount ?? 0) * Number(line.quantity || 0);
-          const discount = Math.min(100, Math.max(0, Number(line.discountPercent ?? 0)));
-          return sum + lineSubtotal * (discount / 100);
-        },
-        0,
-      );
+      const orderTotals = calculateOrderTotals(quoteLines);
 
       const { data: quote, error: quoteError } = await supabase
         .from("quotations")
@@ -1848,13 +1894,21 @@ function NewOrder() {
           issue_date: new Date().toISOString().slice(0, 10),
           expiry_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
           price_type: quoteLines[0]?.priceType ?? "retail",
-          discount_amount: totalDiscount,
+          discount_amount: orderTotals.totalDiscount,
           tax_amount: 0,
-          subtotal: subtotal + totalDiscount,
-          total: subtotal,
+          subtotal: orderTotals.rawSubtotal,
+          total: orderTotals.finalTotal,
           currency: "KWD",
           status: "draft",
-          notes: "تم إنشاء العرض من الطلبية بعد مراجعة المنتج وسعره.",
+          notes: [
+            "تم إنشاء العرض من الطلبية بعد مراجعة المنتج وسعره.",
+            orderTotals.lineDiscountTotal > 0
+              ? `خصم الأصناف: ${orderTotals.lineDiscountTotal.toFixed(3)} د.ك`
+              : "",
+            orderTotals.invoiceDiscountAmount > 0
+              ? `خصم الفاتورة: ${invoiceDiscountType === "percent" ? `${Math.min(100, Math.max(0, Number(invoiceDiscountDraft || 0))).toFixed(3)}%` : `${orderTotals.invoiceDiscountAmount.toFixed(3)} د.ك`}`
+              : "",
+          ].filter(Boolean).join(" — "),
         })
         .select()
         .single();
@@ -2336,22 +2390,71 @@ function NewOrder() {
                           </tbody>
                           <tfoot className="border-t bg-muted/40">
                             <tr>
-                              <td colSpan={7} className="px-3 py-4 text-left font-extrabold">إجمالي الطلبية بعد الخصم</td>
-                              <td className="px-3 py-4 text-left text-lg font-black tabular-nums">
-                                {analysisResult.items
-                                  .reduce(
-                                    (sum, item) => {
-                                      const subtotal =
-                                        item.priceAmount !== null
-                                          ? Number(item.priceAmount) * Number(item.quantity || 0)
-                                          : 0;
-                                      const discount = Math.min(100, Math.max(0, Number(item.discountPercent ?? 0)));
-                                      return sum + subtotal * (1 - discount / 100);
-                                    },
-                                    0,
-                                  )
-                                  .toFixed(3)}{" "}
-                                د.ك
+                              <td colSpan={8} className="px-4 py-4">
+                                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                                  <div className="grid w-full gap-3 sm:grid-cols-2 lg:max-w-xl">
+                                    <div className="space-y-1">
+                                      <Label className="text-xs font-extrabold">نوع خصم الفاتورة كاملة</Label>
+                                      <Select
+                                        value={invoiceDiscountType}
+                                        onValueChange={(value: "percent" | "amount") => setInvoiceDiscountType(value)}
+                                      >
+                                        <SelectTrigger className="h-10 font-bold">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="percent">خصم بالمية %</SelectItem>
+                                          <SelectItem value="amount">خصم مبلغ د.ك</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label className="text-xs font-extrabold">
+                                        {invoiceDiscountType === "percent" ? "نسبة الخصم على كامل الفاتورة" : "مبلغ الخصم على كامل الفاتورة"}
+                                      </Label>
+                                      <Input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={invoiceDiscountDraft}
+                                        onFocus={(event) => event.currentTarget.select()}
+                                        onChange={(event) => updateInvoiceDiscountDraft(event.target.value)}
+                                        onKeyDown={(event) => {
+                                          if (event.key === "Enter") {
+                                            event.preventDefault();
+                                            finishInvoiceDiscountEdit();
+                                            event.currentTarget.blur();
+                                          }
+                                        }}
+                                        onBlur={finishInvoiceDiscountEdit}
+                                        placeholder={invoiceDiscountType === "percent" ? "0" : "0.000"}
+                                        className="h-10 font-bold tabular-nums"
+                                        aria-label="خصم الفاتورة كاملة"
+                                      />
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {invoiceDiscountType === "percent" ? "يمكن إدخال نسبة صحيحة أو كسرية من 0 إلى 100." : "يمكن إدخال أي مبلغ صحيح أو كسري، ولن يتجاوز قيمة الفاتورة."}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="w-full space-y-2 text-left lg:max-w-sm">
+                                    <div className="flex items-center justify-between gap-3 text-sm">
+                                      <span>إجمالي الأصناف قبل الخصومات</span>
+                                      <span className="font-bold tabular-nums">{calculateOrderTotals(analysisResult.items).rawSubtotal.toFixed(3)} د.ك</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3 text-sm">
+                                      <span>خصم الأصناف</span>
+                                      <span className="font-bold tabular-nums">-{calculateOrderTotals(analysisResult.items).lineDiscountTotal.toFixed(3)} د.ك</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3 text-sm">
+                                      <span>خصم الفاتورة</span>
+                                      <span className="font-bold tabular-nums">-{calculateOrderTotals(analysisResult.items).invoiceDiscountAmount.toFixed(3)} د.ك</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3 border-t pt-2 text-lg">
+                                      <span className="font-black">الإجمالي النهائي</span>
+                                      <span className="font-black tabular-nums">{calculateOrderTotals(analysisResult.items).finalTotal.toFixed(3)} د.ك</span>
+                                    </div>
+                                  </div>
+                                </div>
                               </td>
                             </tr>
                           </tfoot>
@@ -2670,21 +2773,66 @@ function NewOrder() {
                         })}
 
                         <div className="rounded-xl border bg-muted/40 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="font-extrabold">إجمالي الطلبية</span>
-                            <span className="text-lg font-black tabular-nums">
-                              {analysisResult.items
-                                .reduce(
-                                  (sum, item) =>
-                                    sum +
-                                    (item.priceAmount !== null
-                                      ? Number(item.priceAmount) * Number(item.quantity || 0)
-                                      : 0),
-                                  0,
-                                )
-                                .toFixed(3)}{" "}
-                              د.ك
-                            </span>
+                          <div className="space-y-3">
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs font-extrabold">نوع خصم الفاتورة كاملة</Label>
+                                <Select
+                                  value={invoiceDiscountType}
+                                  onValueChange={(value: "percent" | "amount") => setInvoiceDiscountType(value)}
+                                >
+                                  <SelectTrigger className="h-10 font-bold">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="percent">خصم بالمية %</SelectItem>
+                                    <SelectItem value="amount">خصم مبلغ د.ك</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs font-extrabold">
+                                  {invoiceDiscountType === "percent" ? "نسبة الخصم على كامل الفاتورة" : "مبلغ الخصم على كامل الفاتورة"}
+                                </Label>
+                                <Input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={invoiceDiscountDraft}
+                                  onFocus={(event) => event.currentTarget.select()}
+                                  onChange={(event) => updateInvoiceDiscountDraft(event.target.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      event.preventDefault();
+                                      finishInvoiceDiscountEdit();
+                                      event.currentTarget.blur();
+                                    }
+                                  }}
+                                  onBlur={finishInvoiceDiscountEdit}
+                                  placeholder={invoiceDiscountType === "percent" ? "0" : "0.000"}
+                                  className="h-10 font-bold tabular-nums"
+                                  aria-label="خصم الفاتورة كاملة"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 border-t pt-3">
+                              <div className="flex items-center justify-between gap-3 text-sm">
+                                <span>إجمالي الأصناف قبل الخصومات</span>
+                                <span className="font-bold tabular-nums">{calculateOrderTotals(analysisResult.items).rawSubtotal.toFixed(3)} د.ك</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3 text-sm">
+                                <span>خصم الأصناف</span>
+                                <span className="font-bold tabular-nums">-{calculateOrderTotals(analysisResult.items).lineDiscountTotal.toFixed(3)} د.ك</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3 text-sm">
+                                <span>خصم الفاتورة</span>
+                                <span className="font-bold tabular-nums">-{calculateOrderTotals(analysisResult.items).invoiceDiscountAmount.toFixed(3)} د.ك</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3 border-t pt-2 text-lg">
+                                <span className="font-black">الإجمالي النهائي</span>
+                                <span className="font-black tabular-nums">{calculateOrderTotals(analysisResult.items).finalTotal.toFixed(3)} د.ك</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
