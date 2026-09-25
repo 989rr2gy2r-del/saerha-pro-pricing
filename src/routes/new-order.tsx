@@ -1216,24 +1216,22 @@ function NewOrder() {
   const updateNumericDraft = (index: number, field: "quantity" | "price", rawValue: string) => {
     const item = analysisResult?.items[index];
     if (!item) return;
-    const normalized = normalizeDecimalDraft(rawValue);
-    const value = field === "quantity"
-      ? normalized.replace(/\\.\\d*$/, "")
-      : normalized;
-    if (field === "quantity" ? !/^\\d*$/.test(value) : !/^\\d*(?:\\.\\d*)?$/.test(value)) return;
 
+    const normalized = normalizeDecimalDraft(rawValue);
+    const value =
+      field === "quantity"
+        ? normalized.replace(/\\D/g, "")
+        : normalized.replace(/[^0-9.]/g, "").replace(/(\\..*)\\./g, "$1");
+
+    if (field === "quantity" ? !/^\\d*$/.test(value) : !/^\\d*(?:\\.\\d*)?$/.test(value)) {
+      return;
+    }
+
+    // Keep the field editable while typing. Commit only on Enter/blur.
     setNumericDrafts((prev) => ({
       ...prev,
       [item.id]: { ...prev[item.id], [field]: value },
     }));
-
-    // Keep the input text intact while the user is typing.
-    if (value === "" || value === ".") return;
-
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return;
-    if (field === "quantity") handleQuantityChange(index, parsed);
-    else handlePriceChange(index, parsed);
   };
 
   const beginNumericEdit = (index: number, field: "quantity" | "price") => {
@@ -1241,7 +1239,7 @@ function NewOrder() {
     if (!item) return;
     const value =
       field === "quantity"
-        ? String(item.quantity ?? "")
+        ? String(normalizeQuantity(Number(item.quantity ?? 0)))
         : item.priceAmount == null
           ? ""
           : String(item.priceAmount);
@@ -1256,12 +1254,15 @@ function NewOrder() {
     if (!item) return;
     const draft = numericDrafts[item.id]?.[field];
     if (draft == null) return;
+
     const value = normalizeDecimalDraft(draft);
     const parsed = Number(value);
+
     if (value !== "" && Number.isFinite(parsed)) {
       if (field === "quantity") handleQuantityChange(index, parsed);
       else handlePriceChange(index, parsed);
     }
+
     setNumericDrafts((prev) => {
       const next = { ...prev };
       const current = { ...(next[item.id] ?? {}) };
@@ -2077,7 +2078,10 @@ function NewOrder() {
                                       inputMode="numeric"
                                       pattern="[0-9]*"
                                       value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? 0)}
-                                      onFocus={() => beginNumericEdit(index, "quantity")}
+                                      onFocus={(event) => {
+                                        beginNumericEdit(index, "quantity");
+                                        event.currentTarget.select();
+                                      }}
                                       onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)}
                                       onKeyDown={(event) => {
                                         if (event.key === "Enter") {
@@ -2101,7 +2105,10 @@ function NewOrder() {
                                       type="text"
                                       inputMode="decimal"
                                       value={numericDrafts[item.id]?.price ?? (item.priceAmount == null ? "" : String(item.priceAmount))}
-                                      onFocus={() => beginNumericEdit(index, "price")}
+                                      onFocus={(event) => {
+                                        beginNumericEdit(index, "price");
+                                        event.currentTarget.select();
+                                      }}
                                       onChange={(event) => updateNumericDraft(index, "price", event.target.value)}
                                       onKeyDown={(event) => {
                                         if (event.key === "Enter") {
@@ -2351,7 +2358,10 @@ function NewOrder() {
                                     inputMode="numeric"
                                     pattern="[0-9]*"
                                     value={numericDrafts[item.id]?.quantity ?? String(item.quantity ?? 0)}
-                                    onFocus={() => beginNumericEdit(index, "quantity")}
+                                    onFocus={(event) => {
+                                        beginNumericEdit(index, "quantity");
+                                        event.currentTarget.select();
+                                      }}
                                     onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)}
                                     onKeyDown={(event) => {
                                       if (event.key === "Enter") {
@@ -2377,7 +2387,10 @@ function NewOrder() {
                                     type="text"
                                     inputMode="decimal"
                                     value={numericDrafts[item.id]?.price ?? (item.priceAmount == null ? "" : String(item.priceAmount))}
-                                    onFocus={() => beginNumericEdit(index, "price")}
+                                    onFocus={(event) => {
+                                        beginNumericEdit(index, "price");
+                                        event.currentTarget.select();
+                                      }}
                                     onChange={(event) => updateNumericDraft(index, "price", event.target.value)}
                                     onKeyDown={(event) => {
                                       if (event.key === "Enter") {
