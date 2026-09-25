@@ -1519,10 +1519,13 @@ function NewOrder() {
         throw new Error("تعذر تحميل قاعدة المنتجات من Supabase؛ لا يمكن إجراء المطابقة بأمان.");
       }
 
+      // Build the normalized SKU index once, not once per extracted row.
+      // Rebuilding it inside the map caused a full 4.5k-product scan for every
+      // line in the order.
+      const catalogSkus = new Set(matchingProducts.map((product) => normalizeForMatch(product.sku)));
       const matchedItems: ReviewItem[] = normalizedItems.map((item) => {
         // Catalog matching must be driven by what was actually read,
         // not by an AI-generated/translated product name.
-        const catalogSkus = new Set(matchingProducts.map((product) => normalizeForMatch(product.sku)));
         const sourceSignals = extractOrderSignals(item.raw_text, catalogSkus);
         const modelSku = normalizeForMatch(item.sourceSku ?? "");
         const trustedSourceSku = sourceSignals.sku || (modelSku && catalogSkus.has(modelSku) ? modelSku : "");
