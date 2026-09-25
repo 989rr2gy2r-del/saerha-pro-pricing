@@ -717,6 +717,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       })
       .filter((entry): entry is { option: (typeof productOptions)[number]; score: number } => Boolean(entry))
       .sort((a, b) => b.score - a.score || a.option.label.localeCompare(b.option.label, "ar"))
+      .slice(0, MAX_RENDERED_PRODUCT_RESULTS)
       .map((entry) => entry.option);
   };
 
@@ -868,6 +869,25 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     window.requestAnimationFrame(() => {
       updateProductPickerPosition(item.id);
     });
+  };
+
+  const focusAndSelectField = (element: HTMLElement) => {
+    window.requestAnimationFrame(() => {
+      element.focus();
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+        element.select();
+      }
+    });
+  };
+
+  const focusProductField = (index: number) => {
+    const item = analysisResult?.items[index];
+    if (!item) return;
+    if (openProductPickerId !== item.id) {
+      handleOpenProductPicker(index);
+    }
+    const trigger = productPickerTriggerRefs.current[item.id];
+    if (trigger) focusAndSelectField(trigger);
   };
 
   const handleCloseProductPicker = () => {
@@ -2240,7 +2260,11 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                       type="text"
                                       inputMode="numeric"
                                       value={skuDrafts[item.id] ?? item.product?.sku ?? ""}
-                                      onFocus={() => beginSkuEdit(index)}
+                                      onFocus={(event) => {
+                                        beginSkuEdit(index);
+                                        event.currentTarget.select();
+                                      }}
+                                      onMouseEnter={(event) => focusAndSelectField(event.currentTarget)}
                                       onChange={(event) => {
                                         setSkuDrafts((previous) => ({
                                           ...previous,
@@ -2288,6 +2312,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                           : "w-full cursor-pointer rounded-lg border border-transparent bg-muted/50 px-3 py-2 text-right transition hover:border-primary/40 hover:bg-background"}
                                         title="تحرير/بحث عن الصنف — Enter للانتقال للكمية"
                                         onClick={() => handleOpenProductPicker(index)}
+                                        onFocus={() => focusProductField(index)}
+                                        onMouseEnter={() => focusProductField(index)}
                                         onKeyDown={(event) => {
                                           if (event.key === "Enter") {
                                             event.preventDefault();
@@ -2348,6 +2374,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                                 placeholder="ابحث باسم الصنف أو الكود أو الماركة..."
                                                 className="h-10 pr-9"
                                                 dir="rtl"
+                                                onFocus={(event) => event.currentTarget.select()}
                                               />
                                             </div>
                                             <Button
@@ -2424,6 +2451,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                         beginNumericEdit(index, "quantity");
                                         event.currentTarget.select();
                                       }}
+                                      onMouseEnter={(event) => focusAndSelectField(event.currentTarget)}
                                       onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)}
                                       onKeyDown={(event) => {
                                         if (event.key === "Enter") {
@@ -2502,6 +2530,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                           beginDiscountEdit(index);
                                           event.currentTarget.select();
                                         }}
+                                        onMouseEnter={(event) => focusAndSelectField(event.currentTarget)}
                                         onChange={(event) => updateDiscountDraft(index, event.target.value)}
                                         onKeyDown={(event) => {
                                           if (event.key === "Enter") {
@@ -2660,7 +2689,11 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                       type="text"
                                       inputMode="numeric"
                                       value={skuDrafts[item.id] ?? item.product?.sku ?? ""}
-                                      onFocus={() => beginSkuEdit(index)}
+                                      onFocus={(event) => {
+                                        beginSkuEdit(index);
+                                        event.currentTarget.select();
+                                      }}
+                                      onMouseEnter={(event) => focusAndSelectField(event.currentTarget)}
                                       onChange={(event) => {
                                         setSkuDrafts((previous) => ({
                                           ...previous,
@@ -2857,6 +2890,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                         beginNumericEdit(index, "price");
                                         event.currentTarget.select();
                                       }}
+                                    onMouseEnter={(event) => focusAndSelectField(event.currentTarget)}
                                     onChange={(event) => updateNumericDraft(index, "price", event.target.value)}
                                     onKeyDown={(event) => {
                                       if (event.key === "Enter") {
