@@ -635,6 +635,7 @@ function NewOrder() {
     bottom?: number;
   } | null>(null);
   const productPickerTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const mobileProductPickerTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
     const keyboardFieldRefs = useRef<Record<string, HTMLElement | null>>({});
 const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   const [skuErrors, setSkuErrors] = useState<Record<string, string>>({});
@@ -814,8 +815,20 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     });
   };
 
-  const setProductPickerTrigger = (itemId: string, node: HTMLButtonElement | null) => {\n    if (node && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0) {\n      productPickerTriggerRefs.current[itemId] = node;\n      return;\n    }\n    if (!node && productPickerTriggerRefs.current[itemId]) {\n      const current = productPickerTriggerRefs.current[itemId];\n      if (!current || current.getBoundingClientRect().width === 0 || current.getBoundingClientRect().height === 0) {\n        productPickerTriggerRefs.current[itemId] = null;\n      }\n    }\n  };\n\n  const updateProductPickerPosition = (itemId: string) => {
-    const trigger = productPickerTriggerRefs.current[itemId];
+  const getVisibleProductPickerTrigger = (itemId: string) =>
+    [productPickerTriggerRefs.current[itemId], mobileProductPickerTriggerRefs.current[itemId]]
+      .find((node) => !!node && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0) ?? null;
+
+  const setProductPickerTrigger = (itemId: string, node: HTMLButtonElement | null) => {
+    productPickerTriggerRefs.current[itemId] = node;
+  };
+
+  const setMobileProductPickerTrigger = (itemId: string, node: HTMLButtonElement | null) => {
+    mobileProductPickerTriggerRefs.current[itemId] = node;
+  };
+
+  const updateProductPickerPosition = (itemId: string) => {
+    const trigger = getVisibleProductPickerTrigger(itemId);
     if (!trigger) return;
 
     const rect = trigger.getBoundingClientRect();
