@@ -63,6 +63,8 @@ type ReviewItem = {
   priceType: string | null;
   priceLabel: string;
   discountPercent?: number;
+  discountType?: "percent" | "amount";
+  discountValue?: number;
   quoteName?: string;
   sourceSku?: string;
   sourceUnitPrice?: number | null;
@@ -1259,17 +1261,53 @@ function NewOrder() {
     }));
   };
 
+  const handleDiscountTypeChange = (index: number, type: "percent" | "amount") => {
+    const current = analysisResult?.items[index];
+    if (!current) return;
+    patchReviewItem(index, (item) => ({
+      ...item,
+      discountType: type,
+      discountValue:
+        type === "percent"
+          ? Math.min(100, Math.max(0, Number(item.discountPercent ?? 0)))
+          : Math.max(0, Number(item.discountValue ?? 0)),
+      discountPercent:
+        type === "percent"
+          ? Math.min(100, Math.max(0, Number(item.discountPercent ?? item.discountValue ?? 0)))
+          : item.discountPercent,
+    }));
+    setDiscountDrafts((previous) => {
+      const next = { ...previous };
+      delete next[current.id];
+      return next;
+    });
+  };
+
   const handleDiscountChange = (index: number, value: number) => {
-    const discount = Math.min(100, Math.max(0, Number.isFinite(value) ? value : 0));
-    patchReviewItem(index, (item) => ({ ...item, discountPercent: discount }));
+    const item = analysisResult?.items[index];
+    if (!item) return;
+    const type = item.discountType ?? "percent";
+    const normalized = Number.isFinite(value) ? Math.max(0, value) : 0;
+    const discount = type === "percent" ? Math.min(100, normalized) : normalized;
+    patchReviewItem(index, (current) => ({
+      ...current,
+      discountType: type,
+      discountValue: discount,
+      discountPercent: type === "percent" ? discount : current.discountPercent,
+    }));
   };
 
   const beginDiscountEdit = (index: number) => {
     const item = analysisResult?.items[index];
     if (!item) return;
+    const type = item.discountType ?? "percent";
+    const value =
+      type === "percent"
+        ? Math.min(100, Math.max(0, Number(item.discountPercent ?? item.discountValue ?? 0)))
+        : Math.max(0, Number(item.discountValue ?? 0));
     setDiscountDrafts((previous) => ({
       ...previous,
-      [item.id]: String(Math.min(100, Math.max(0, Number(item.discountPercent ?? 0)))),
+      [item.id]: String(value),
     }));
   };
 
@@ -1350,15 +1388,31 @@ function NewOrder() {
       0,
     );
 
+    const getLineDiscountDetails = (item: ReviewItem) => {
+      const lineSubtotal =
+        item.priceAmount !== null && Number.isFinite(Number(item.priceAmount))
+          ? Number(item.priceAmount) * Number(item.quantity || 0)
+          : 0;
+      const type = item.discountType ?? "percent";
+      const rawValue =
+        type === "percent"
+          ? Number(item.discountPercent ?? item.discountValue ?? 0)
+          : Number(item.discountValue ?? 0);
+      const value = Number.isFinite(rawValue) ? Math.max(0, rawValue) : 0;
+      const discountAmount =
+        type === "percent"
+          ? lineSubtotal * (Math.min(100, value) / 100)
+          : Math.min(lineSubtotal, value);
+      return {
+        type,
+        value: type === "percent" ? Math.min(100, value) : value,
+        discountAmount,
+        lineTotal: Math.max(0, lineSubtotal - discountAmount),
+      };
+    };
+
     const lineDiscountTotal = items.reduce(
-      (sum, item) => {
-        const lineSubtotal =
-          item.priceAmount !== null && Number.isFinite(Number(item.priceAmount))
-            ? Number(item.priceAmount) * Number(item.quantity || 0)
-            : 0;
-        const discount = Math.min(100, Math.max(0, Number(item.discountPercent ?? 0)));
-        return sum + lineSubtotal * (discount / 100);
-      },
+      (sum, item) => sum + getLineDiscountDetails(item).discountAmount,
       0,
     );
 
@@ -1928,14 +1982,8 @@ function NewOrder() {
               quantity: Number(line.quantity || 0),
               unit: line.unit || line.product.unit || "حبة",
               unit_price: Number(line.priceAmount ?? 0),
-              discount_amount:
-                Number(line.priceAmount ?? 0) *
-                Number(line.quantity || 0) *
-                (Math.min(100, Math.max(0, Number(line.discountPercent ?? 0))) / 100),
-              line_total:
-                Number(line.priceAmount ?? 0) *
-                Number(line.quantity || 0) *
-                (1 - Math.min(100, Math.max(0, Number(line.discountPercent ?? 0))) / 100),
+              discount_amount: getLineDiscountDetails(line).discountAmount,
+              line_total: getLineDiscountDetails(line).lineTotal,
               applied_price_type: (line.priceType ?? "retail") as
                 "retail" | "reseller" | "customer_special" | "manual_quote",
               is_manual_price: line.priceType === "manual_quote",
@@ -2096,10 +2144,9 @@ function NewOrder() {
                                 item.priceAmount !== null && Number.isFinite(Number(item.priceAmount))
                                   ? Number(item.priceAmount) * Number(item.quantity || 0)
                                   : null;
-                              const discountPercent = Math.min(100, Math.max(0, Number(item.discountPercent ?? 0)));
-                              const discountAmount =
-                                lineSubtotal !== null ? lineSubtotal * (discountPercent / 100) : 0;
-                              const lineTotal = lineSubtotal !== null ? lineSubtotal - discountAmount : null;
+                              const discountDetails = getLineDiscountDetails(item);
+                              const discountAmount = lineSubtotal !== null ? discountDetails.discountAmount : 0;
+                              const lineTotal = lineSubtotal !== null ? discountDetails.lineTotal : null;
 
                               return (
                                 <tr
@@ -2339,27 +2386,49 @@ function NewOrder() {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <Input
-                                      type="text"
-                                      inputMode="decimal"
-                                      value={discountDrafts[item.id] ?? String(item.discountPercent ?? 0)}
-                                      onFocus={(event) => {
-                                        beginDiscountEdit(index);
-                                        event.currentTarget.select();
-                                      }}
-                                      onChange={(event) => updateDiscountDraft(index, event.target.value)}
-                                      onKeyDown={(event) => {
-                                        if (event.key === "Enter") {
-                                          event.preventDefault();
-                                          finishDiscountEdit(index);
-                                          event.currentTarget.blur();
+                                    <div className="flex items-center gap-2">
+                                      <Select
+                                        value={item.discountType ?? "percent"}
+                                        onValueChange={(value) =>
+                                          handleDiscountTypeChange(index, value === "amount" ? "amount" : "percent")
                                         }
-                                      }}
-                                      onBlur={() => finishDiscountEdit(index)}
-                                      className="h-10 w-24 font-bold tabular-nums"
-                                      aria-label="الخصم بالنسبة المئوية"
-                                    />
-                                    <div className="mt-1 text-[10px] text-muted-foreground">0–100%</div>
+                                      >
+                                        <SelectTrigger className="h-10 w-32 font-bold">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="percent">نسبة %</SelectItem>
+                                          <SelectItem value="amount">مبلغ د.ك</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                      <Input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={discountDrafts[item.id] ?? String(
+                                          item.discountType === "amount"
+                                            ? Number(item.discountValue ?? 0)
+                                            : Number(item.discountPercent ?? item.discountValue ?? 0)
+                                        )}
+                                        onFocus={(event) => {
+                                          beginDiscountEdit(index);
+                                          event.currentTarget.select();
+                                        }}
+                                        onChange={(event) => updateDiscountDraft(index, event.target.value)}
+                                        onKeyDown={(event) => {
+                                          if (event.key === "Enter") {
+                                            event.preventDefault();
+                                            finishDiscountEdit(index);
+                                            event.currentTarget.blur();
+                                          }
+                                        }}
+                                        onBlur={() => finishDiscountEdit(index)}
+                                        className="h-10 w-24 font-bold tabular-nums"
+                                        aria-label={item.discountType === "amount" ? "قيمة الخصم بالمبلغ" : "نسبة الخصم"}
+                                      />
+                                    </div>
+                                    <div className="mt-1 text-[10px] text-muted-foreground">
+                                      {item.discountType === "amount" ? "خصم مبلغ ثابت على الصنف" : "0–100%"}
+                                    </div>
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
@@ -2701,27 +2770,47 @@ function NewOrder() {
                                   />
                                 </div>
                                 <div className="space-y-1">
-                                  <Label className="text-xs">الخصم %</Label>
-                                  <Input
-                                    type="text"
-                                    inputMode="decimal"
-                                    value={discountDrafts[item.id] ?? String(item.discountPercent ?? 0)}
-                                    onFocus={(event) => {
-                                      beginDiscountEdit(index);
-                                      event.currentTarget.select();
-                                    }}
-                                    onChange={(event) => updateDiscountDraft(index, event.target.value)}
-                                    onKeyDown={(event) => {
-                                      if (event.key === "Enter") {
-                                        event.preventDefault();
-                                        finishDiscountEdit(index);
-                                        event.currentTarget.blur();
+                                  <Label className="text-xs">خصم الصنف</Label>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <Select
+                                      value={item.discountType ?? "percent"}
+                                      onValueChange={(value) =>
+                                        handleDiscountTypeChange(index, value === "amount" ? "amount" : "percent")
                                       }
-                                    }}
-                                    onBlur={() => finishDiscountEdit(index)}
-                                    placeholder="0"
-                                    className="font-bold tabular-nums"
-                                  />
+                                    >
+                                      <SelectTrigger className="font-bold">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="percent">نسبة %</SelectItem>
+                                        <SelectItem value="amount">مبلغ د.ك</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <Input
+                                      type="text"
+                                      inputMode="decimal"
+                                      value={discountDrafts[item.id] ?? String(
+                                        item.discountType === "amount"
+                                          ? Number(item.discountValue ?? 0)
+                                          : Number(item.discountPercent ?? item.discountValue ?? 0)
+                                      )}
+                                      onFocus={(event) => {
+                                        beginDiscountEdit(index);
+                                        event.currentTarget.select();
+                                      }}
+                                      onChange={(event) => updateDiscountDraft(index, event.target.value)}
+                                      onKeyDown={(event) => {
+                                        if (event.key === "Enter") {
+                                          event.preventDefault();
+                                          finishDiscountEdit(index);
+                                          event.currentTarget.blur();
+                                        }
+                                      }}
+                                      onBlur={() => finishDiscountEdit(index)}
+                                      placeholder="0"
+                                      className="font-bold tabular-nums"
+                                    />
+                                  </div>
                                 </div>
                               </div>
 
@@ -2743,7 +2832,9 @@ function NewOrder() {
                                 <div className="rounded-lg bg-muted/50 px-2 py-2">
                                   <p className="text-[10px] text-muted-foreground">الخصم</p>
                                   <p className="mt-0.5 font-extrabold tabular-nums">
-                                    {Number(item.discountPercent ?? 0).toFixed(2)}%
+                                    {item.discountType === "amount"
+                                      ? Number(item.discountValue ?? 0).toFixed(3) + " د.ك"
+                                      : Number(item.discountPercent ?? item.discountValue ?? 0).toFixed(2) + "%"}
                                   </p>
                                 </div>
                               </div>
