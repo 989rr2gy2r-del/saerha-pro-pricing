@@ -2030,6 +2030,9 @@ function NewOrder() {
                                   <td className="px-3 py-3 align-top">
                                     <div className="relative min-w-[300px]">
                                       <button
+                                        ref={(node) => {
+                                          productPickerTriggerRefs.current[item.id] = node;
+                                        }}
                                         type="button"
                                         className={openProductPickerId === item.id
                                           ? "w-full rounded-lg border-2 border-primary bg-background px-3 py-2 text-right shadow-sm"
@@ -2063,8 +2066,17 @@ function NewOrder() {
                                         </div>
                                       </button>
 
-                                      {openProductPickerId === item.id && (
-                                        <div className="absolute right-0 top-full z-50 mt-1 w-[min(620px,calc(100vw-32px))] rounded-xl border bg-background p-2 shadow-2xl">
+                                      {openProductPickerId === item.id && productPickerPosition && createPortal(
+                                        <div
+                                          className="fixed z-[100] rounded-xl border bg-background p-2 shadow-2xl"
+                                          style={{
+                                            left: productPickerPosition.left,
+                                            width: productPickerPosition.width,
+                                            ...(productPickerPosition.placement === "bottom"
+                                              ? { top: productPickerPosition.top }
+                                              : { bottom: productPickerPosition.bottom }),
+                                          }}
+                                        >
                                           <div className="flex items-center gap-2 border-b pb-2">
                                             <div className="relative flex-1">
                                               <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
