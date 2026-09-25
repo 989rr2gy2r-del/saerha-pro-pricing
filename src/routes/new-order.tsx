@@ -2446,3 +2446,49 @@ function NewOrder() {
                                       ? Number(item.priceAmount) * Number(item.quantity || 0)
                                       : 0),
                                   0,
+                                )
+                                .toFixed(3)}{" "}
+                              د.ك
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      لم يتم استخراج أصناف واضحة من الملف.
+                    </p>
+                  )}
+                  {analysisResult.notes && (
+                    <p className="rounded-lg bg-muted p-3 text-sm">
+                      <strong>ملاحظات:</strong> {analysisResult.notes}
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {sources.map((s) => (
+            <Card key={s.label} className="shadow-card">
+              <CardContent className="flex flex-col items-center gap-2 p-4 text-center">
+                <s.icon className="h-6 w-6 text-primary" />
+                <p className="text-sm font-bold">{s.label}</p>
+                <p className="text-[11px] text-muted-foreground">{s.hint}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="text-base">بيانات الطلبية</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-2">
+              <Label>العميل</Label>
+              <Select
+                value={customerId}
