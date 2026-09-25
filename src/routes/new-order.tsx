@@ -625,17 +625,7 @@ function NewOrder() {
   const [lastAnalyzedKey, setLastAnalyzedKey] = useState<string>("");
   const [productSearches, setProductSearches] = useState<Record<string, string>>({});
   const [openProductPickerId, setOpenProductPickerId] = useState<string | null>(null);
-  const [productPickerPosition, setProductPickerPosition] = useState<{
-    placement: "top" | "bottom";
-    left: number;
-    width: number;
-    maxHeight: number;
-    top?: number;
-    bottom?: number;
-  } | null>(null);
-  const productPickerTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const mobileProductPickerTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-    const keyboardFieldRefs = useRef<Record<string, HTMLElement | null>>({});
+  const keyboardFieldRefs = useRef<Record<string, HTMLElement | null>>({});
 const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   const [skuErrors, setSkuErrors] = useState<Record<string, string>>({});
   // Keep numeric drafts as text while the user types so a decimal separator
@@ -814,60 +804,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     });
   };
 
-  const getVisibleProductPickerTrigger = (itemId: string) =>
-    [productPickerTriggerRefs.current[itemId], mobileProductPickerTriggerRefs.current[itemId]]
-      .find((node) => !!node && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0) ?? null;
-
-  const setProductPickerTrigger = (itemId: string, node: HTMLButtonElement | null) => {
-    productPickerTriggerRefs.current[itemId] = node;
-  };
-
-  const setMobileProductPickerTrigger = (itemId: string, node: HTMLButtonElement | null) => {
-    mobileProductPickerTriggerRefs.current[itemId] = node;
-  };
-
-  const updateProductPickerPosition = (itemId: string) => {
-    const trigger = getVisibleProductPickerTrigger(itemId);
-    if (!trigger) return;
-
-    const rect = trigger.getBoundingClientRect();
-    const gap = 8;
-    const viewportPadding = 14;
-    const width = Math.min(
-      560,
-      Math.max(300, Math.min(rect.width, window.innerWidth - viewportPadding * 2)),
-    );
-    const left = Math.min(
-      Math.max(viewportPadding, rect.left),
-      Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
-    );
-    const estimatedHeight = Math.min(380, Math.max(220, window.innerHeight - viewportPadding * 2));
-    const spaceBelow = window.innerHeight - rect.bottom - gap - viewportPadding;
-    const spaceAbove = rect.top - gap - viewportPadding;
-    const placement: "top" | "bottom" =
-      spaceBelow >= estimatedHeight || spaceBelow >= spaceAbove ? "bottom" : "top";
-    const availableSpace = placement === "bottom" ? spaceBelow : spaceAbove;
-    const maxHeight = Math.max(96, Math.min(288, availableSpace - 84));
-
-    if (placement === "bottom") {
-      setProductPickerPosition({
-        placement,
-        left,
-        width,
-        maxHeight,
-        top: Math.min(window.innerHeight - viewportPadding - 96, rect.bottom + gap),
-      });
-    } else {
-      setProductPickerPosition({
-        placement,
-        left,
-        width,
-        maxHeight,
-        bottom: Math.max(viewportPadding, window.innerHeight - rect.top + gap),
-      });
-    }
-  };
-
   const handleOpenProductPicker = (index: number) => {
     const item = analysisResult?.items[index];
     if (!item) return;
@@ -894,23 +830,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
   const handleCloseProductPicker = () => {
     setOpenProductPickerId(null);
-    setProductPickerPosition(null);
   };
 
-  useEffect(() => {
-    if (!openProductPickerId) return;
-
-    const reposition = () => updateProductPickerPosition(openProductPickerId);
-    window.addEventListener("resize", reposition);
-    window.addEventListener("scroll", reposition, true);
-
-    const frame = window.requestAnimationFrame(reposition);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", reposition);
-      window.removeEventListener("scroll", reposition, true);
-    };
-  }, [openProductPickerId]);
 
   const recordCorrection = async (
     item: ReviewItem,
@@ -1020,7 +941,13 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         handleOpenProductPicker(index);
       }
       target.focus();
-      if (target instanceof HTMLInputElement) target.select();
+      if (target instanceof HTMLInputElement) {
+        target.select();
+        window.requestAnimationFrame(() => {
+          target.focus();
+          target.select();
+        });
+      }
     });
   };
 
@@ -2307,7 +2234,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                     <div className="relative min-w-[300px]">
                                       <button
                                         ref={(node) => {
-                                          productPickerTriggerRefs.current[item.id] = node;
                                           keyboardFieldRefs.current[`${item.id}:product`] = node;
                                         }}
                                         type="button"
@@ -2352,7 +2278,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
                                       {openProductPickerId === item.id && (
                                         <div
-                                          className="absolute right-0 top-[calc(100%+8px)] z-[100] w-full rounded-xl border bg-background p-2 shadow-2xl"
+                                          className="absolute right-0 top-[calc(100%+6px)] z-[100] w-full min-w-[300px] overflow-hidden rounded-xl border bg-background p-2 shadow-2xl"
                                         >
                                           <div className="flex items-center gap-2 border-b pb-2">
                                             <div className="relative flex-1">
@@ -2719,7 +2645,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                   </div>
 
                                   <button
-                                    ref={(node) => setMobileProductPickerTrigger(item.id, node)}
+                                    ref={undefined}
                                     type="button"
                                     className={openProductPickerId === item.id
                                       ? "w-full rounded-lg border-2 border-primary bg-background p-2 text-right"
@@ -2766,7 +2692,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
                                       <div
                                         className="mt-2 overflow-y-auto rounded-lg border"
-                                        style={{ maxHeight: productPickerPosition.maxHeight }}
+                                        style={{ maxHeight: 288 }}
                                       >
                                         {(() => {
                                           const search = productSearches[item.id] ?? "";
