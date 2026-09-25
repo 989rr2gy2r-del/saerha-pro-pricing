@@ -962,12 +962,12 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
   const finishSkuEdit = (index: number) => {
     const item = analysisResult?.items[index];
-    if (!item) return;
+    if (!item) return false;
     const draft = String(skuDrafts[item.id] ?? "").trim();
 
     if (!draft) {
       setSkuErrors((previous) => ({ ...previous, [item.id]: "اكتب كود الصنف أولًا." }));
-      return;
+      return false;
     }
 
     const normalized = normalizeForMatch(draft);
@@ -993,6 +993,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       delete next[item.id];
       return next;
     });
+
+    return true;
   };
 
   const handleProductSelect = (index: number, productId: string) => {
@@ -2211,8 +2213,10 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                       onKeyDown={(event) => {
                                         if (event.key === "Enter") {
                                           event.preventDefault();
-                                          finishSkuEdit(index);
-                                          focusNextOrderField(index, "sku");
+                                          const matched = finishSkuEdit(index);
+                                          if (matched) {
+                                            focusOrderField(index, "quantity");
+                                          }
                                         }
                                       }}
                                       placeholder="الكود / الباركود"
@@ -2627,7 +2631,10 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                       onKeyDown={(event) => {
                                         if (event.key === "Enter") {
                                           event.preventDefault();
-                                          finishSkuEdit(index);
+                                          const matched = finishSkuEdit(index);
+                                          if (matched) {
+                                            focusOrderField(index, "quantity");
+                                          }
                                         }
                                       }}
                                       placeholder="الكود / الباركود"
