@@ -644,6 +644,9 @@ function NewOrder() {
   const [invoiceDiscountType, setInvoiceDiscountType] = useState<"percent" | "amount" | "both">("percent");
   const [invoiceDiscountPercentDraft, setInvoiceDiscountPercentDraft] = useState("0");
   const [invoiceDiscountAmountDraft, setInvoiceDiscountAmountDraft] = useState("0");
+  const [orderSource, setOrderSource] = useState<"image" | "pdf" | "excel" | "text" | "handwriting">("text");
+  const [orderRawText, setOrderRawText] = useState("");
+  const [persistedOrderId, setPersistedOrderId] = useState<string | null>(null);
 
   const productOptions = useMemo(
     () =>
@@ -1579,6 +1582,20 @@ function NewOrder() {
     const first = validFiles[0];
     if (!first) return;
 
+    const detectedSource: "image" | "pdf" | "excel" | "text" | "handwriting" =
+      first.type === "application/pdf" || /\.pdf$/i.test(first.name)
+        ? "pdf"
+        : first.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+            first.type === "application/vnd.ms-excel" ||
+            /\.(xlsx|xls|csv)$/i.test(first.name)
+          ? "excel"
+          : first.type === "text/plain" || /\.txt$/i.test(first.name)
+            ? "text"
+            : "image";
+    setOrderSource(detectedSource);
+    setOrderRawText("");
+    setPersistedOrderId(null);
+
     const analyzedKey = `${first.name}|${first.size}|${first.lastModified}`;
     if (lastAnalyzedKey === analyzedKey) {
       setAnalysisError("تم تحليل هذا الملف مسبقًا، الرجاء اختيار ملف جديد للمعالجة.");
@@ -1804,6 +1821,13 @@ function NewOrder() {
         items: matchedItems,
         notes: String(rawResult["notes"] ?? "").trim(),
       });
+      setOrderRawText(
+        text.trim() ||
+          matchedItems
+            .map((item) => item.raw_text || item.description)
+            .filter(Boolean)
+            .join("\n"),
+      );
       void refreshPreviewPrices(matchedItems, customerId);
       setProgress(100);
     } catch (error) {
@@ -1950,11 +1974,64 @@ function NewOrder() {
 
       const orderTotals = calculateOrderTotals(quoteLines);
 
+      // Persist the reviewed customer request before creating the quotation.
+      // The order remains "in_review" until the quotation and its lines are saved.
+      let orderId = persistedOrderId;
+      if (!orderId) {
+        const orderReference = `O-${Date.now()}`;
+        const { data: order, error: orderError } = await (supabase as any)
+          .from("orders")
+          .insert({
+            reference: orderReference,
+            customer_id: customerId,
+            source: orderSource,
+            status: "in_review",
+            raw_text: orderRawText.trim() || validItems.map((item) => item.raw_text || item.description).filter(Boolean).join("\n"),
+            notes: [
+              "تم حفظ الطلب بعد مراجعة المنتجات وقبل إنشاء عرض السعر.",
+              analysisResult.notes?.trim() || "",
+            ].filter(Boolean).join(" — "),
+          })
+          .select("id")
+          .single();
+        if (orderError) throw orderError;
+        orderId = order.id;
+        setPersistedOrderId(orderId);
+
+        const orderItemRows = validItems.map((line, index) => ({
+          order_id: orderId,
+          product_id: line.product!.id,
+          line_no: index + 1,
+          raw_name: line.raw_text || line.description,
+          matched_sku: line.product!.sku,
+          quantity: Number(line.quantity || 0),
+          unit: line.unit || line.product!.unit || "حبة",
+          notes: line.notes || line.matchReason || null,
+          brand: line.product!.brand || null,
+          unit_price: Number(line.priceAmount ?? 0),
+          line_total: getLineDiscountDetails(line).lineTotal,
+          extra: {
+            confidence: line.confidence,
+            match_status: line.status,
+            accepted: line.accepted,
+            source_sku: line.sourceSku || null,
+            source_unit_price: line.sourceUnitPrice ?? null,
+            source_line_total: line.sourceLineTotal ?? null,
+          },
+        }));
+
+        const { error: orderItemsError } = await (supabase as any)
+          .from("order_items")
+          .insert(orderItemRows);
+        if (orderItemsError) throw orderItemsError;
+      }
+
       const { data: quote, error: quoteError } = await supabase
         .from("quotations")
         .insert({
           reference: `Q-${Date.now()}`,
           customer_id: customerId,
+          order_id: orderId,
           issue_date: new Date().toISOString().slice(0, 10),
           expiry_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
           price_type: quoteLines[0]?.priceType ?? "retail",
@@ -2009,8 +2086,18 @@ function NewOrder() {
       const { error: itemsError } = await (supabase as any).from("quotation_items").insert(itemRows);
       if (itemsError) throw itemsError;
 
+      const { error: orderStatusError } = await (supabase as any)
+        .from("orders")
+        .update({
+          status: "priced",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", orderId);
+      if (orderStatusError) throw orderStatusError;
+
+      setPersistedOrderId(null);
       setAnalysisError("");
-      alert("تم إنشاء عرض السعر بعد مراجعة المنتجات وتأكيد الأسعار بنجاح.");
+      alert("تم حفظ الطلب وربطه بعرض السعر بعد مراجعة المنتجات وتأكيد الأسعار بنجاح.");
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : "تعذّر إنشاء عرض السعر.");
     }
