@@ -8,10 +8,10 @@ const corsHeaders = {
 };
 
 const MODELS = [
-  // Fast/high-throughput model first, then two independent fallback pools.
-  { id: "gemini-3.5-flash-lite", timeoutMs: 20000 },
-  { id: "gemini-3.6-flash", timeoutMs: 25000 },
-  { id: "gemini-3.8-flash", timeoutMs: 25000 },
+  // Keep the cascade inside Supabase Edge's request budget.
+  // 3.8 Flash is the current production Flash model; 3.5 Flash-Lite is the fast fallback.
+  { id: "gemini-3.8-flash", timeoutMs: 14000 },
+  { id: "gemini-3.5-flash-lite", timeoutMs: 8500 },
 ];
 
 const MAX_IMAGE_BASE64 = 12_000_000;
@@ -144,7 +144,7 @@ async function callGemini(
               required: ["items", "notes"],
             },
             thinkingConfig: { thinkingLevel: "low" },
-            maxOutputTokens: 4096,
+            maxOutputTokens: 2048,
           },
         }),
       },
@@ -258,62 +258,52 @@ ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
       const modelPrompt =
         index === 0
           ? prompt
-          : prompt + "\n\nهذه مراجعة ثانية بعد تعذر المحاولة الأولى. لا تخترع أي معلومة؛ ركز على قراءة كل الصفوف والكمية والوحدة بدقة.";
+          : prompt + "\n\nهذه محاولة احتياطية بعد تعذر المحرك الأول. لا تخترع أي معلومة؛ ركز على قراءة كل الصفوف والكمية والوحدة بدقة.";
 
-      // 503/429 are transient capacity errors. Retry once with jitter before
-      // switching model pools instead of immediately falling back to weak OCR.
-      for (let retry = 0; retry < 2; retry += 1) {
-        try {
-          if (retry > 0) {
-            await sleep(1200 + Math.floor(Math.random() * 900));
-          }
+      try {
+        const result = await callGemini(
+          apiKey,
+          model.id,
+          model.timeoutMs,
+          mimeType,
+          base64Data,
+          modelPrompt,
+        );
+        lastResult = result;
 
-          const result = await callGemini(
-            apiKey,
-            model.id,
-            model.timeoutMs,
-            mimeType,
-            base64Data,
-            modelPrompt,
-          );
-          lastResult = result;
+        const confidences = result.items.map((item) => item.confidence).filter((value) => value > 0);
+        const averageConfidence = confidences.length
+          ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length
+          : 0;
 
-          const confidences = result.items.map((item) => item.confidence).filter((value) => value > 0);
-          const averageConfidence = confidences.length
-            ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length
-            : 0;
-
-          if (result.items.length > 0 && averageConfidence >= 0.78) {
-            return json({ success: true, result });
-          }
-
-          if (result.items.length > 0 && index === MODELS.length - 1) {
-            return json({
-              success: true,
-              result,
-              warning: "تمت القراءة لكن الثقة منخفضة؛ راجع السطور قبل الاعتماد.",
-            });
-          }
-
-          break;
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "unknown";
-          const statusMatch = message.match(/HTTP (\d{3})/);
-          const upstreamStatus = statusMatch ? Number(statusMatch[1]) : null;
-          attempts.push({
-            model: model.id,
-            error: message.slice(0, 800),
-            upstreamStatus,
-          });
-          console.warn("Gemini " + model.id + " failed", message);
-
-          if (!isRetryableGeminiError(message) || retry === 1) break;
+        if (result.items.length > 0 && averageConfidence >= 0.78) {
+          return json({ success: true, result });
         }
+
+        if (result.items.length > 0) {
+          return json({
+            success: true,
+            result,
+            warning: index === MODELS.length - 1
+              ? "تمت القراءة لكن الثقة منخفضة؛ راجع السطور قبل الاعتماد."
+              : "تمت القراءة من المحرك الأول لكن الثقة منخفضة؛ تمت مراجعة النتيجة بمحرك احتياطي.",
+          });
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "unknown";
+        const statusMatch = message.match(/HTTP (\d{3})/);
+        const upstreamStatus = statusMatch ? Number(statusMatch[1]) : null;
+        attempts.push({
+          model: model.id,
+          error: message.slice(0, 800),
+          upstreamStatus,
+        });
+        console.warn("Gemini " + model.id + " failed", message);
       }
     }
     return json({
       success: false,
-      error: "تعذر تشغيل محرك القراءة الذكي بعد محاولتين. سيتم تشغيل القراءة الاحتياطية.",
+      error: "تعذر تشغيل محرك القراءة الذكي حاليًا. سيتم تشغيل القراءة الاحتياطية.",
       code: attempts.some((attempt) => /AbortError|aborted|signal has been aborted/i.test(attempt.error))
         ? "GEMINI_TIMEOUT"
         : "GEMINI_FAILED",
