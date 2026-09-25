@@ -2498,7 +2498,7 @@ function NewOrder() {
                                     </div>
                                     <div className="space-y-1">
                                       <Label className="text-xs font-extrabold">
-                                        {"قيمة خصم الفاتورة كاملة"}
+                                        {invoiceDiscountType === "both" ? "قيمة خصم الفاتورة كاملة — نسبة + مبلغ" : "قيمة خصم الفاتورة كاملة"}
                                       </Label>
                                       {invoiceDiscountType === "both" ? (
                                         <div className="grid grid-cols-2 gap-2">
@@ -2796,47 +2796,27 @@ function NewOrder() {
                                   />
                                 </div>
                                 <div className="space-y-1">
-                                  <Label className="text-xs">خصم الصنف</Label>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <Select
-                                      value={item.discountType ?? "percent"}
-                                      onValueChange={(value) =>
-                                        handleDiscountTypeChange(index, value === "amount" ? "amount" : "percent")
+                                  <Label className="text-xs">خصم الصنف (%)</Label>
+                                  <Input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={discountDrafts[item.id] ?? String(Number(item.discountPercent ?? item.discountValue ?? 0))}
+                                    onFocus={(event) => {
+                                      beginDiscountEdit(index);
+                                      event.currentTarget.select();
+                                    }}
+                                    onChange={(event) => updateDiscountDraft(index, event.target.value)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        finishDiscountEdit(index);
+                                        event.currentTarget.blur();
                                       }
-                                    >
-                                      <SelectTrigger className="font-bold">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="percent">نسبة %</SelectItem>
-                                        <SelectItem value="amount">مبلغ د.ك</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                    <Input
-                                      type="text"
-                                      inputMode="decimal"
-                                      value={discountDrafts[item.id] ?? String(
-                                        item.discountType === "amount"
-                                          ? Number(item.discountValue ?? 0)
-                                          : Number(item.discountPercent ?? item.discountValue ?? 0)
-                                      )}
-                                      onFocus={(event) => {
-                                        beginDiscountEdit(index);
-                                        event.currentTarget.select();
-                                      }}
-                                      onChange={(event) => updateDiscountDraft(index, event.target.value)}
-                                      onKeyDown={(event) => {
-                                        if (event.key === "Enter") {
-                                          event.preventDefault();
-                                          finishDiscountEdit(index);
-                                          event.currentTarget.blur();
-                                        }
-                                      }}
-                                      onBlur={() => finishDiscountEdit(index)}
-                                      placeholder="0"
-                                      className="font-bold tabular-nums"
-                                    />
-                                  </div>
+                                    }}
+                                    onBlur={() => finishDiscountEdit(index)}
+                                    placeholder="0"
+                                    className="font-bold tabular-nums"
+                                  />
                                 </div>
                               </div>
 
@@ -2858,9 +2838,7 @@ function NewOrder() {
                                 <div className="rounded-lg bg-muted/50 px-2 py-2">
                                   <p className="text-[10px] text-muted-foreground">الخصم</p>
                                   <p className="mt-0.5 font-extrabold tabular-nums">
-                                    {item.discountType === "amount"
-                                      ? Number(item.discountValue ?? 0).toFixed(3) + " د.ك"
-                                      : Number(item.discountPercent ?? item.discountValue ?? 0).toFixed(2) + "%"}
+                                    {Number(item.discountPercent ?? item.discountValue ?? 0).toFixed(2)}%
                                   </p>
                                 </div>
                               </div>
@@ -2906,8 +2884,9 @@ function NewOrder() {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="percent">خصم بالمية %</SelectItem>
-                                    <SelectItem value="amount">خصم مبلغ د.ك</SelectItem>
+                                    <SelectItem value="percent">خصم بالنسبة %</SelectItem>
+                                    <SelectItem value="amount">خصم بالمبلغ د.ك</SelectItem>
+                                    <SelectItem value="both">خصم بالنسبة + مبلغ د.ك</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
