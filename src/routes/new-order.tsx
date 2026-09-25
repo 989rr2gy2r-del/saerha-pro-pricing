@@ -2492,3 +2492,66 @@ function NewOrder() {
               <Label>العميل</Label>
               <Select
                 value={customerId}
+                onValueChange={setCustomerId}
+                disabled={customersLoading || customers.length === 0}
+              >
+                <SelectTrigger className="h-12">
+                  <SelectValue
+                    placeholder={customersLoading ? "جاري تحميل العملاء..." : "اختر عميلاً"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.length > 0 ? (
+                    customers.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name} — {c.company || "بدون شركة"}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      {customersError || "لا توجد عملاء في قاعدة البيانات."}
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
+              {!customersLoading && customers.length === 0 && !customersError && (
+                <p className="text-xs text-muted-foreground">لا توجد عملاء في قاعدة البيانات.</p>
+              )}
+              {customersError && <p className="text-xs text-destructive">{customersError}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>مصدر الطلبية</Label>
+              <Select defaultValue="image">
+                <SelectTrigger className="h-12">
+                  <SelectValue placeholder="اختر المصدر" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["image", "pdf", "excel", "text", "handwriting"].map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 lg:col-span-2">
+              <Label>نص الطلبية (اختياري)</Label>
+              <Textarea rows={5} placeholder="الصق نص الطلبية هنا إن كانت مكتوبة..." />
+            </div>
+            <div className="space-y-2 lg:col-span-2">
+              <Label>ملاحظات</Label>
+              <Textarea rows={3} placeholder="ملاحظات إضافية عن الطلبية" />
+            </div>
+            <Button
+              size="lg"
+              className="h-14 w-full text-base font-extrabold lg:col-span-2"
+              onClick={() => void createQuoteFromAnalysis()}
+            >
+              إنشاء عرض سعر
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </AppShell>
+  );
+}
