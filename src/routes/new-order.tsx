@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import * as XLSX from "xlsx";
 import { Check, Database as DatabaseIcon, FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Search, Trash2, Upload, X } from "lucide-react";
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { createPortal } from "react-dom";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
@@ -622,6 +623,14 @@ function NewOrder() {
   const [lastAnalyzedKey, setLastAnalyzedKey] = useState<string>("");
   const [productSearches, setProductSearches] = useState<Record<string, string>>({});
   const [openProductPickerId, setOpenProductPickerId] = useState<string | null>(null);
+  const [productPickerPosition, setProductPickerPosition] = useState<{
+    placement: "top" | "bottom";
+    left: number;
+    width: number;
+    top?: number;
+    bottom?: number;
+  } | null>(null);
+  const productPickerTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   const [skuErrors, setSkuErrors] = useState<Record<string, string>>({});
   // Keep numeric drafts as text while the user types so a decimal separator
@@ -792,6 +801,42 @@ function NewOrder() {
     });
   };
 
+  const updateProductPickerPosition = (itemId: string) => {
+    const trigger = productPickerTriggerRefs.current[itemId];
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const gap = 8;
+    const viewportPadding = 14;
+    const width = Math.min(620, Math.max(280, window.innerWidth - viewportPadding * 2));
+    const rightAlignedLeft = window.innerWidth - rect.right;
+    const left = Math.min(
+      Math.max(viewportPadding, rightAlignedLeft),
+      Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
+    );
+    const estimatedHeight = Math.min(380, Math.max(220, window.innerHeight - viewportPadding * 2));
+    const spaceBelow = window.innerHeight - rect.bottom - gap - viewportPadding;
+    const spaceAbove = rect.top - gap - viewportPadding;
+    const placement: "top" | "bottom" =
+      spaceBelow >= estimatedHeight || spaceBelow >= spaceAbove ? "bottom" : "top";
+
+    if (placement === "bottom") {
+      setProductPickerPosition({
+        placement,
+        left,
+        width,
+        top: Math.min(window.innerHeight - viewportPadding - 160, rect.bottom + gap),
+      });
+    } else {
+      setProductPickerPosition({
+        placement,
+        left,
+        width,
+        bottom: Math.min(window.innerHeight - viewportPadding - 160, window.innerHeight - rect.top + gap),
+      });
+    }
+  };
+
   const handleOpenProductPicker = (index: number) => {
     const item = analysisResult?.items[index];
     if (!item) return;
@@ -801,11 +846,31 @@ function NewOrder() {
       ...previous,
       [item.id]: "",
     }));
+
+    window.requestAnimationFrame(() => {
+      updateProductPickerPosition(item.id);
+    });
   };
 
   const handleCloseProductPicker = () => {
     setOpenProductPickerId(null);
+    setProductPickerPosition(null);
   };
+
+  useEffect(() => {
+    if (!openProductPickerId) return;
+
+    const reposition = () => updateProductPickerPosition(openProductPickerId);
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+
+    const frame = window.requestAnimationFrame(reposition);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [openProductPickerId]);
 
   const recordCorrection = async (
     item: ReviewItem,
@@ -2023,7 +2088,7 @@ function NewOrder() {
                                             </Button>
                                           </div>
 
-                                          <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border">
+                                          <div className="mt-2 max-h-[min(18rem,calc(100vh-120px))] overflow-y-auto rounded-lg border">
                                             {(() => {
                                               const search = productSearches[item.id] ?? "";
                                               const filtered = filterProductOptions(search);
@@ -2243,6 +2308,9 @@ function NewOrder() {
                                   </div>
 
                                   <button
+                                    ref={(node) => {
+                                      productPickerTriggerRefs.current[item.id] = node;
+                                    }}
                                     type="button"
                                     className={openProductPickerId === item.id
                                       ? "w-full rounded-lg border-2 border-primary bg-background p-2 text-right"
@@ -2257,8 +2325,17 @@ function NewOrder() {
                                     )}
                                   </button>
 
-                                  {openProductPickerId === item.id && (
-                                    <div className="absolute right-0 top-full z-50 mt-1 w-[min(620px,calc(100vw-28px))] rounded-xl border bg-background p-2 shadow-2xl">
+                                  {openProductPickerId === item.id && productPickerPosition && createPortal(
+                                    <div
+                                      className="fixed z-[100] rounded-xl border bg-background p-2 shadow-2xl"
+                                      style={{
+                                        left: productPickerPosition.left,
+                                        width: productPickerPosition.width,
+                                        ...(productPickerPosition.placement === "bottom"
+                                          ? { top: productPickerPosition.top }
+                                          : { bottom: productPickerPosition.bottom }),
+                                      }}
+                                    >
                                       <div className="flex items-center gap-2">
                                         <div className="relative flex-1">
                                           <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -2287,7 +2364,7 @@ function NewOrder() {
                                         </Button>
                                       </div>
 
-                                      <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border">
+                                      <div className="mt-2 max-h-[min(18rem,calc(100vh-120px))] overflow-y-auto rounded-lg border">
                                         {(() => {
                                           const search = productSearches[item.id] ?? "";
                                           const filtered = filterProductOptions(search);
