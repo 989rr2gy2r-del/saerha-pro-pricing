@@ -2472,6 +2472,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                         ref={(node) => { keyboardFieldRefs.current[`${item.id}:unit`] = node; }}
                                         className="h-10 w-32 cursor-pointer font-bold"
                                         title="اختيار الوحدة — Enter للانتقال للسعر"
+                                        onMouseEnter={(event) => focusAndSelectField(event.currentTarget)}
                                         onKeyDown={(event) => {
                                           if (event.key === "Enter") {
                                             event.preventDefault();
