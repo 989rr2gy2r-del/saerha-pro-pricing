@@ -1211,7 +1211,7 @@ function NewOrder() {
   };
 
   const normalizeDecimalDraft = (value: string) =>
-    value.replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(/,/g, ".").replace(/\\s/g, "");
+    value.replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(/,/g, ".").replace(/\s/g, "");
 
   const updateNumericDraft = (index: number, field: "quantity" | "price", rawValue: string) => {
     const item = analysisResult?.items[index];
@@ -1220,8 +1220,8 @@ function NewOrder() {
     const normalized = normalizeDecimalDraft(rawValue);
     const value =
       field === "quantity"
-        ? normalized.replace(/\\D/g, "")
-        : normalized.replace(/[^0-9.]/g, "").replace(/(\\..*)\\./g, "$1");
+        ? normalized.replace(/\D/g, "")
+        : normalized.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1");
 
     if (field === "quantity" ? !/^\\d*$/.test(value) : !/^\\d*(?:\\.\\d*)?$/.test(value)) {
       return;
