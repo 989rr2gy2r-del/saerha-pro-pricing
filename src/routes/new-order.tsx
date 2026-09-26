@@ -541,6 +541,26 @@ type PreparedProductMatch = {
 };
 
 const preparedProductCache = new WeakMap<ProductRecord, PreparedProductMatch>();
+type MatchAliasRow = { product_id: string; alias: string; normalized_alias: string };
+const aliasRowsCache = new WeakMap<object, MatchAliasRow[]>();
+
+function prepareAliasRows(aliases: Record<string, string[]>): MatchAliasRow[] {
+  const cached = aliasRowsCache.get(aliases);
+  if (cached) return cached;
+
+  const rows = Object.entries(aliases).flatMap(([productId, values]) =>
+    values
+      .map((alias) => String(alias ?? "").trim())
+      .filter(Boolean)
+      .map((alias) => ({
+        product_id: productId,
+        alias,
+        normalized_alias: normalizeProductText(alias),
+      })),
+  );
+  aliasRowsCache.set(aliases, rows);
+  return rows;
+}
 
 function prepareProductForMatch(
   product: ProductRecord,
@@ -587,13 +607,7 @@ function findLocalProductMatch(
   const queries = [text, normalizedArabic].filter(Boolean);
   if (!queries.length) return null;
 
-  const aliasRows = Object.entries(aliases).flatMap(([productId, values]) =>
-    values.map((alias) => ({
-      product_id: productId,
-      alias,
-      normalized_alias: normalizeProductText(alias),
-    })),
-  );
+  const aliasRows = prepareAliasRows(aliases);
 
   const ranked = queries.flatMap((query) =>
     rankProductMatches(
