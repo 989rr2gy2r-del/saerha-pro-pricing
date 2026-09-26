@@ -466,6 +466,18 @@ function stripLeadingOrderQuantity(value: string, catalogSkus?: Set<string>): st
   return text.slice(token.length).trim();
 }
 
+function stripOrderPrefix(value: string, catalogSkus?: Set<string>): string {
+  let text = stripLeadingOrderQuantity(value, catalogSkus);
+  // After quantity, customers often write the order unit before the product:
+  // "1 حبة ترنكي", "3 كرتون ساكت", "2 ربطة سيم". The unit belongs to the
+  // order line, not the catalog product name, so never show it as the product.
+  text = text.replace(
+    /^(?:حبة|قطعة|قطع|كيس|كرتون|كرتونه|علبة|رول|لفة|لفه|لف|باكيت|باكت|باك|متر|سم|مم|كجم|كغ|جم|غ|لتر|مل|عبوة|طقم|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|packets?|packs?|cartons?|boxes?|meters?)\s+/i,
+    "",
+  );
+  return text.trim();
+}
+
 function normalizeQuantity(value: number): number {
   return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
 }
@@ -1732,7 +1744,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         // Never use an AI-normalized description as the search source: if OCR/model
         // misreads "4 لفه واير 6 ملي" as "هوز ميزان 6 ملي", matching that description
         // can silently select the wrong catalog item.
-        const productQuery = stripLeadingOrderQuantity(
+        const productQuery = stripOrderPrefix(
           item.raw_text || item.description,
           catalogSkus,
         );
@@ -1761,8 +1773,11 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           ...item,
           // Once a catalog product is matched, the displayed name comes from
           // the database — never from an AI-invented product name.
-          description: confirmedMatch?.product.name_ar ?? item.raw_text ?? item.description,
-          normalized_description_ar: confirmedMatch?.product.name_ar ?? item.normalized_description_ar,
+          // The product column is a catalog field, not the original order line.
+          // If no match is confirmed, show the cleaned product query without the
+          // leading quantity/unit; keep the untouched line in raw_text for audit.
+          description: confirmedMatch?.product.name_ar ?? productQuery,
+          normalized_description_ar: confirmedMatch?.product.name_ar ?? productQuery,
           quoteName: confirmedMatch?.product.name_ar ?? undefined,
           quantity:
             sourceSignals.quantity && sourceSignals.quantity > 0
