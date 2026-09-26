@@ -1816,8 +1816,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           // The product column is a catalog field, not the original order line.
           // If no match is confirmed, show the cleaned product query without the
           // leading quantity/unit; keep the untouched line in raw_text for audit.
-          description: confirmedMatch?.product.name_ar ?? productQuery,
-          normalized_description_ar: confirmedMatch?.product.name_ar ?? productQuery,
+          description: selectedMatch?.product.name_ar ?? productQuery,
+          normalized_description_ar: selectedMatch?.product.name_ar ?? productQuery,
           quoteName: selectedMatch?.product.name_ar ?? undefined,
           quantity:
             sourceSignals.quantity && sourceSignals.quantity > 0
