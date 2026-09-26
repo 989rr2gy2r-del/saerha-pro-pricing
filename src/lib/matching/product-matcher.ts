@@ -18,7 +18,7 @@ const MARKET_SYNONYMS: Array<[RegExp, string]> = [
   [/راليه|رليه|ريله/gi, "ريليه"],
   [/دبي\s*بي|دي\s*بي/gi, "ديبي"],
   [/رابطه|ربطه|ربطة/gi, "ربطه"],
-  [/كوبكل|كوبيكل/gi, "كوبيكل"],
+  [/كوبكل|كوبيكل|كيوبكل/gi, "كيوبكل"],
   [/ستالايت|ستلايت/gi, "ستلايت"],
   [/فلكسبل/gi, "فليكسيبل"],
   [/كيبل/gi, "كيبل"],
@@ -99,6 +99,9 @@ export function normalizeProductText(value: string): string {
     .replace(/(\d+(?:\.\d+)?)\s*(?:مم|mm)\b/gi, "$1 مم")
     .replace(/(\d+(?:\.\d+)?)\s*(?:سم|cm)\b/gi, "$1 سم")
     .replace(/(\d+(?:\.\d+)?)\s*(?:انش|inch|in)\b/gi, "$1 انش")
+    // Market phrasing such as "انش ونص" / "انش ونصف" means 1.5 inch.
+    .replace(/\b(انش|inch|in)\s+(?:ونص|ونصف)\b/gi, "1.5 انش")
+    .replace(/\b(انش|inch|in)\s+(?:ربع)\b/gi, "1.25 انش")
     .replace(/[^a-z0-9\u0600-\u06ff./]+/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -231,6 +234,19 @@ export function rankProductMatches<T>(
       ? Math.max(0, ...searchable.map((field) => overlapScore(queryIdentity, identityTokens(field))))
       : 1;
 
+    // Do not treat a longer product as an exact match for a short query.
+    // Example: "سيم" must not silently become "كماشه سيم", and
+    // "ساكت 3/4 عدساني" must not silently choose a green/hot variant.
+    // Exact catalog names and saved aliases remain authoritative.
+    const identityPrecision = queryIdentity.length
+      ? Math.max(0, ...searchable.map((field) => {
+          const candidateIdentity = identityTokens(field);
+          return candidateIdentity.length
+            ? overlapScore(candidateIdentity, queryIdentity)
+            : 0;
+        }))
+      : 1;
+
     const attributes = Math.min(numeric, fraction);
     const exactNameOrAlias = exact || alias;
     const specificationConflict =
@@ -239,9 +255,9 @@ export function rankProductMatches<T>(
 
     let score = exactNameOrAlias
       ? 1
-      : 0.42 * identity + 0.24 * token + 0.14 * character + 0.20 * attributes;
+      : 0.36 * identity + 0.20 * identityPrecision + 0.20 * token + 0.10 * character + 0.14 * attributes;
 
-    if (identity >= 1 && attributes === 1) score += 0.12;
+    if (identity >= 1 && identityPrecision >= 0.95 && attributes === 1) score += 0.12;
     if (specificationConflict) score = Math.min(score, 0.72);
     score = Math.max(0, Math.min(1, score));
 
@@ -256,7 +272,7 @@ export function rankProductMatches<T>(
             : "تشابه جزئي يحتاج مراجعة";
 
     const status: MatchCandidate<T>["status"] =
-      exactNameOrAlias || (identity >= 0.9 && attributes === 1 && score >= 0.86)
+      exactNameOrAlias || (identity >= 0.9 && identityPrecision >= 0.95 && attributes === 1 && score >= 0.86)
         ? "HIGH_CONFIDENCE"
         : "NEEDS_REVIEW";
 
