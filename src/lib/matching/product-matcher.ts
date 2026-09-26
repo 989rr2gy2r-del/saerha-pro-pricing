@@ -364,10 +364,22 @@ export function rankProductMatches<T>(
       0,
       ...searchable.map((field) => preparedSoftTokenScore(queryPrepared.tokens, field.tokens)),
     );
-    const character = Math.max(
+
+    // Character-level comparison is the most expensive part of matching.
+    // Do not run it across every catalog field when the candidate has no
+    // token-level/identity overlap at all. This keeps fuzzy matching useful
+    // for OCR typos while avoiding thousands of needless bigram comparisons.
+    const candidateIdentityQuick = Math.max(
       0,
-      ...searchable.map((field) => preparedCharacterScore(queryPrepared.bigrams, field.bigrams)),
+      ...searchable.map((field) => preparedOverlapScore(queryPrepared.identity, field.identity)),
     );
+    const character =
+      token > 0 || candidateIdentityQuick > 0
+        ? Math.max(
+            0,
+            ...searchable.map((field) => preparedCharacterScore(queryPrepared.bigrams, field.bigrams)),
+          )
+        : 0;
 
     const candidateNumbers = [...new Set(searchable.flatMap((field) => field.numbers))];
     const candidateFractions = [...new Set(searchable.flatMap((field) => field.fractions))];
@@ -379,12 +391,7 @@ export function rankProductMatches<T>(
       ? queryFractions.filter((number) => candidateFractions.includes(number)).length / queryFractions.length
       : 1;
 
-    const identity = queryIdentity.length
-      ? Math.max(
-          0,
-          ...searchable.map((field) => preparedOverlapScore(queryIdentity, field.identity)),
-        )
-      : 1;
+    const identity = queryIdentity.length ? candidateIdentityQuick : 1;
 
     const identityPrecision = queryIdentity.length
       ? Math.max(
