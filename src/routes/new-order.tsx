@@ -393,15 +393,19 @@ function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
     .replace(/\s+/g, " ")
     .trim();
 
-  // The first number in an order line is the quantity. It must never be
-  // included in product matching, even when the product itself contains
-  // specifications such as "300 أمبير", "4/3", or "40 وات".
-  const leadingQuantityMatch = asciiText.match(/^(\d+(?:\.\d+)?)\s+(?=\S)/);
-  const leadingQuantity = leadingQuantityMatch ? Number(leadingQuantityMatch[1]) : null;
+  // In customer orders the first number is the quantity, even when it is
+  // glued to the product name ("3بوكس", "3دي بي"). The only exception is
+  // an actual catalog SKU placed at the beginning of the line.
+  const leadingQuantityMatch = asciiText.match(/^(\d+(?:\.\d+)?)(?=\s|[^\d])/);
+  const leadingToken = leadingQuantityMatch?.[1] ?? "";
+  const leadingIsSku = Boolean(leadingToken && catalogSkus?.has(leadingToken));
+  const leadingQuantity =
+    leadingQuantityMatch && !leadingIsSku ? Number(leadingToken) : null;
 
   let sku = "";
   const numericTokens = asciiText.match(/\b\d{3,8}\b/g) ?? [];
   if (catalogSkus) sku = numericTokens.find((token) => catalogSkus.has(token)) ?? "";
+  if (!sku && leadingIsSku) sku = leadingToken;
 
   const unitMatches: Array<[RegExp, string]> = [
     [/(?:^|\s)(?:roll|rolls|رول|لفة|لفه|لف)(?:\s|$)/i, "رول"],
@@ -437,11 +441,15 @@ function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
 
   return { sku, unit, quantity };
 }
-function stripLeadingOrderQuantity(value: string): string {
-  return String(value ?? "")
+function stripLeadingOrderQuantity(value: string, catalogSkus?: Set<string>): string {
+  const text = String(value ?? "")
     .replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c)))
-    .replace(/^(\d+(?:\.\d+)?)\s+/, "")
     .trim();
+  const match = text.match(/^(\d+(?:\.\d+)?)(?=\s|[^\d])/);
+  if (!match) return text;
+  const token = match[1];
+  if (catalogSkus?.has(token)) return text;
+  return text.slice(token.length).trim();
 }
 
 function normalizeQuantity(value: number): number {
@@ -667,11 +675,18 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
   const filterProductOptions = (query: string) => {
     const normalizedQuery = normalizeForMatch(query);
-    if (!normalizedQuery) {
-      return productOptions.slice(0, 25);
-    }
+    if (!normalizedQuery) return productOptions.slice(0, 25);
 
     const queryTokens = normalizedQuery.split(" ").filter(Boolean);
+    const numericQueryTokens = queryTokens.filter((token) => /^\d+(?:\.\d+)?$/.test(token));
+    const genericTokens = new Set([
+      "حق", "ل", "من", "مع", "في", "على", "نوع", "مقاس", "حجم", "الخاص", "للـ",
+      "حبه", "قطعه", "قطعة", "كيس", "باكت", "باكيت", "كرتون", "رول", "لفه", "لف",
+      "متر", "صندوق", "درزن", "طقم", "زوج",
+    ]);
+    const coreQueryTokens = queryTokens.filter(
+      (token) => !numericQueryTokens.includes(token) && !genericTokens.has(token),
+    );
 
     return productOptions
       .map((option) => {
@@ -700,19 +715,39 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         const haystack = fields.join(" ");
         if (!haystack) return null;
 
-        // Search every loaded product; do not cap matching results here.
-        // This preserves all matches for short Arabic fragments and SKU prefixes
-        // such as "ف", "في", "فيو", "فيوز", "0", "07", "071", and "0710".
-        const matches = queryTokens.every((token) => haystack.includes(token));
-        if (!matches) return null;
-
+        const tokenHits = queryTokens.filter((token) => haystack.includes(token));
+        const coreHits = coreQueryTokens.filter((token) => haystack.includes(token));
+        const numericHits = numericQueryTokens.filter((token) => haystack.includes(token));
         const exactField = fields.some((field) => field === normalizedQuery);
         const startsField = fields.some((field) => field.startsWith(normalizedQuery));
-        const containsField = fields.some((field) => field.includes(normalizedQuery));
+
+        // Suggestions are intentionally broader than automatic matching:
+        // show a candidate when the product identity is present and at least
+        // one requested specification is present, even if the catalog name
+        // contains extra words such as material/brand/type.
+        const hasIdentity = coreQueryTokens.length
+          ? coreHits.length > 0
+          : tokenHits.length > 0;
+        const hasUsefulNumber = numericQueryTokens.length
+          ? numericHits.length > 0
+          : true;
+        if (!hasIdentity || !hasUsefulNumber) return null;
+
+        const coverage = tokenHits.length / Math.max(queryTokens.length, 1);
+        const coreCoverage = coreQueryTokens.length
+          ? coreHits.length / coreQueryTokens.length
+          : 0;
+        const numericCoverage = numericQueryTokens.length
+          ? numericHits.length / numericQueryTokens.length
+          : 0;
 
         return {
           option,
-          score: exactField ? 3 : startsField ? 2 : containsField ? 1 : 0,
+          score:
+            (exactField ? 4 : startsField ? 3 : 0) +
+            coreCoverage * 2 +
+            numericCoverage * 1.5 +
+            coverage,
         };
       })
       .filter((entry): entry is { option: (typeof productOptions)[number]; score: number } => Boolean(entry))
@@ -818,12 +853,14 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     const item = analysisResult?.items[index];
     if (!item) return;
 
+    const initialSearch = item.product
+      ? ""
+      : stripLeadingOrderQuantity(item.description || item.raw_text);
     setOpenProductPickerId(item.id);
     setProductSearches((previous) => ({
       ...previous,
-      [item.id]: "",
+      [item.id]: initialSearch,
     }));
-
   };
 
   const focusAndSelectField = (element: HTMLElement) => {
@@ -1707,17 +1744,23 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         const sourceSignals = extractOrderSignals(item.raw_text, catalogSkus);
         const modelSku = normalizeForMatch(item.sourceSku ?? "");
         const trustedSourceSku = sourceSignals.sku || (modelSku && catalogSkus.has(modelSku) ? modelSku : "");
-        const productQuery = stripLeadingOrderQuantity(item.description || item.raw_text);
+        const productQuery = stripLeadingOrderQuantity(
+          item.description || item.raw_text,
+          catalogSkus,
+        );
         const match = trustedSourceSku
           ? findLocalProductMatch(trustedSourceSku, matchingProducts, "", matchingAliases) ??
             findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases)
           : findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases);
         const confidence = Math.min(
           1,
-          Math.max(0, match ? Math.max(item.confidence, match.score) : item.confidence),
+          Math.max(0, match ? match.score : 0),
         );
+        // AI reading confidence can describe how clearly the text was read,
+        // but it must never turn an ambiguous catalog match into an accepted
+        // product. Catalog confidence is authoritative for product selection.
         const status: MatchStatus = match
-          ? confidence >= 0.85
+          ? match.status === "HIGH_CONFIDENCE" && confidence >= 0.85
             ? "HIGH_CONFIDENCE"
             : "NEEDS_REVIEW"
           : "UNMATCHED";
@@ -1752,7 +1795,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
             : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة",
           status,
           rejected: false,
-          accepted: Boolean(match && confidence >= 0.85),
+          accepted: Boolean(match && match.status === "HIGH_CONFIDENCE" && confidence >= 0.85),
           priceAmount: null,
           priceType: null,
           priceLabel: "جاري جلب السعر...",
