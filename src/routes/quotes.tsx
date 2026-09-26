@@ -1,6 +1,6 @@
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { createFileRoute } from "@tanstack/react-router";
-import { FileSpreadsheet, MessageCircle, Plus, Search, Trash2 } from "lucide-react";
+import { FileSpreadsheet, FolderOpen, MessageCircle, Plus, Search, Trash2 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
 import { useEffect, useMemo, useState } from "react";
@@ -84,6 +84,12 @@ function Quotes() {
   const [open, setOpen] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  const openQuoteForEditing = (quote: Quote) => {
+    window.location.assign(
+      `${import.meta.env.BASE_URL}new-order?editQuote=${encodeURIComponent(quote.id)}`,
+    );
+  };
 
   const loadQuotes = async () => {
     setLoading(true);
@@ -571,7 +577,10 @@ function Quotes() {
                       <Badge variant="secondary">{q.status}</Badge>
                     </TableCell>
                     <TableCell>
-                       <div className="flex gap-1">
+                       <div className="flex flex-wrap gap-1">
+                         <Button variant="ghost" size="sm" onClick={() => openQuoteForEditing(q)}>
+                           <FolderOpen className="ml-1 h-4 w-4" /> فتح
+                         </Button>
                          <Button variant="ghost" size="sm" onClick={() => void downloadPdf(q)}>PDF</Button>
                          <Button variant="ghost" size="sm" onClick={() => downloadExcel(q)}>
                            <FileSpreadsheet className="ml-1 h-4 w-4" /> Excel
@@ -601,6 +610,9 @@ function Quotes() {
           {open && (
             <div className="space-y-3">
                <div className="flex flex-wrap gap-2">
+                 <Button size="sm" onClick={() => openQuoteForEditing(open)}>
+                   <FolderOpen className="ml-1 h-4 w-4" /> فتح للتعديل
+                 </Button>
                  <Button size="sm" onClick={() => void downloadPdf(open)}>PDF</Button>
                  <Button size="sm" variant="outline" onClick={() => downloadExcel(open)}>
                    <FileSpreadsheet className="ml-1 h-4 w-4" /> Excel
