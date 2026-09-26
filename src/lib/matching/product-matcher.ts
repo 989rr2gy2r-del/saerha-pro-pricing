@@ -116,13 +116,6 @@ export function normalizeProductText(value: string): string {
   for (const [pattern, replacement] of MARKET_SYNONYMS) text = text.replace(pattern, replacement);
 
   return text
-    .replace(/(\d+(?:\.\d+)?)\s*[ف×x*]\s*(\d+(?:\.\d+)?)/gi, "$1 x $2")");
-    text = text.replace(new RegExp("(?<!\\s)(" + escaped + ")(?!\\s)", "gi"), " $1 ");
-  }
-
-  for (const [pattern, replacement] of MARKET_SYNONYMS) text = text.replace(pattern, replacement);
-
-  return text
     .replace(/\b(انش|inch|in)(?=(?:ونص|ونصف|ربع)\b)/gi, "$1 ")
     .replace(/(\d+(?:\.\d+)?)\s*[ف×x*]\s*(\d+(?:\.\d+)?)/gi, "$1 x $2")
     .replace(/\b4\s*[/\-]\s*3\b/g, "3/4")
