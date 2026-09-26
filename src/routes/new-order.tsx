@@ -2491,7 +2491,63 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         {(isAnalyzing || analysisError || analysisResult) && (
           <Card className="mb-5 border-2 border-accent/30">
             <CardContent className="p-5">
-              <h3 className="mb-4 text-lg font-extrabold">{editingQuoteId ? "تعديل عرض السعر " + (editingQuoteReference ?? "") : "نتيجة تحليل الطلب"}</h3>
+              <div className="mb-5 rounded-xl border-2 border-primary/15 bg-background p-4 shadow-sm" dir="rtl">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-muted-foreground">بيانات العرض</p>
+                    <h3 className="mt-1 text-xl font-black text-primary">
+                      {editingQuoteId ? "تعديل عرض السعر " + (editingQuoteReference ?? "") : "عرض سعر جديد"}
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {editingQuoteId
+                        ? "رقم العرض محفوظ ويمكنك تعديل بيانات العميل والأصناف ثم حفظ التعديلات."
+                        : "اختر العميل أو أضف عميلاً جديدًا مباشرة من هنا."}
+                    </p>
+                  </div>
+
+                  <div className="grid w-full gap-3 sm:grid-cols-[minmax(0,1fr)_auto] lg:max-w-2xl">
+                    <div className="space-y-2">
+                      <Label>العميل</Label>
+                      <div className="flex gap-2">
+                        <Select value={customerId} onValueChange={setCustomerId} disabled={customersLoading}>
+                          <SelectTrigger className="h-12 min-w-0 flex-1 font-bold">
+                            <SelectValue
+                              placeholder={customersLoading ? "جاري تحميل العملاء..." : "اختر عميلاً"}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {customers.map((customer) => (
+                              <SelectItem key={customer.id} value={customer.id}>
+                                {customer.name}{customer.phone ? " — " + customer.phone : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          className="h-12 shrink-0 gap-1 font-extrabold"
+                          onClick={() => {
+                            setNewCustomerError("");
+                            setCustomerDialogOpen(true);
+                          }}
+                        >
+                          <Plus className="h-4 w-4" />
+                          عميل جديد
+                        </Button>
+                      </div>
+                      {customersError && <p className="text-xs text-destructive">{customersError}</p>}
+                    </div>
+
+                    <div className="space-y-2 sm:min-w-44">
+                      <Label>رقم العرض</Label>
+                      <div className="flex h-12 items-center rounded-md border bg-muted/30 px-3 font-black tabular-nums">
+                        {editingQuoteReference ?? "سيُنشأ عند حفظ العرض"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {isAnalyzing && (
                 <p className="text-sm text-muted-foreground">
                   جارٍ تحليل الملف والمطابقة الذكية مع قاعدة المنتجات...
@@ -3387,116 +3443,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           </Card>
         )}
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {sources.map((s) => (
-            <Card key={s.label} className="shadow-card">
-              <CardContent className="flex flex-col items-center gap-2 p-4 text-center">
-                <s.icon className="h-6 w-6 text-primary" />
-                <p className="text-sm font-bold">{s.label}</p>
-                <p className="text-[11px] text-muted-foreground">{s.hint}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <Card className="border-2 border-primary/15 bg-background shadow-card">
-          <CardContent className="p-4 md:p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between" dir="rtl">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-muted-foreground">بيانات العرض</p>
-                <h2 className="mt-1 text-xl font-black text-primary">
-                  {editingQuoteId ? "تعديل عرض السعر " + (editingQuoteReference ?? "") : "عرض سعر جديد"}
-                </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {editingQuoteId
-                    ? "رقم العرض محفوظ ويمكنك تعديل بيانات العميل والأصناف ثم حفظ التعديلات."
-                    : "اختر العميل أو أضف عميلاً جديدًا مباشرة من هنا."}
-                </p>
-              </div>
-
-              <div className="grid w-full gap-3 sm:grid-cols-[minmax(0,1fr)_auto] lg:max-w-2xl">
-                <div className="space-y-2">
-                  <Label>العميل</Label>
-                  <div className="flex gap-2">
-                    <Select value={customerId} onValueChange={setCustomerId} disabled={customersLoading}>
-                      <SelectTrigger className="h-12 min-w-0 flex-1 font-bold">
-                        <SelectValue
-                          placeholder={customersLoading ? "جاري تحميل العملاء..." : "اختر عميلاً"}
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.name}{customer.phone ? " — " + customer.phone : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      className="h-12 shrink-0 gap-1 font-extrabold"
-                      onClick={() => {
-                        setNewCustomerError("");
-                        setCustomerDialogOpen(true);
-                      }}
-                    >
-                      <Plus className="h-4 w-4" />
-                      عميل جديد
-                    </Button>
-                  </div>
-                  {customersError && <p className="text-xs text-destructive">{customersError}</p>}
-                </div>
-
-                <div className="space-y-2 sm:min-w-44">
-                  <Label>رقم العرض</Label>
-                  <div className="flex h-12 items-center rounded-md border bg-muted/30 px-3 font-black tabular-nums">
-                    {editingQuoteReference ?? "سيُنشأ عند حفظ العرض"}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="text-base">بيانات الطلبية</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 lg:grid-cols-2">
-            <div className="space-y-2">
-              <Label>مصدر الطلبية</Label>
-              <Select defaultValue="image">
-                <SelectTrigger className="h-12">
-                  <SelectValue placeholder="اختر المصدر" />
-                </SelectTrigger>
-                <SelectContent>
-                  {["image", "pdf", "excel", "text", "handwriting"].map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2 lg:col-span-2">
-              <Label>نص الطلبية (اختياري)</Label>
-              <Textarea rows={5} placeholder="الصق نص الطلبية هنا إن كانت مكتوبة..." />
-            </div>
-            <div className="space-y-2 lg:col-span-2">
-              <Label>ملاحظات</Label>
-              <Textarea rows={3} placeholder="ملاحظات إضافية عن الطلبية" />
-            </div>
-            <Button
-              size="lg"
-              className="h-14 w-full text-base font-extrabold lg:col-span-2"
-              onClick={() => void createQuoteFromAnalysis()}
-              disabled={editingQuoteLoading || isAnalyzing}
-            >
-              {editingQuoteId ? "حفظ تعديلات عرض السعر" : "إنشاء عرض سعر"}
-            </Button>
-          </CardContent>
-        </Card>
-
         <Dialog open={customerDialogOpen} onOpenChange={setCustomerDialogOpen}>
           <DialogContent dir="rtl" className="sm:max-w-md">
             <DialogHeader>
@@ -3542,6 +3488,19 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {sources.map((s) => (
+            <Card key={s.label} className="shadow-card">
+              <CardContent className="flex flex-col items-center gap-2 p-4 text-center">
+                <s.icon className="h-6 w-6 text-primary" />
+                <p className="text-sm font-bold">{s.label}</p>
+                <p className="text-[11px] text-muted-foreground">{s.hint}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
       </div>
     </AppShell>
   );
