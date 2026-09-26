@@ -109,7 +109,10 @@ export function normalizeProductText(value: string): string {
     .replace(/(\d)([^\d\s])/g, "$1 $2");
 
   for (const word of marketWords) {
-    const escaped = word.replace(/[.*+?^$()|[\]\\]/g, "\\  text = normalizeNumberWords(text);
+    const escaped = word.replace(/[.*+?^$()|[\\]\\\\]/g, "\\$&");
+    text = text.replace(new RegExp("(?<!\\\\s)(" + escaped + ")(?!\\\\s)", "gi"), " $1 ");
+  }
+
   for (const [pattern, replacement] of MARKET_SYNONYMS) text = text.replace(pattern, replacement);
 
   return text
