@@ -333,15 +333,21 @@ function Quotes() {
         doc.addImage(`data:image/png;base64,${footerBase64}`, "PNG", margin, footerY, contentWidth, footerHeight);
       };
       const drawDocumentTitle = () => {
-        // Match the official Al-Awab invoice hierarchy: Arabic title above the
-        // English title, centered beneath the supplied official header artwork.
+        // The official header already contains "SALE INVOICE". Use the clear
+        // band between the two blue bars for the document type.
+        const centerX = pageWidth / 2;
+        const centerY = 61;
+
+        doc.setDrawColor(BLUE);
+        doc.setLineWidth(0.9);
+        doc.circle(centerX - 52, centerY, 4.2, "S");
+        doc.circle(centerX + 52, centerY, 4.2, "S");
+
         doc.setFont(arabicFontName, "normal");
-        doc.setFontSize(15);
+        doc.setFontSize(11.5);
         doc.setTextColor(TEXT);
-        doc.text(processArabic("عرض سعر"), pageWidth / 2, 112, { align: "center" });
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.text("QUOTATION", pageWidth / 2, 126, { align: "center" });
+        doc.text(processArabic("فاتورة"), centerX + 24, centerY + 4, { align: "center" });
+        doc.text(processArabic("عرض سعر"), centerX - 24, centerY + 4, { align: "center" });
       };
 
       const drawInfo = () => {
