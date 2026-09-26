@@ -2054,6 +2054,22 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
             : null;
         const chosen = customerSpecial ?? preferred ?? retail ?? reseller ?? null;
         const requestedUnit = item.unit || item.product!.unit || "حبة";
+
+        // When editing an existing quotation, preserve its saved quantity, unit,
+        // and price unless the user explicitly changed them in the table.
+        // Re-looking up current prices or applying unit conversions here could
+        // silently change an old quotation just by opening and saving it.
+        if (editingQuoteId && item.priceAmount !== null && Number.isFinite(Number(item.priceAmount))) {
+          return {
+            ...item,
+            quantity: normalizeQuantity(Number(item.quantity)),
+            unit: requestedUnit,
+            priceAmount: Number(item.priceAmount),
+            priceType: item.priceType ?? "retail",
+            priceLabel: item.priceType === "manual_quote" ? "سعر يدوي" : getPriceLookupKey(item.priceType ?? "retail"),
+          };
+        }
+
         if (manualPrice !== null) {
           return {
             ...item,
