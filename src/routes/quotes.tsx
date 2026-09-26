@@ -331,7 +331,7 @@ function Quotes() {
         // The official header already contains "SALE INVOICE". Use the clear
         // band between the two blue bars for the document type.
         const centerX = pageWidth / 2;
-        const centerY = 112;
+        const centerY = 84;
 
         doc.setDrawColor(BLUE);
         doc.setLineWidth(0.9);
@@ -348,9 +348,9 @@ function Quotes() {
       const drawInfo = () => {
         // Dimensions are taken from the supplied official invoice: one continuous
         // information block, customer on the right and document data on the left.
-        const top = 172;
-        const row = 25;
-        const leftW = 178;
+        const top = 118;
+        const row = 19;
+        const leftW = 158;
         const rightX = margin + leftW;
         const rightW = contentWidth - leftW;
 
@@ -413,10 +413,10 @@ function Quotes() {
           doc.setFontSize(8.2);
           doc.setTextColor(TEXT);
           doc.text(processArabic(label), margin + leftW - 36, y + 16, { align: "center" });
-          doc.setFont("helvetica", "normal");
+          doc.setFont(arabicFontName, "normal");
           doc.setFontSize(8.2);
           doc.setTextColor(TEXT);
-          doc.text(String(value), margin + 8, y + 16);
+          doc.text(processArabic(String(value)), margin + 8, y + 16, { align: "left" });
         });
 
         customerRows.forEach(([label, value], i) => {
@@ -453,7 +453,7 @@ function Quotes() {
         const x = margin;
         // Official invoice columns, left-to-right:
         // TOTAL | PRICE | UNIT | QTY. | DESCRIPTION | CODE
-        const widths = [108, 56, 45, 37, 196, 74];
+        const widths = [104, 60, 52, 42, 188, 54, 23];
         const headers = [
           ["الإجمالي", "TOTAL"],
           ["السعر", "PRICE"],
@@ -461,6 +461,7 @@ function Quotes() {
           ["الكمية", "QTY."],
           ["الصنف", "DESCRIPTION"],
           ["الكود", "CODE"],
+          ["م", "NO"],
         ];
 
         let cursor = x;
@@ -484,7 +485,7 @@ function Quotes() {
       };
 
       const drawTableRow = (y: number, item: QuoteItem, index: number) => {
-        const widths = [108, 56, 45, 37, 196, 74];
+        const widths = [104, 60, 52, 42, 188, 54, 23];
         const tableWidth = widths.reduce((a, b) => a + b, 0);
         const description = String(item.product_name ?? "");
         const descriptionLines = doc.splitTextToSize(processArabic(description), widths[4] - 10) as string[];
@@ -503,6 +504,7 @@ function Quotes() {
           String(item.quantity ?? 0),
           "",
           String(item.sku ?? ""),
+          String(index + 1),
         ];
 
         values.forEach((value, i) => {
@@ -514,11 +516,18 @@ function Quotes() {
             descriptionLines.slice(0, 3).forEach((line, lineIndex) => {
               doc.text(line, cursor + w - 7, y + 15 + lineIndex * 10, { align: "right" });
             });
-          } else if (i === 0 || i === 1 || i === 2 || i === 3 || i === 5) {
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(8);
-            doc.setTextColor(TEXT);
-            doc.text(value, cursor + w / 2, y + rowHeight / 2 + 3, { align: "center" });
+          } else if (i === 0 || i === 1 || i === 3 || i === 5 || i === 6) {
+            if (i === 2) {
+              doc.setFont(arabicFontName, "normal");
+              doc.setFontSize(8);
+              doc.setTextColor(TEXT);
+              doc.text(processArabic(value), cursor + w / 2, y + rowHeight / 2 + 3, { align: "center" });
+            } else {
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(8);
+              doc.setTextColor(TEXT);
+              doc.text(value, cursor + w / 2, y + rowHeight / 2 + 3, { align: "center" });
+            }
           }
           cursor += w;
         });
@@ -569,7 +578,7 @@ function Quotes() {
         drawCode39(quote.reference, pageWidth - margin - 170, y + 8, 170, 42);
       };
       let page = 1;
-      let y = 280;
+      let y = 236;
       drawHeader();
       drawDocumentTitle();
       drawInfo();
@@ -583,7 +592,7 @@ function Quotes() {
           page += 1;
           drawHeader();
           drawDocumentTitle();
-          y = 280;
+          y = 236;
           y = drawTableHeader(y);
         }
         y = drawTableRow(y, item, index);
