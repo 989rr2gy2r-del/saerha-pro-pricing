@@ -186,8 +186,9 @@ function Quotes() {
 
   const createPdfBlob = async (quote: Quote) => {
     try {
-      const [fontResponse, headerResponse, footerResponse] = await Promise.all([
+      const [fontResponse, sansFontResponse, headerResponse, footerResponse] = await Promise.all([
         fetch(`${import.meta.env.BASE_URL}fonts/NotoNaskhArabic-Regular.ttf`),
+        fetch("https://raw.githubusercontent.com/hotosm/HDM-CartoCSS/master/fonts/NotoSansArabic-Regular.ttf").catch(() => null),
         fetch(`${import.meta.env.BASE_URL}invoice-header.png`),
         fetch(`${import.meta.env.BASE_URL}invoice-footer.png`),
       ]);
@@ -206,11 +207,15 @@ function Quotes() {
         return btoa(binary);
       };
 
-      const [fontBase64, headerBase64, footerBase64] = await Promise.all([
+      const [fallbackFontBase64, headerBase64, footerBase64] = await Promise.all([
         toBase64(fontResponse),
         toBase64(headerResponse),
         toBase64(footerResponse),
       ]);
+      const useSansArabic = Boolean(sansFontResponse?.ok);
+      const fontBase64 = useSansArabic ? await toBase64(sansFontResponse as Response) : fallbackFontBase64;
+      const arabicFontFile = useSansArabic ? "NotoSansArabic-Regular.ttf" : "NotoNaskhArabic-Regular.ttf";
+      const arabicFontName = "ArabicInvoice";
 
       const doc = new jsPDF({ unit: "pt", format: "a4" });
       const BLUE = "#104F82";
@@ -219,9 +224,9 @@ function Quotes() {
       const TEXT = "#17324D";
       const LIGHT = "#F5F8FA";
 
-      doc.addFileToVFS("NotoNaskhArabic-Regular.ttf", fontBase64);
-      doc.addFont("NotoNaskhArabic-Regular.ttf", "NotoNaskhArabic", "normal");
-      doc.setFont("NotoNaskhArabic", "normal");
+      doc.addFileToVFS(arabicFontFile, fontBase64);
+      doc.addFont(arabicFontFile, arabicFontName, "normal");
+      doc.setFont(arabicFontName, "normal");
       doc.setLanguage("ar-KW");
       doc.setR2L(false);
 
@@ -253,7 +258,7 @@ function Quotes() {
         size = 9,
         align: "left" | "center" | "right" = "right",
       ) => {
-        doc.setFont("NotoNaskhArabic", "normal");
+        doc.setFont(arabicFontName, "normal");
         doc.setFontSize(size);
         doc.setTextColor(TEXT);
         doc.text(processArabic(value), x, y, { align });
@@ -274,7 +279,7 @@ function Quotes() {
         doc.rect(x + width - 72, y, 72, height, "F");
         drawText(label, x + width - 36, y + 15, 8.5, "center");
         doc.setTextColor("#FFFFFF");
-        doc.setFont("NotoNaskhArabic", "normal");
+        doc.setFont(arabicFontName, "normal");
         doc.setFontSize(8.5);
         doc.text(processArabic(label), x + width - 36, y + 15, { align: "center" });
         drawText(value, x + width - 82, y + 15, 8.5, "right");
@@ -330,7 +335,7 @@ function Quotes() {
       const drawDocumentTitle = () => {
         // Match the official Al-Awab invoice hierarchy: Arabic title above the
         // English title, centered beneath the supplied official header artwork.
-        doc.setFont("NotoNaskhArabic", "normal");
+        doc.setFont(arabicFontName, "normal");
         doc.setFontSize(15);
         doc.setTextColor(TEXT);
         doc.text(processArabic("عرض سعر"), pageWidth / 2, 112, { align: "center" });
@@ -365,14 +370,14 @@ function Quotes() {
           doc.setFillColor("#F1F5F7");
           doc.rect(labelX, top, labelWidth, row, "F");
 
-          doc.setFont("NotoNaskhArabic", "normal");
+          doc.setFont(arabicFontName, "normal");
           doc.setFontSize(8.2);
           doc.setTextColor(TEXT);
           doc.text(processArabic(label), labelX + labelWidth / 2, top + 16, { align: "center" });
 
           const valueX = labelSide === "right" ? x + 8 : x + labelWidth + 8;
           const valueWidth = width - labelWidth - 16;
-          doc.setFont("NotoNaskhArabic", "normal");
+          doc.setFont(arabicFontName, "normal");
           doc.setFontSize(8.2);
           doc.setTextColor(TEXT);
           const valueLines = doc.splitTextToSize(processArabic(value), Math.max(30, valueWidth)) as string[];
@@ -403,7 +408,7 @@ function Quotes() {
           doc.rect(margin, y, leftW, row, "FD");
           doc.setFillColor("#F1F5F7");
           doc.rect(margin + leftW - 72, y, 72, row, "F");
-          doc.setFont("NotoNaskhArabic", "normal");
+          doc.setFont(arabicFontName, "normal");
           doc.setFontSize(8.2);
           doc.setTextColor(TEXT);
           doc.text(processArabic(label), margin + leftW - 36, y + 16, { align: "center" });
@@ -421,7 +426,7 @@ function Quotes() {
           doc.rect(rightX, y, rightW, row, "FD");
           doc.setFillColor("#F1F5F7");
           doc.rect(rightX + rightW - 72, y, 72, row, "F");
-          doc.setFont("NotoNaskhArabic", "normal");
+          doc.setFont(arabicFontName, "normal");
           doc.setFontSize(8.2);
           doc.setTextColor(TEXT);
           doc.text(processArabic(label), rightX + rightW - 36, y + 16, { align: "center" });
@@ -464,7 +469,7 @@ function Quotes() {
 
         headers.forEach(([ar, en], index) => {
           const w = widths[index];
-          doc.setFont("NotoNaskhArabic", "normal");
+          doc.setFont(arabicFontName, "normal");
           doc.setTextColor("#FFFFFF");
           doc.setFontSize(7.8);
           doc.text(processArabic(ar), cursor + w / 2, y + 12, { align: "center" });
@@ -502,7 +507,7 @@ function Quotes() {
         values.forEach((value, i) => {
           const w = widths[i];
           if (i === 4) {
-            doc.setFont("NotoNaskhArabic", "normal");
+            doc.setFont(arabicFontName, "normal");
             doc.setFontSize(8.1);
             doc.setTextColor(TEXT);
             descriptionLines.slice(0, 3).forEach((line, lineIndex) => {
@@ -540,7 +545,7 @@ function Quotes() {
           doc.setDrawColor("#FFFFFF");
           doc.setFillColor(BLUE);
           doc.rect(boxX, yy, boxW, rowH, "F");
-          doc.setFont("NotoNaskhArabic", "normal");
+          doc.setFont(arabicFontName, "normal");
           doc.setFontSize(8.2);
           doc.setTextColor("#FFFFFF");
           doc.text(processArabic(String(label)), boxX + boxW - 8, yy + 15, { align: "right" });
@@ -552,7 +557,7 @@ function Quotes() {
         const netY = y + totalRows.length * rowH;
         doc.setFillColor(ORANGE);
         doc.rect(boxX, netY, boxW, 28, "F");
-        doc.setFont("NotoNaskhArabic", "normal");
+        doc.setFont(arabicFontName, "normal");
         doc.setFontSize(9.5);
         doc.setTextColor("#FFFFFF");
         doc.text(processArabic("الباقي"), boxX + boxW - 8, netY + 18, { align: "right" });
