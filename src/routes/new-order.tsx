@@ -1,12 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import * as XLSX from "xlsx";
-import { Check, Database as DatabaseIcon, FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Search, Trash2, Upload, X } from "lucide-react";
+import { Check, Database as DatabaseIcon, FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +27,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { fetchCustomers } from "@/lib/db/saerha-data";
+import { createCustomer, fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
 import { normalizeProductText, rankProductMatches } from "@/lib/matching/product-matcher";
@@ -674,6 +682,11 @@ function NewOrder() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersLoading, setCustomersLoading] = useState(true);
   const [customersError, setCustomersError] = useState("");
+  const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerSaving, setNewCustomerSaving] = useState(false);
+  const [newCustomerError, setNewCustomerError] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<
     Array<{ name: string; size: number; type: string; status: string }>
   >([]);
@@ -791,6 +804,37 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       );
     } finally {
       setCustomersLoading(false);
+    }
+  };
+
+  const handleCreateCustomerInline = async () => {
+    const name = newCustomerName.trim();
+    const phone = newCustomerPhone.trim();
+
+    if (!name) {
+      setNewCustomerError("اكتب اسم العميل أولاً.");
+      return;
+    }
+    if (!phone) {
+      setNewCustomerError("اكتب رقم هاتف العميل.");
+      return;
+    }
+
+    try {
+      setNewCustomerSaving(true);
+      setNewCustomerError("");
+      const customer = await createCustomer({ name, phone, type: "تجزئة" });
+      setCustomers((current) =>
+        [...current, customer].sort((a, b) => a.name.localeCompare(b.name, "ar")),
+      );
+      setCustomerId(customer.id);
+      setNewCustomerName("");
+      setNewCustomerPhone("");
+      setCustomerDialogOpen(false);
+    } catch (error) {
+      setNewCustomerError(error instanceof Error ? error.message : "تعذر إضافة العميل.");
+    } finally {
+      setNewCustomerSaving(false);
     }
   };
 
@@ -3355,42 +3399,70 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           ))}
         </div>
 
+        <Card className="border-2 border-primary/15 bg-background shadow-card">
+          <CardContent className="p-4 md:p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between" dir="rtl">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-muted-foreground">بيانات العرض</p>
+                <h2 className="mt-1 text-xl font-black text-primary">
+                  {editingQuoteId ? "تعديل عرض السعر " + (editingQuoteReference ?? "") : "عرض سعر جديد"}
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {editingQuoteId
+                    ? "رقم العرض محفوظ ويمكنك تعديل بيانات العميل والأصناف ثم حفظ التعديلات."
+                    : "اختر العميل أو أضف عميلاً جديدًا مباشرة من هنا."}
+                </p>
+              </div>
+
+              <div className="grid w-full gap-3 sm:grid-cols-[minmax(0,1fr)_auto] lg:max-w-2xl">
+                <div className="space-y-2">
+                  <Label>العميل</Label>
+                  <div className="flex gap-2">
+                    <Select value={customerId} onValueChange={setCustomerId} disabled={customersLoading}>
+                      <SelectTrigger className="h-12 min-w-0 flex-1 font-bold">
+                        <SelectValue
+                          placeholder={customersLoading ? "جاري تحميل العملاء..." : "اختر عميلاً"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers.map((customer) => (
+                          <SelectItem key={customer.id} value={customer.id}>
+                            {customer.name}{customer.phone ? " — " + customer.phone : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      className="h-12 shrink-0 gap-1 font-extrabold"
+                      onClick={() => {
+                        setNewCustomerError("");
+                        setCustomerDialogOpen(true);
+                      }}
+                    >
+                      <Plus className="h-4 w-4" />
+                      عميل جديد
+                    </Button>
+                  </div>
+                  {customersError && <p className="text-xs text-destructive">{customersError}</p>}
+                </div>
+
+                <div className="space-y-2 sm:min-w-44">
+                  <Label>رقم العرض</Label>
+                  <div className="flex h-12 items-center rounded-md border bg-muted/30 px-3 font-black tabular-nums">
+                    {editingQuoteReference ?? "سيُنشأ عند حفظ العرض"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="text-base">بيانات الطلبية</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 lg:grid-cols-2">
-            <div className="space-y-2">
-              <Label>العميل</Label>
-              <Select
-                value={customerId}
-                onValueChange={setCustomerId}
-                disabled={customersLoading || customers.length === 0}
-              >
-                <SelectTrigger className="h-12">
-                  <SelectValue
-                    placeholder={customersLoading ? "جاري تحميل العملاء..." : "اختر عميلاً"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.length > 0 ? (
-                    customers.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name} — {c.company || "بدون شركة"}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">
-                      {customersError || "لا توجد عملاء في قاعدة البيانات."}
-                    </div>
-                  )}
-                </SelectContent>
-              </Select>
-              {!customersLoading && customers.length === 0 && !customersError && (
-                <p className="text-xs text-muted-foreground">لا توجد عملاء في قاعدة البيانات.</p>
-              )}
-              {customersError && <p className="text-xs text-destructive">{customersError}</p>}
-            </div>
             <div className="space-y-2">
               <Label>مصدر الطلبية</Label>
               <Select defaultValue="image">
@@ -3424,6 +3496,52 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
             </Button>
           </CardContent>
         </Card>
+
+        <Dialog open={customerDialogOpen} onOpenChange={setCustomerDialogOpen}>
+          <DialogContent dir="rtl" className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>إضافة عميل جديد</DialogTitle>
+              <DialogDescription>
+                أضف اسم العميل ورقم هاتفه وسيُضاف مباشرة إلى قائمة العملاء ويُختار لهذا العرض.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="inline-customer-name">اسم العميل</Label>
+                <Input
+                  id="inline-customer-name"
+                  value={newCustomerName}
+                  onChange={(event) => setNewCustomerName(event.target.value)}
+                  placeholder="اسم العميل"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="inline-customer-phone">رقم الهاتف</Label>
+                <Input
+                  id="inline-customer-phone"
+                  value={newCustomerPhone}
+                  onChange={(event) => setNewCustomerPhone(event.target.value)}
+                  placeholder="مثال: 5xxxxxxx"
+                  inputMode="tel"
+                />
+              </div>
+              {newCustomerError && (
+                <p className="rounded-md bg-destructive/10 p-2 text-sm text-destructive">
+                  {newCustomerError}
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCustomerDialogOpen(false)}>
+                إلغاء
+              </Button>
+              <Button type="button" onClick={() => void handleCreateCustomerInline()} disabled={newCustomerSaving}>
+                {newCustomerSaving ? "جارٍ الحفظ..." : "إضافة واختيار العميل"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppShell>
   );
