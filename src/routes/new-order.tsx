@@ -2403,7 +2403,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
       setPersistedOrderId(null);
       setAnalysisError("");
-      alert("تم حفظ الطلب وربطه بعرض السعر بعد مراجعة المنتجات وتأكيد الأسعار بنجاح.");
+      alert("تم حفظ عرض السعر " + quote.reference + " وربطه بالطلب بنجاح.");
+      window.location.assign(`${import.meta.env.BASE_URL}quotes`);
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : "تعذّر إنشاء عرض السعر.");
     }
