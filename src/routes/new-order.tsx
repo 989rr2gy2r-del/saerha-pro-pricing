@@ -800,9 +800,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       [item.id]: "",
     }));
 
-    window.requestAnimationFrame(() => {
-      updateProductPickerPosition(item.id);
-    });
   };
 
   const focusAndSelectField = (element: HTMLElement) => {
