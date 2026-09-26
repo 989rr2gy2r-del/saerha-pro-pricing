@@ -350,7 +350,9 @@ const PRODUCT_SELECT_FIELDS =
   "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, unit, description";
 
 const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
-  [/\bpipe(?:s)?\b/gi, "بايب"], [/\belbow(?:s)?\b/gi, "كوع"],
+  [/\bpipe(?:s)?\b/gi, "بايب"], [/\b(?:كيوبكل|كوبيكل|كوبكل)\b/gi, "كيوبكل"],
+  [/\b(?:دبي\s*بي|دي\s*بي)\b/gi, "ديبي"],
+  [/\belbow(?:s)?\b/gi, "كوع"],
   [/\btee(?:s)?\b/gi, "تي"], [/\bcoupling(?:s)?\b/gi, "وصلة"],
   [/\bcoupler(?:s)?\b/gi, "وصلة"], [/\bsocket(?:s)?\b/gi, "سكت"],
   [/\badapter(?:s)?\b/gi, "أدبتر"], [/\badaptor(?:s)?\b/gi, "أدبتر"],
@@ -381,6 +383,8 @@ function normalizeForMatch(value: string): string {
     .replace(/(\d+(?:\.\d+)?)\s*(?:مم|mm)\b/gi, "$1 مم")
     .replace(/(\d+(?:\.\d+)?)\s*(?:سم|cm)\b/gi, "$1 سم")
     .replace(/(\d+(?:\.\d+)?)\s*(?:انش|inch|in)\b/gi, "$1 انش")
+    .replace(/\b(انش|inch|in)\s+(?:ونص|ونصف)\b/gi, "1.5 انش")
+    .replace(/\b(انش|inch|in)\s+(?:ربع)\b/gi, "1.25 انش")
     .replace(/(\d+)\s*["”″]/g, "$1 انش")
 
     .replace(/\s+/g, " ").trim();
