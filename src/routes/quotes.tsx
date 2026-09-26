@@ -60,6 +60,8 @@ type QuoteItem = {
 
 type QuoteCustomer = { name?: string; company?: string; phone?: string };
 
+type QuoteCustomerValue = QuoteCustomer | QuoteCustomer[] | null | undefined;
+
 type Quote = {
   id: string;
   reference: string;
@@ -70,14 +72,17 @@ type Quote = {
   total?: number;
   status?: string | null;
   notes?: string | null;
-  customers?: QuoteCustomer[] | null;
+  customers?: QuoteCustomer[] | QuoteCustomer | null;
   quotation_items?: QuoteItem[];
 };
 
-const getCustomerList = (customers?: QuoteCustomer[] | null) => customers ?? [];
+const getCustomerList = (customers?: QuoteCustomerValue) => {
+  if (Array.isArray(customers)) return customers;
+  return customers ? [customers] : [];
+};
 
-const getCustomerName = (customers?: QuoteCustomer[] | null) =>
-  getCustomerList(customers)[0]?.name ?? "عميل";
+const getCustomerName = (customers?: QuoteCustomerValue) =>
+  getCustomerList(customers)[0]?.name?.trim() || "عميل";
 
 function Quotes() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
