@@ -241,9 +241,10 @@ export function rankProductMatches<T>(
     const identityPrecision = queryIdentity.length
       ? Math.max(0, ...searchable.map((field) => {
           const candidateIdentity = identityTokens(field);
-          return candidateIdentity.length
-            ? overlapScore(candidateIdentity, queryIdentity)
-            : 0;
+          if (!candidateIdentity.length) return 0;
+          const querySet = new Set(queryIdentity);
+          const matched = candidateIdentity.filter((token) => querySet.has(token)).length;
+          return matched / candidateIdentity.length;
         }))
       : 1;
 
