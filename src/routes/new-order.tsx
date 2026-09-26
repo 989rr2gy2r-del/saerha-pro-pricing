@@ -1736,9 +1736,15 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           ? findLocalProductMatch(trustedSourceSku, matchingProducts, "", matchingAliases) ??
             findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases)
           : findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases);
+
+        // A plausible candidate is not the same as a confirmed product.
+        // Never silently place a NEEDS_REVIEW candidate into the order:
+        // this was the source of wrong selections such as "كماشه سيم",
+        // the wrong "ساكت 3/4", and unrelated short matches.
+        const confirmedMatch = match?.status === "HIGH_CONFIDENCE" ? match : null;
         const confidence = Math.min(
           1,
-          Math.max(0, match ? Math.max(item.confidence, match.score) : item.confidence),
+          Math.max(0, confirmedMatch ? Math.max(item.confidence, confirmedMatch.score) : item.confidence),
         );
         const status: MatchStatus = match
           ? confidence >= 0.85
@@ -1750,15 +1756,15 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           ...item,
           // Once a catalog product is matched, the displayed name comes from
           // the database — never from an AI-invented product name.
-          description: match?.product.name_ar ?? item.raw_text ?? item.description,
-          normalized_description_ar: match?.product.name_ar ?? item.normalized_description_ar,
-          quoteName: match?.product.name_ar ?? undefined,
+          description: confirmedMatch?.product.name_ar ?? item.raw_text ?? item.description,
+          normalized_description_ar: confirmedMatch?.product.name_ar ?? item.normalized_description_ar,
+          quoteName: confirmedMatch?.product.name_ar ?? undefined,
           quantity:
             sourceSignals.quantity && sourceSignals.quantity > 0
               ? normalizeQuantity(sourceSignals.quantity)
               : normalizeQuantity(item.quantity),
           confidence,
-          product: match?.product ?? null,
+          product: confirmedMatch?.product ?? null,
           sourceSku: sourceSignals.sku || item.sourceSku || "",
           sourceUnitPrice: item.sourceUnitPrice ?? null,
           sourceLineTotal: item.sourceLineTotal ?? null,
@@ -1767,16 +1773,18 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           unit:
             sourceSignals.unit ||
             normalizeUnitValue(item.unit ?? "") ||
-            normalizeUnitValue(match?.product?.unit ?? "") ||
+            normalizeUnitValue(confirmedMatch?.product?.unit ?? "") ||
             "حبة",
-          matchReason: match
+          matchReason: confirmedMatch
             ? sourceSignals.sku
               ? "تمت المطابقة برقم الصنف الموجود في الطلب ثم تأكيد المنتج من قاعدة البيانات"
               : "تمت المطابقة مع قاعدة المنتجات — الاسم والبيانات من Supabase"
-            : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة",
+            : match
+              ? "وجد النظام مرشحًا قريبًا لكنه لم يعتمده تلقائيًا؛ يلزم اختيار الصنف للتأكد"
+              : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة",
           status,
           rejected: false,
-          accepted: Boolean(match && confidence >= 0.85),
+          accepted: Boolean(confirmedMatch && confidence >= 0.85),
           priceAmount: null,
           priceType: null,
           priceLabel: "جاري جلب السعر...",
