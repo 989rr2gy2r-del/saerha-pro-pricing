@@ -392,34 +392,51 @@ function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
     .replace(/,/g, ".")
     .replace(/\s+/g, " ")
     .trim();
+
+  // The first number in an order line is the quantity. It must never be
+  // included in product matching, even when the product itself contains
+  // specifications such as "300 أمبير", "4/3", or "40 وات".
+  const leadingQuantityMatch = asciiText.match(/^(\d+(?:\.\d+)?)\s+(?=\S)/);
+  const leadingQuantity = leadingQuantityMatch ? Number(leadingQuantityMatch[1]) : null;
+
   let sku = "";
   const numericTokens = asciiText.match(/\b\d{3,8}\b/g) ?? [];
   if (catalogSkus) sku = numericTokens.find((token) => catalogSkus.has(token)) ?? "";
+
   const unitMatches: Array<[RegExp, string]> = [
-    [/(?:^|\s)(?:roll|rolls|رول|لفة)(?:\s|$)/i, "رول"],
-    [/(?:^|\s)(?:pkt|pkts|pack|packs|packet|packets|باكيت|باك)(?:\s|$)/i, "باكيت"],
+    [/(?:^|\s)(?:roll|rolls|رول|لفة|لفه|لف)(?:\s|$)/i, "رول"],
+    [/(?:^|\s)(?:pkt|pkts|pack|packs|packet|packets|باكت|باكيت|باك)(?:\s|$)/i, "باكيت"],
     [/(?:^|\s)(?:carton|cartons|كرتون|كرتونه)(?:\s|$)/i, "كرتون"],
     [/(?:^|\s)(?:pcs?|pieces?|piece|حبة|قطعة|قطع)(?:\s|$)/i, "حبة"],
     [/(?:^|\s)(?:box|boxes|صندوق)(?:\s|$)/i, "صندوق"],
     [/(?:^|\s)(?:meter|meters|متر)(?:\s|$)/i, "متر"],
+    [/(?:^|\s)(?:ربطة|ربطه)(?:\s|$)/i, "ربطة"],
+    [/(?:^|\s)(?:كيس)(?:\s|$)/i, "كيس"],
   ];
+
   let unit = "";
-  let quantity: number | null = null;
+  let quantity: number | null = leadingQuantity;
+
   for (const [pattern, normalizedUnit] of unitMatches) {
     const match = asciiText.match(pattern);
     if (!match) continue;
     unit = normalizedUnit;
-    const start = match.index ?? 0;
-    const before = asciiText.slice(0, start).match(/(\d+(?:\.\d+)?)\s*$/);
-    const after = asciiText.slice(start + match[0].length).match(/^\s*(\d+(?:\.\d+)?)/);
+    const startIndex = match.index ?? 0;
+    const before = asciiText.slice(0, startIndex).match(/(\d+(?:\.\d+)?)\s*$/);
+    const after = asciiText.slice(startIndex + match[0].length).match(/^\s*(\d+(?:\.\d+)?)/);
     const candidate = after?.[1] ?? before?.[1] ?? "";
     const parsed = Number(candidate);
-    if (candidate && Number.isFinite(parsed) && parsed > 0) quantity = parsed;
+
+    // The leading quantity always wins. Only infer a quantity from a unit
+    // when there was no explicit quantity at the start of the line.
+    if (quantity == null && candidate && Number.isFinite(parsed) && parsed > 0) {
+      quantity = parsed;
+    }
     break;
   }
+
   return { sku, unit, quantity };
 }
-
 function normalizeQuantity(value: number): number {
   return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
 }
