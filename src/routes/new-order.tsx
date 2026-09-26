@@ -2147,28 +2147,35 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           }>,
           productId,
         );
-        if (
-          !chosen ||
-          (conversion.reason &&
-            conversion.quantity === Number(item.quantity) &&
-            requestedUnit !== (item.product!.unit || requestedUnit))
-        ) {
+        if (!chosen) {
           return {
             ...item,
             priceAmount: null,
             priceType: null,
             priceLabel: "لا يوجد سعر مناسب",
             quantity: normalizeQuantity(conversion.quantity),
-            unit: item.product!.unit || requestedUnit,
+            unit: requestedUnit,
           };
         }
+
+        // A database price is still a valid price even when the requested
+        // display unit has no conversion. The preview uses this same database
+        // price, so saving must not incorrectly report "no price".
+        const hasUnitConversion = conversion.converted;
+        const savedUnitPrice = hasUnitConversion
+          ? Number(chosen.amount) * conversion.multiplier
+          : Number(chosen.amount);
+
         return {
           ...item,
-          quantity: conversion.quantity,
-          unit: item.product!.unit || requestedUnit,
-          priceAmount: Number(chosen.amount),
+          quantity: hasUnitConversion ? conversion.quantity : normalizeQuantity(Number(item.quantity)),
+          unit: requestedUnit,
+          priceAmount: Number.isFinite(savedUnitPrice) ? savedUnitPrice : null,
           priceType: chosen.price_type,
-          priceLabel: getPriceLookupKey(chosen.price_type),
+          priceLabel: getPriceLookupKey(chosen.price_type) + (hasUnitConversion ? "" : " / " + (item.product!.unit || requestedUnit)),
+          notes: !hasUnitConversion && requestedUnit !== (item.product!.unit || requestedUnit)
+            ? [item.notes, "السعر من قاعدة الأسعار بوحدة " + (item.product!.unit || requestedUnit) + " — لا توجد تحويلة للوحدة المطلوبة"].filter(Boolean).join(" ")
+            : item.notes,
         };
       });
 
