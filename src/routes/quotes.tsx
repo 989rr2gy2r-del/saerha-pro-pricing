@@ -328,82 +328,140 @@ function Quotes() {
         doc.addImage(`data:image/png;base64,${footerBase64}`, "PNG", margin, footerY, contentWidth, footerHeight);
       };
       const drawDocumentTitle = () => {
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(16);
-        doc.setTextColor(TEXT);
-        doc.text("QUOTATION", pageWidth / 2, 118, { align: "center" });
+        // Match the official Al-Awab invoice hierarchy: Arabic title above the
+        // English title, centered beneath the supplied official header artwork.
         doc.setFont("NotoNaskhArabic", "normal");
-        doc.setFontSize(11);
+        doc.setFontSize(15);
         doc.setTextColor(TEXT);
-        doc.text(processArabic("عرض سعر"), pageWidth / 2, 132, { align: "center" });
+        doc.text(processArabic("عرض سعر"), pageWidth / 2, 112, { align: "center" });
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.text("QUOTATION", pageWidth / 2, 126, { align: "center" });
       };
 
       const drawInfo = () => {
+        // Dimensions are taken from the supplied official invoice: one continuous
+        // information block, customer on the right and document data on the left.
         const top = 146;
         const row = 25;
-        const leftW = 255;
-        const rightW = pageWidth - margin * 2 - leftW - 10;
-        const leftX = margin;
-        const rightX = leftX + leftW + 10;
+        const leftW = 178;
+        const rightX = margin + leftW;
+        const rightW = contentWidth - leftW;
 
-        // Quote information.
-        const info = [
-          ["رقم العرض", quote.reference],
-          ["التاريخ", quote.issue_date ?? ""],
-          ["تاريخ الانتهاء", quote.expiry_date ?? ""],
-          ["نوع السعر", quote.price_type ?? "retail"],
-        ];
-        info.forEach(([label, value], i) => {
-          const y = top + i * row;
+        const drawInfoRow = (
+          x: number,
+          width: number,
+          labelSide: "left" | "right",
+          labelWidth: number,
+          label: string,
+          value: string,
+        ) => {
           doc.setDrawColor(GRID);
+          doc.setLineWidth(0.55);
           doc.setFillColor("#FFFFFF");
-          doc.rect(leftX, y, leftW, row, "FD");
-          doc.setFillColor(BLUE);
-          doc.rect(leftX + leftW - 82, y, 82, row, "F");
-          doc.setFont("NotoNaskhArabic", "normal");
-          doc.setFontSize(8.5);
-          doc.setTextColor("#FFFFFF");
-          doc.text(processArabic(label), leftX + leftW - 41, y + 16, { align: "center" });
-          drawText(String(value), leftX + leftW - 94, y + 16, 8.5, "right");
-        });
+          doc.rect(x, top, width, row, "FD");
 
-        // Customer information.
+          const labelX = labelSide === "right" ? x + width - labelWidth : x;
+          doc.setFillColor("#F1F5F7");
+          doc.rect(labelX, top, labelWidth, row, "F");
+
+          doc.setFont("NotoNaskhArabic", "normal");
+          doc.setFontSize(8.2);
+          doc.setTextColor(TEXT);
+          doc.text(processArabic(label), labelX + labelWidth / 2, top + 16, { align: "center" });
+
+          const valueX = labelSide === "right" ? x + 8 : x + labelWidth + 8;
+          const valueWidth = width - labelWidth - 16;
+          doc.setFont("NotoNaskhArabic", "normal");
+          doc.setFontSize(8.2);
+          doc.setTextColor(TEXT);
+          const valueLines = doc.splitTextToSize(processArabic(value), Math.max(30, valueWidth)) as string[];
+          doc.text(valueLines.slice(0, 1), labelSide === "right" ? valueX : valueX, top + 16, {
+            align: labelSide === "right" ? "left" : "right",
+          });
+        };
+
+        const leftRows = [
+          ["رقم العرض", quote.reference],
+          ["التاريخ والوقت", formatInvoiceDate(quote.issue_date)],
+          ["المستخدم", ""],
+          ["إجمالي العرض", Number(quote.total ?? 0).toFixed(3)],
+        ];
+
         const customerRows = [
           ["اسم العميل", customer.name ?? "عميل"],
-          ["الشركة", customer.company ?? ""],
-          ["الهاتف", customer.phone ?? ""],
-          ["العملة", currency],
+          ["التلفون", customer.phone ?? ""],
+          ["العنوان", ""],
+          ["التعامل", quote.price_type === "reseller" ? "جملة" : "أجل"],
         ];
+
+        leftRows.forEach(([label, value], i) => {
+          const y = top + i * row;
+          doc.setDrawColor(GRID);
+          doc.setLineWidth(0.55);
+          doc.setFillColor("#FFFFFF");
+          doc.rect(margin, y, leftW, row, "FD");
+          doc.setFillColor("#F1F5F7");
+          doc.rect(margin + leftW - 72, y, 72, row, "F");
+          doc.setFont("NotoNaskhArabic", "normal");
+          doc.setFontSize(8.2);
+          doc.setTextColor(TEXT);
+          doc.text(processArabic(label), margin + leftW - 36, y + 16, { align: "center" });
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8.2);
+          doc.setTextColor(TEXT);
+          doc.text(String(value), margin + 8, y + 16);
+        });
+
         customerRows.forEach(([label, value], i) => {
           const y = top + i * row;
           doc.setDrawColor(GRID);
+          doc.setLineWidth(0.55);
           doc.setFillColor("#FFFFFF");
           doc.rect(rightX, y, rightW, row, "FD");
-          doc.setFillColor(BLUE);
-          doc.rect(rightX, y, 78, row, "F");
+          doc.setFillColor("#F1F5F7");
+          doc.rect(rightX + rightW - 72, y, 72, row, "F");
           doc.setFont("NotoNaskhArabic", "normal");
-          doc.setFontSize(8.5);
-          doc.setTextColor("#FFFFFF");
-          doc.text(processArabic(label), rightX + 39, y + 16, { align: "center" });
-          drawText(String(value), rightX + rightW - 10, y + 16, 8.5, "right");
+          doc.setFontSize(8.2);
+          doc.setTextColor(TEXT);
+          doc.text(processArabic(label), rightX + rightW - 36, y + 16, { align: "center" });
+          drawText(String(value), rightX + rightW - 82, y + 16, 8.2, "right");
         });
+      };
+
+      const formatInvoiceDate = (value?: string | null) => {
+        if (!value) return "";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return String(value);
+        const day = String(date.getDate()).padStart(2, "0");
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const year = date.getFullYear();
+        const hours24 = date.getHours();
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+        const hours12 = hours24 % 12 || 12;
+        const period = hours24 >= 12 ? "م" : "ص";
+        return day + "/" + month + "/" + year + " " + String(hours12).padStart(2, "0") + ":" + minutes + " " + period;
       };
 
       const drawTableHeader = (y: number) => {
         const x = margin;
-        const widths = [65, 50, 65, 55, 45, 195, 60];
+        // Official invoice columns, left-to-right:
+        // TOTAL | PRICE | UNIT | QTY. | DESCRIPTION | CODE
+        const widths = [108, 56, 45, 37, 196, 74];
         const headers = [
           ["الإجمالي", "TOTAL"],
-          ["الخصم", "DISC."],
           ["السعر", "PRICE"],
           ["الوحدة", "UNIT"],
           ["الكمية", "QTY."],
           ["الصنف", "DESCRIPTION"],
           ["الكود", "CODE"],
         ];
+
         let cursor = x;
+        const tableWidth = widths.reduce((a, b) => a + b, 0);
         doc.setFillColor(BLUE);
-        doc.rect(x, y, widths.reduce((a, b) => a + b, 0), 32, "F");
+        doc.rect(x, y, tableWidth, 32, "F");
+
         headers.forEach(([ar, en], index) => {
           const w = widths[index];
           doc.setFont("NotoNaskhArabic", "normal");
@@ -411,70 +469,83 @@ function Quotes() {
           doc.setFontSize(7.8);
           doc.text(processArabic(ar), cursor + w / 2, y + 12, { align: "center" });
           doc.setFont("helvetica", "normal");
-          doc.setFontSize(6.5);
+          doc.setFontSize(6.6);
           doc.text(en, cursor + w / 2, y + 24, { align: "center" });
           cursor += w;
         });
+
         return y + 32;
       };
 
       const drawTableRow = (y: number, item: QuoteItem, index: number) => {
-        const widths = [65, 50, 65, 55, 45, 195, 60];
+        const widths = [108, 56, 45, 37, 196, 74];
+        const tableWidth = widths.reduce((a, b) => a + b, 0);
         const description = String(item.product_name ?? "");
-        const descriptionLines = doc.splitTextToSize(processArabic(description), widths[5] - 12) as string[];
-        const rowHeight = Math.max(26, Math.min(52, 12 + descriptionLines.length * 11));
+        const descriptionLines = doc.splitTextToSize(processArabic(description), widths[4] - 10) as string[];
+        const rowHeight = Math.max(25, Math.min(48, 11 + descriptionLines.length * 11));
+
+        let cursor = margin;
+        doc.setDrawColor(GRID);
+        doc.setLineWidth(0.45);
+        doc.setFillColor("#FFFFFF");
+        doc.rect(margin, y, tableWidth, rowHeight, "FD");
+
         const values = [
           Number(item.line_total ?? 0).toFixed(3),
-          Number(item.discount_amount ?? 0).toFixed(3),
           Number(item.unit_price ?? 0).toFixed(3),
           String(item.unit ?? ""),
           String(item.quantity ?? 0),
           "",
           String(item.sku ?? ""),
         ];
-        let cursor = margin;
-        doc.setDrawColor(GRID);
-        doc.setFillColor(index % 2 === 0 ? "#FFFFFF" : LIGHT);
-        doc.rect(margin, y, widths.reduce((a, b) => a + b, 0), rowHeight, "FD");
 
         values.forEach((value, i) => {
           const w = widths[i];
-          if (i === 5) {
+          if (i === 4) {
             doc.setFont("NotoNaskhArabic", "normal");
-            doc.setFontSize(7.8);
+            doc.setFontSize(8.1);
             doc.setTextColor(TEXT);
-            descriptionLines.slice(0, 4).forEach((line, lineIndex) => {
-              doc.text(line, cursor + w - 8, y + 14 + lineIndex * 10, { align: "right" });
+            descriptionLines.slice(0, 3).forEach((line, lineIndex) => {
+              doc.text(line, cursor + w - 7, y + 15 + lineIndex * 10, { align: "right" });
             });
-          } else {
-            drawText(value, cursor + w / 2, y + rowHeight / 2 + 3, 7.5, "center");
+          } else if (i === 0 || i === 1 || i === 2 || i === 3 || i === 5) {
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8);
+            doc.setTextColor(TEXT);
+            doc.text(value, cursor + w / 2, y + rowHeight / 2 + 3, { align: "center" });
           }
           cursor += w;
         });
+
         return y + rowHeight;
       };
 
       const drawTotals = (y: number) => {
-        const boxW = 190;
-        const rowH = 23;
+        const boxW = 180;
+        const rowH = 22;
         const boxX = margin;
+        const shipping = 0;
+        const paid = 0;
+        const remaining = total;
 
         const totalRows = [
-          ["الإجمالي قبل الخصم", subtotal],
+          ["الإجمالي", subtotal],
           ["الخصم", discount],
-          ["الضريبة", tax],
+          ["الشحن", shipping],
+          ["المدفوع", paid],
         ];
 
         totalRows.forEach(([label, value], index) => {
           const yy = y + index * rowH;
+          doc.setDrawColor("#FFFFFF");
           doc.setFillColor(BLUE);
           doc.rect(boxX, yy, boxW, rowH, "F");
           doc.setFont("NotoNaskhArabic", "normal");
-          doc.setFontSize(8);
+          doc.setFontSize(8.2);
           doc.setTextColor("#FFFFFF");
           doc.text(processArabic(String(label)), boxX + boxW - 8, yy + 15, { align: "right" });
           doc.setFont("helvetica", "normal");
-          doc.setFontSize(8);
+          doc.setFontSize(8.2);
           doc.text(Number(value).toFixed(3), boxX + 8, yy + 15);
         });
 
@@ -484,17 +555,15 @@ function Quotes() {
         doc.setFont("NotoNaskhArabic", "normal");
         doc.setFontSize(9.5);
         doc.setTextColor("#FFFFFF");
-        doc.text(processArabic("الصافي"), boxX + boxW - 8, netY + 18, { align: "right" });
+        doc.text(processArabic("الباقي"), boxX + boxW - 8, netY + 18, { align: "right" });
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
-        doc.text(total.toFixed(3), boxX + 8, netY + 18);
+        doc.text(remaining.toFixed(3), boxX + 8, netY + 18);
 
         drawCode39(quote.reference, pageWidth - margin - 170, y + 8, 170, 42);
-        drawText("المبلغ الإجمالي شامل الخصم", pageWidth - margin - 85, y + 77, 7.5, "center");
-        drawText("تم إنشاء العرض من الطلبية بعد مراجعة المنتج وسعره", pageWidth - margin - 85, y + 94, 7.5, "center");
       };
       let page = 1;
-      let y = 252;
+      let y = 246;
       drawHeader();
       drawDocumentTitle();
       drawInfo();
@@ -508,7 +577,7 @@ function Quotes() {
           page += 1;
           drawHeader();
           drawDocumentTitle();
-          y = 146;
+          y = 246;
           y = drawTableHeader(y);
         }
         y = drawTableRow(y, item, index);
@@ -519,7 +588,8 @@ function Quotes() {
         doc.addPage();
         page += 1;
         drawHeader();
-        y = 132;
+        drawDocumentTitle();
+        y = 246;
         y = drawTableHeader(y);
       }
 
