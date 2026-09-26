@@ -1725,13 +1725,10 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           : findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases);
         const confidence = Math.min(
           1,
-          Math.max(0, match ? match.score : 0),
+          Math.max(0, match ? Math.max(item.confidence, match.score) : item.confidence),
         );
-        // AI reading confidence can describe how clearly the text was read,
-        // but it must never turn an ambiguous catalog match into an accepted
-        // product. Catalog confidence is authoritative for product selection.
         const status: MatchStatus = match
-          ? match.status === "HIGH_CONFIDENCE" && confidence >= 0.85
+          ? confidence >= 0.85
             ? "HIGH_CONFIDENCE"
             : "NEEDS_REVIEW"
           : "UNMATCHED";
@@ -1766,7 +1763,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
             : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة",
           status,
           rejected: false,
-          accepted: Boolean(match && match.status === "HIGH_CONFIDENCE" && confidence >= 0.85),
+          accepted: Boolean(match && confidence >= 0.85),
           priceAmount: null,
           priceType: null,
           priceLabel: "جاري جلب السعر...",
