@@ -3437,6 +3437,14 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                       <strong>ملاحظات:</strong> {analysisResult.notes}
                     </p>
                   )}
+                  <Button
+                    size="lg"
+                    className="h-14 w-full text-base font-extrabold"
+                    onClick={() => void createQuoteFromAnalysis()}
+                    disabled={editingQuoteLoading || isAnalyzing || !analysisResult.items?.length}
+                  >
+                    {editingQuoteId ? "حفظ تعديلات عرض السعر" : "إنشاء وحفظ عرض السعر"}
+                  </Button>
                 </div>
               )}
             </CardContent>
