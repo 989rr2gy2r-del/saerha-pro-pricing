@@ -88,6 +88,35 @@ export function normalizeProductText(value: string): string {
     .replace(/[۰-۹]/g, (c) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(c)));
 
   text = normalizeNumberWords(text);
+
+  // Customer orders frequently arrive from WhatsApp/OCR with Arabic market
+  // words glued together: "بوكسستالايت", "كيسملبوشانشونص",
+  // "حبهترانكي", "ربطهسيم", etc. Split only known catalog vocabulary;
+  // never invent a product name from the surrounding text.
+  const marketWords = [
+    "بوكس", "ستالايت", "ستلايت", "راليه", "رليه", "ريله", "مصعد",
+    "كيس", "ملبوش", "كيوبكل", "كوبيكل", "كوبكل",
+    "ديبي", "دبي", "دي بي", "كوع", "ساكت", "كتاوت",
+    "واير", "سيم", "ترنكي", "حبه", "ربطه", "باكيت",
+    "باكت", "طلقات", "شرمات", "كفر", "تيب", "بايب",
+    "عدساني", "نحاس", "حار", "اخضر", "أخضر",
+  ].sort((a, b) => b.length - a.length);
+
+  // Separate numbers from adjacent Arabic words so "3بوكس" and "4ف6"
+  // become tokenizable without changing their meaning.
+  text = text
+    .replace(/([^\d\s])(\d)/g, "$1 $2")
+    .replace(/(\d)([^\d\s])/g, "$1 $2");
+
+  for (const word of marketWords) {
+    const escaped = word.replace(/[.*+?^$()|[\]\\]/g, "\\  text = normalizeNumberWords(text);
+  for (const [pattern, replacement] of MARKET_SYNONYMS) text = text.replace(pattern, replacement);
+
+  return text
+    .replace(/(\d+(?:\.\d+)?)\s*[ف×x*]\s*(\d+(?:\.\d+)?)/gi, "$1 x $2")");
+    text = text.replace(new RegExp("(?<!\\s)(" + escaped + ")(?!\\s)", "gi"), " $1 ");
+  }
+
   for (const [pattern, replacement] of MARKET_SYNONYMS) text = text.replace(pattern, replacement);
 
   return text
