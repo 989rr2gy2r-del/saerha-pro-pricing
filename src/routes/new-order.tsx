@@ -703,6 +703,9 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   const [orderSource, setOrderSource] = useState<"image" | "pdf" | "excel" | "text" | "handwriting">("text");
   const [orderRawText, setOrderRawText] = useState("");
   const [persistedOrderId, setPersistedOrderId] = useState<string | null>(null);
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+  const [editingQuoteReference, setEditingQuoteReference] = useState<string | null>(null);
+  const [editingQuoteLoading, setEditingQuoteLoading] = useState(false);
 
   const productOptions = useMemo(
     () =>
@@ -865,9 +868,109 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     }
   };
 
+  const loadQuoteForEditing = async (quoteId: string) => {
+    try {
+      setEditingQuoteLoading(true);
+      setAnalysisError("");
+
+      const [{ data: quote, error: quoteError }, catalog] = await Promise.all([
+        (supabase as any)
+          .from("quotations")
+          .select(
+            "id, reference, customer_id, issue_date, expiry_date, price_type, discount_amount, total, notes, quotation_items(id, product_id, product_name, sku, quantity, unit, unit_price, discount_amount, line_total, applied_price_type, is_manual_price)",
+          )
+          .eq("id", quoteId)
+          .maybeSingle(),
+        loadProducts(),
+      ]);
+
+      if (quoteError) throw quoteError;
+      if (!quote) throw new Error("لم يتم العثور على عرض السعر المطلوب.");
+
+      const catalogById = new Map(catalog.products.map((product) => [product.id, product]));
+      const items = Array.isArray(quote.quotation_items) ? quote.quotation_items : [];
+
+      const loadedItems: ReviewItem[] = items.map((row: any, index: number) => {
+        const product = catalogById.get(String(row.product_id ?? ""));
+        const quantity = normalizeQuantity(Number(row.quantity ?? 0));
+        const unitPrice = Number(row.unit_price ?? 0);
+        const lineSubtotal = quantity * unitPrice;
+        const lineDiscountAmount = Math.max(0, Number(row.discount_amount ?? 0));
+        const discountPercent =
+          lineSubtotal > 0
+            ? Math.min(100, Math.max(0, (lineDiscountAmount / lineSubtotal) * 100))
+            : 0;
+
+        return {
+          id: String(row.id ?? ("edit-" + quoteId + "-" + index)),
+          description: product?.name_ar ?? String(row.product_name ?? ""),
+          normalized_description_ar: product?.name_ar ?? String(row.product_name ?? ""),
+          quantity,
+          unit: String(row.unit ?? product?.unit ?? "حبة"),
+          raw_text: String(row.product_name ?? product?.name_ar ?? ""),
+          confidence: 1,
+          notes: String(row.notes ?? ""),
+          product: product ?? null,
+          matchReason: product
+            ? "صنف محفوظ في عرض السعر — بياناته من قاعدة المنتجات"
+            : "تعذر العثور على المنتج في قاعدة البيانات الحالية",
+          status: product ? "HIGH_CONFIDENCE" : "UNMATCHED",
+          rejected: false,
+          accepted: Boolean(product),
+          priceAmount: Number.isFinite(unitPrice) ? unitPrice : null,
+          basePriceAmount: null,
+          basePriceUnit: product?.unit ?? String(row.unit ?? ""),
+          priceType: row.is_manual_price ? "manual_quote" : String(row.applied_price_type ?? quote.price_type ?? "retail"),
+          priceLabel: row.is_manual_price ? "سعر يدوي" : getPriceLookupKey(String(row.applied_price_type ?? quote.price_type ?? "retail")),
+          discountPercent,
+          discountType: "percent",
+          discountValue: discountPercent,
+          quoteName: String(row.product_name ?? product?.name_ar ?? ""),
+          sourceSku: String(row.sku ?? product?.sku ?? ""),
+          sourceUnitPrice: unitPrice,
+          sourceLineTotal: Number(row.line_total ?? 0),
+        };
+      });
+
+      const lineDiscountTotal = loadedItems.reduce(
+        (sum, item) => sum + getLineDiscountDetails(item).discountAmount,
+        0,
+      );
+      const storedDiscountTotal = Math.max(0, Number(quote.discount_amount ?? 0));
+      const invoiceDiscountAmount = Math.max(0, storedDiscountTotal - lineDiscountTotal);
+
+      setEditingQuoteId(String(quote.id));
+      setEditingQuoteReference(String(quote.reference ?? ""));
+      setCustomerId(String(quote.customer_id ?? ""));
+      setAnalysisResult({
+        items: loadedItems,
+        notes: String(quote.notes ?? ""),
+      });
+      setOrderSource("text");
+      setOrderRawText(loadedItems.map((item) => item.raw_text || item.description).filter(Boolean).join("\n"));
+      setInvoiceDiscountType(invoiceDiscountAmount > 0 ? "amount" : "percent");
+      setInvoiceDiscountPercentDraft("0");
+      setInvoiceDiscountAmountDraft(invoiceDiscountAmount.toFixed(3));
+      setProgress(100);
+
+      if (loadedItems.some((item) => !item.product)) {
+        setAnalysisError("تم فتح العرض، لكن يوجد صنف لم يعد موجودًا في قاعدة المنتجات الحالية؛ راجعه قبل الحفظ.");
+      }
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : "تعذر فتح عرض السعر للتعديل.");
+    } finally {
+      setEditingQuoteLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadCustomers();
     void loadProducts();
+  }, []);
+
+  useEffect(() => {
+    const quoteId = new URLSearchParams(window.location.search).get("editQuote");
+    if (quoteId) void loadQuoteForEditing(quoteId);
   }, []);
 
   const patchReviewItem = (index: number, updater: (item: ReviewItem) => ReviewItem) => {
@@ -2009,6 +2112,97 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
       const orderTotals = calculateOrderTotals(quoteLines);
 
+      if (editingQuoteId) {
+        const { data: existingQuote, error: existingQuoteError } = await (supabase as any)
+          .from("quotations")
+          .select("id, order_id")
+          .eq("id", editingQuoteId)
+          .maybeSingle();
+        if (existingQuoteError) throw existingQuoteError;
+        if (!existingQuote) throw new Error("عرض السعر الذي تريد تعديله لم يعد موجودًا.");
+
+        const { error: updateQuoteError } = await (supabase as any)
+          .from("quotations")
+          .update({
+            customer_id: customerId,
+            price_type: quoteLines[0]?.priceType ?? "retail",
+            discount_amount: orderTotals.totalDiscount,
+            tax_amount: 0,
+            subtotal: orderTotals.rawSubtotal,
+            total: orderTotals.finalTotal,
+            currency: "KWD",
+            status: "draft",
+            notes: [
+              "تم تعديل عرض السعر بعد مراجعة المنتج والسعر.",
+              orderTotals.lineDiscountTotal > 0
+                ? "خصم الأصناف: " + orderTotals.lineDiscountTotal.toFixed(3) + " د.ك"
+                : "",
+              orderTotals.invoiceDiscountAmount > 0
+                ? "خصم الفاتورة: " +
+                  (invoiceDiscountType === "percent"
+                    ? Number(invoiceDiscountPercentDraft || 0).toFixed(3) + "%"
+                    : invoiceDiscountType === "amount"
+                      ? Number(invoiceDiscountAmountDraft || 0).toFixed(3) + " د.ك"
+                      : Number(invoiceDiscountPercentDraft || 0).toFixed(3) + "% + " +
+                        Number(invoiceDiscountAmountDraft || 0).toFixed(3) + " د.ك")
+                : "",
+              analysisResult.notes?.trim() || "",
+            ].filter(Boolean).join(" — "),
+          })
+          .eq("id", editingQuoteId);
+        if (updateQuoteError) throw updateQuoteError;
+
+        const { error: deleteItemsError } = await (supabase as any)
+          .from("quotation_items")
+          .delete()
+          .eq("quotation_id", editingQuoteId);
+        if (deleteItemsError) throw deleteItemsError;
+
+        const itemRows: Array<Database["public"]["Tables"]["quotation_items"]["Insert"]> =
+          quoteLines.flatMap((line, index) => {
+            if (!line.product) return [];
+            return [
+              {
+                quotation_id: editingQuoteId,
+                line_no: index + 1,
+                product_id: line.product.id,
+                product_name: line.quoteName?.trim() || line.product.name_ar,
+                sku: line.product.sku,
+                quantity: Number(line.quantity || 0),
+                unit: line.unit || line.product.unit || "حبة",
+                unit_price: Number(line.priceAmount ?? 0),
+                discount_amount: getLineDiscountDetails(line).discountAmount,
+                line_total: getLineDiscountDetails(line).lineTotal,
+                applied_price_type: (line.priceType ?? "retail") as
+                  "retail" | "reseller" | "customer_special" | "manual_quote",
+                is_manual_price: line.priceType === "manual_quote",
+                notes: "سعر " + line.priceLabel,
+              },
+            ];
+          });
+
+        const { error: itemsError } = await (supabase as any)
+          .from("quotation_items")
+          .insert(itemRows);
+        if (itemsError) throw itemsError;
+
+        if (existingQuote.order_id) {
+          await (supabase as any)
+            .from("orders")
+            .update({
+              customer_id: customerId,
+              updated_at: new Date().toISOString(),
+              status: "priced",
+            })
+            .eq("id", existingQuote.order_id);
+        }
+
+        setAnalysisError("");
+        const referenceLabel = editingQuoteReference ? '"' + editingQuoteReference + '" ' : "";
+        alert("تم حفظ تعديلات عرض السعر " + referenceLabel + "بنجاح.");
+        return;
+      }
+
       // Persist the reviewed customer request before creating the quotation.
       // The order remains "in_review" until the quotation and its lines are saved.
       let orderId = persistedOrderId;
@@ -2140,11 +2334,19 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
   return (
     <AppShell
-      title="طلبية جديدة"
-      subtitle="رفع طلبية العميل والمرور بمطابقة منتجات حقيقية ثم إنشاء عرض سعر."
+      title={editingQuoteId ? "تعديل عرض السعر" : "طلبية جديدة"}
+      subtitle={editingQuoteId ? "فتح عرض سعر محفوظ وتعديل أصنافه وأسعاره ثم حفظ التعديلات." : "رفع طلبية العميل والمرور بمطابقة منتجات حقيقية ثم إنشاء عرض سعر."}
     >
       <div className="space-y-5">
-        <Card className="border-2 border-dashed border-accent/50 bg-accent-soft/40 shadow-card">
+        {editingQuoteLoading ? (
+          <Card className="border-2 border-primary/20 bg-background shadow-card">
+            <CardContent className="p-6 text-center text-sm text-muted-foreground">
+              جارٍ فتح عرض السعر وتجهيز بياناته للتعديل...
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {!editingQuoteId && <Card className="border-2 border-dashed border-accent/50 bg-accent-soft/40 shadow-card">
           <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
             <div className="grid h-16 w-16 place-items-center rounded-2xl bg-accent text-accent-foreground shadow-raised">
               <Upload className="h-8 w-8" />
@@ -2186,9 +2388,9 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
               </div>
             )}
           </CardContent>
-        </Card>
+        </Card>}
 
-        <Card className="border-2 border-primary/20 bg-background shadow-card">
+        {!editingQuoteId && <Card className="border-2 border-primary/20 bg-background shadow-card">
           <CardContent className="p-5">
             <div className="mb-3">
               <p className="text-base font-extrabold">أو الصق الطلبية كنص</p>
@@ -2214,12 +2416,12 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
               </Button>
             </div>
           </CardContent>
-        </Card>
+        </Card>}
 
         {(isAnalyzing || analysisError || analysisResult) && (
           <Card className="mb-5 border-2 border-accent/30">
             <CardContent className="p-5">
-              <h3 className="mb-4 text-lg font-extrabold">نتيجة تحليل الطلب</h3>
+              <h3 className="mb-4 text-lg font-extrabold">{editingQuoteId ? "تعديل عرض السعر " + (editingQuoteReference ?? "") : "نتيجة تحليل الطلب"}</h3>
               {isAnalyzing && (
                 <p className="text-sm text-muted-foreground">
                   جارٍ تحليل الملف والمطابقة الذكية مع قاعدة المنتجات...
@@ -3190,8 +3392,9 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
               size="lg"
               className="h-14 w-full text-base font-extrabold lg:col-span-2"
               onClick={() => void createQuoteFromAnalysis()}
+              disabled={editingQuoteLoading || isAnalyzing}
             >
-              إنشاء عرض سعر
+              {editingQuoteId ? "حفظ تعديلات عرض السعر" : "إنشاء عرض سعر"}
             </Button>
           </CardContent>
         </Card>
