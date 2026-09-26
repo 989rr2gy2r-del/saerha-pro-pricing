@@ -350,11 +350,6 @@ const PRODUCT_SELECT_FIELDS =
   "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, unit, description";
 
 const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
-  [/راليه|رليه|ريله/gi, "ريليه"],
-  [/دبي\s*بي|دي\s*بي/gi, "ديبي"],
-  [/ربطه|ربطة|رابطه/gi, "ربطه"],
-  [/ستالايت|ستلايت/gi, "ستلايت"],
-  [/ملي/gi, "مل"],
   [/\bpipe(?:s)?\b/gi, "بايب"], [/\belbow(?:s)?\b/gi, "كوع"],
   [/\btee(?:s)?\b/gi, "تي"], [/\bcoupling(?:s)?\b/gi, "وصلة"],
   [/\bcoupler(?:s)?\b/gi, "وصلة"], [/\bsocket(?:s)?\b/gi, "سكت"],
@@ -387,7 +382,7 @@ function normalizeForMatch(value: string): string {
     .replace(/(\d+(?:\.\d+)?)\s*(?:سم|cm)\b/gi, "$1 سم")
     .replace(/(\d+(?:\.\d+)?)\s*(?:انش|inch|in)\b/gi, "$1 انش")
     .replace(/(\d+)\s*["”″]/g, "$1 انش")
-    .replace(/(\d+(?:\.\d+)?)\s*ف\s*(\d+(?:\.\d+)?)/gi, "$1 x $2")
+
     .replace(/\s+/g, " ").trim();
   return normalized;
 }
@@ -681,18 +676,11 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
   const filterProductOptions = (query: string) => {
     const normalizedQuery = normalizeForMatch(query);
-    if (!normalizedQuery) return productOptions.slice(0, 25);
+    if (!normalizedQuery) {
+      return productOptions.slice(0, 25);
+    }
 
     const queryTokens = normalizedQuery.split(" ").filter(Boolean);
-    const numericQueryTokens = queryTokens.filter((token) => /^\d+(?:\.\d+)?$/.test(token));
-    const genericTokens = new Set([
-      "حق", "ل", "من", "مع", "في", "على", "نوع", "مقاس", "حجم", "الخاص", "للـ",
-      "حبه", "قطعه", "قطعة", "كيس", "باكت", "باكيت", "كرتون", "رول", "لفه", "لف",
-      "متر", "صندوق", "درزن", "طقم", "زوج",
-    ]);
-    const coreQueryTokens = queryTokens.filter(
-      (token) => !numericQueryTokens.includes(token) && !genericTokens.has(token),
-    );
 
     return productOptions
       .map((option) => {
@@ -721,39 +709,16 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         const haystack = fields.join(" ");
         if (!haystack) return null;
 
-        const tokenHits = queryTokens.filter((token) => haystack.includes(token));
-        const coreHits = coreQueryTokens.filter((token) => haystack.includes(token));
-        const numericHits = numericQueryTokens.filter((token) => haystack.includes(token));
+        const matches = queryTokens.every((token) => haystack.includes(token));
+        if (!matches) return null;
+
         const exactField = fields.some((field) => field === normalizedQuery);
         const startsField = fields.some((field) => field.startsWith(normalizedQuery));
-
-        // Suggestions are intentionally broader than automatic matching:
-        // show a candidate when the product identity is present and at least
-        // one requested specification is present, even if the catalog name
-        // contains extra words such as material/brand/type.
-        const hasIdentity = coreQueryTokens.length
-          ? coreHits.length > 0
-          : tokenHits.length > 0;
-        const hasUsefulNumber = numericQueryTokens.length
-          ? numericHits.length > 0
-          : true;
-        if (!hasIdentity || !hasUsefulNumber) return null;
-
-        const coverage = tokenHits.length / Math.max(queryTokens.length, 1);
-        const coreCoverage = coreQueryTokens.length
-          ? coreHits.length / coreQueryTokens.length
-          : 0;
-        const numericCoverage = numericQueryTokens.length
-          ? numericHits.length / numericQueryTokens.length
-          : 0;
+        const containsField = fields.some((field) => field.includes(normalizedQuery));
 
         return {
           option,
-          score:
-            (exactField ? 4 : startsField ? 3 : 0) +
-            coreCoverage * 2 +
-            numericCoverage * 1.5 +
-            coverage,
+          score: exactField ? 3 : startsField ? 2 : containsField ? 1 : 0,
         };
       })
       .filter((entry): entry is { option: (typeof productOptions)[number]; score: number } => Boolean(entry))
