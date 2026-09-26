@@ -227,17 +227,8 @@ export function rankProductMatches<T>(
       ? queryFractions.filter((number) => candidateFractions.includes(number)).length / queryFractions.length
       : 1;
 
-    // Prefer query coverage over candidate length. A catalog name may contain
-    // extra descriptors (brand/material/type) while still being the correct item.
-    // For example: "ترنكي 4 انش حق كابل" should still surface
-    // "ترنكي حديد 4 انش" for review instead of disappearing.
     const identity = queryIdentity.length
-      ? Math.max(0, ...searchable.map((field) => {
-          const candidateIdentity = identityTokens(field);
-          if (!candidateIdentity.length) return 0;
-          const candidateSet = new Set(candidateIdentity);
-          return queryIdentity.filter((token) => candidateSet.has(token)).length / queryIdentity.length;
-        }))
+      ? Math.max(0, ...searchable.map((field) => overlapScore(queryIdentity, identityTokens(field))))
       : 1;
 
     const attributes = Math.min(numeric, fraction);
@@ -248,9 +239,9 @@ export function rankProductMatches<T>(
 
     let score = exactNameOrAlias
       ? 1
-      : 0.50 * identity + 0.18 * token + 0.12 * character + 0.20 * attributes;
+      : 0.42 * identity + 0.24 * token + 0.14 * character + 0.20 * attributes;
 
-    if (identity >= 1 && attributes === 1) score += 0.10;
+    if (identity >= 1 && attributes === 1) score += 0.12;
     if (specificationConflict) score = Math.min(score, 0.72);
     score = Math.max(0, Math.min(1, score));
 
