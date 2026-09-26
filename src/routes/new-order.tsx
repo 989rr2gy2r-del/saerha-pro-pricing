@@ -1793,21 +1793,21 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
             findLocalProductMatch(productQuery, matchingProducts, normalizedCatalogQuery, matchingAliases)
           : findLocalProductMatch(productQuery, matchingProducts, normalizedCatalogQuery, matchingAliases);
 
-        // A plausible candidate is not the same as a confirmed product.
-        // Never silently place a NEEDS_REVIEW candidate into the order:
-        // this was the source of wrong selections such as "كماشه سيم",
-        // the wrong "ساكت 3/4", and unrelated short matches.
-        const confirmedMatch = match?.status === "HIGH_CONFIDENCE" ? match : null;
-        const confidence = confirmedMatch
-          ? Math.min(1, Math.max(0, Math.max(item.confidence, confirmedMatch.score)))
+        // Restore the previous automatic catalog selection behavior:
+        // the matcher may return a strong candidate marked NEEDS_REVIEW when
+        // the catalog has similar names. It still came from Supabase, so show
+        // that catalog product instead of leaving the row empty.
+        // Exact/alias/high-confidence matches keep their normal confidence;
+        // weaker candidates remain visibly marked for review.
+        const selectedMatch = match;
+        const confidence = selectedMatch
+          ? Math.min(1, Math.max(0, Math.max(item.confidence, selectedMatch.score)))
           : 0;
-        const status: MatchStatus = confirmedMatch
+        const status: MatchStatus = selectedMatch
           ? confidence >= 0.85
             ? "HIGH_CONFIDENCE"
             : "NEEDS_REVIEW"
-          : match
-            ? "NEEDS_REVIEW"
-            : "UNMATCHED";
+          : "UNMATCHED";
 
         return {
           ...item,
@@ -1818,13 +1818,13 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           // leading quantity/unit; keep the untouched line in raw_text for audit.
           description: confirmedMatch?.product.name_ar ?? productQuery,
           normalized_description_ar: confirmedMatch?.product.name_ar ?? productQuery,
-          quoteName: confirmedMatch?.product.name_ar ?? undefined,
+          quoteName: selectedMatch?.product.name_ar ?? undefined,
           quantity:
             sourceSignals.quantity && sourceSignals.quantity > 0
               ? normalizeQuantity(sourceSignals.quantity)
               : normalizeQuantity(item.quantity),
           confidence,
-          product: confirmedMatch?.product ?? null,
+          product: selectedMatch?.product ?? null,
           sourceSku: sourceSignals.sku || item.sourceSku || "",
           sourceUnitPrice: item.sourceUnitPrice ?? null,
           sourceLineTotal: item.sourceLineTotal ?? null,
@@ -1833,18 +1833,18 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           unit:
             sourceSignals.unit ||
             normalizeUnitValue(item.unit ?? "") ||
-            normalizeUnitValue(confirmedMatch?.product?.unit ?? "") ||
+            normalizeUnitValue(selectedMatch?.product?.unit ?? "") ||
             "حبة",
-          matchReason: confirmedMatch
+          matchReason: selectedMatch
             ? sourceSignals.sku
-              ? "تمت المطابقة برقم الصنف الموجود في الطلب ثم تأكيد المنتج من قاعدة البيانات"
-              : "تمت المطابقة مع قاعدة المنتجات — الاسم والبيانات من Supabase"
-            : match
-              ? "وجد النظام مرشحًا قريبًا لكنه لم يعتمده تلقائيًا؛ يلزم اختيار الصنف للتأكد"
-              : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة",
+              ? "تمت المطابقة برقم الصنف الموجود في الطلب ثم اختيار المنتج من قاعدة البيانات"
+              : selectedMatch.status === "HIGH_CONFIDENCE"
+                ? "تمت المطابقة مع قاعدة المنتجات — الاسم والبيانات من Supabase"
+                : "تم اختيار أقرب منتج من قاعدة البيانات مع إبقاء السطر للمراجعة"
+            : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة",
           status,
           rejected: false,
-          accepted: Boolean(confirmedMatch && confidence >= 0.85),
+          accepted: Boolean(selectedMatch && confidence >= 0.85),
           priceAmount: null,
           priceType: null,
           priceLabel: "جاري جلب السعر...",
