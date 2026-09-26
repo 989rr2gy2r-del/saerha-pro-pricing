@@ -399,7 +399,14 @@ function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
   // an actual catalog SKU placed at the beginning of the line.
   const leadingQuantityMatch = asciiText.match(/^(\d+(?:\.\d+)?)(?=\s|[^\d])/);
   const leadingToken = leadingQuantityMatch?.[1] ?? "";
-  const leadingIsSku = Boolean(leadingToken && catalogSkus?.has(leadingToken));
+  // In order text, a leading 1/2/3/5/6 is overwhelmingly a quantity.
+  // Some catalog service items happen to have one-digit SKUs (1, 2, 3, 5, 6),
+  // so treating every leading catalog number as an SKU turns quantities into
+  // products such as "اجور توصيل" and "سبع سنابل". Only treat a leading token
+  // as an SKU here when it has the normal multi-digit catalog shape.
+  const leadingIsSku = Boolean(
+    leadingToken.length >= 3 && leadingToken && catalogSkus?.has(leadingToken),
+  );
   const leadingQuantity =
     leadingQuantityMatch && !leadingIsSku ? Number(leadingToken) : null;
 
@@ -449,7 +456,9 @@ function stripLeadingOrderQuantity(value: string, catalogSkus?: Set<string>): st
   const match = text.match(/^(\d+(?:\.\d+)?)(?=\s|[^\d])/);
   if (!match) return text;
   const token = match[1];
-  if (catalogSkus?.has(token)) return text;
+  // A one- or two-digit leading number in an order line is quantity, not SKU.
+  // Short service SKUs must never hijack quantity parsing.
+  if (token.length >= 3 && catalogSkus?.has(token)) return text;
   return text.slice(token.length).trim();
 }
 
