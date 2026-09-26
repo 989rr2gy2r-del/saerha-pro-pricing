@@ -553,14 +553,24 @@ function findLocalProductMatch(
     if (!previous || candidate.score > previous.score) byProduct.set(candidate.productId, candidate);
   }
 
-  const best = [...byProduct.values()].sort((a, b) => b.score - a.score)[0];
+  const sorted = [...byProduct.values()].sort((a, b) => b.score - a.score);
+  const best = sorted[0];
+  const second = sorted[1];
   if (!best || best.score < 0.55) return null;
+
+  // Do not auto-accept a generic product when another catalog product is
+  // almost equally plausible. This is critical for names such as "كوع 1.5".
+  const margin = second ? best.score - second.score : 1;
+  const ambiguous = margin < 0.10 && !best.signals.exact && !best.signals.alias;
+  const safeScore = ambiguous ? Math.min(best.score, 0.82) : best.score;
 
   return {
     product: best.product,
-    score: best.score,
-    status: best.status,
-    reason: best.reason,
+    score: safeScore,
+    status: ambiguous ? "NEEDS_REVIEW" : best.status,
+    reason: ambiguous
+      ? "يوجد أكثر من صنف قريب؛ يلزم اختيار المنتج الصحيح"
+      : best.reason,
   };
 }
 
