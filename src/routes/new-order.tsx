@@ -665,6 +665,13 @@ function NewOrder() {
   >([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [productAliases, setProductAliases] = useState<Record<string, string[]>>({});
+  // Reuse the initial catalog request if analysis starts before page-load finishes.
+  // Without this guard, uploading immediately after opening the page triggered
+  // a second full 4.5k-product download and made analysis unnecessarily slow.
+  const productsLoadPromiseRef = useRef<Promise<{
+    products: ProductRecord[];
+    aliases: Record<string, string[]>;
+  }> | null>(null);
   const [progress, setProgress] = useState(0);
   const [lastAnalyzedKey, setLastAnalyzedKey] = useState<string>("");
   const [productSearches, setProductSearches] = useState<Record<string, string>>({});
@@ -774,58 +781,73 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     products: ProductRecord[];
     aliases: Record<string, string[]>;
   }> => {
-    try {
-      const pageSize = 1000;
-      // Fetch the 4,583-product catalog in parallel pages instead of waiting
-      // for five sequential network round trips. If the catalog grows beyond
-      // 5,000 rows, continue in another parallel batch.
-      const allProducts: ProductRecord[] = [];
-      const aliasMap: Record<string, string[]> = {};
-      let from = 0;
-      while (true) {
-        const offsets = Array.from({ length: 5 }, (_, index) => from + index * pageSize);
-        const [pages, aliasResult] = await Promise.all([
-          Promise.all(
-            offsets.map(async (offset) => {
-              const { data, error } = await supabase
-                .from("products")
-                .select(PRODUCT_SELECT_FIELDS)
-                .order("name_ar", { ascending: true })
-                .range(offset, offset + pageSize - 1);
-              if (error) throw error;
-              return (data ?? []) as ProductRecord[];
-            }),
-          ),
-          from === 0
-            ? supabase.from("product_aliases").select("product_id, alias").limit(20000)
-            : Promise.resolve({ data: null, error: null }),
-        ]);
+    if (products.length) {
+      return { products, aliases: productAliases };
+    }
 
-        for (const page of pages) allProducts.push(...page);
+    if (productsLoadPromiseRef.current) {
+      return productsLoadPromiseRef.current;
+    }
 
-        if (pages.every((page) => page.length < pageSize)) {
-          const aliasRows = aliasResult.data ?? [];
-          const aliasError = aliasResult.error;
-          if (aliasError) throw aliasError;
+    const loadPromise = (async () => {
+      try {
+        const pageSize = 1000;
+        const allProducts: ProductRecord[] = [];
+        const aliasMap: Record<string, string[]> = {};
+        let from = 0;
 
-          for (const row of aliasRows ?? []) {
-            const alias = String(row.alias ?? "").trim();
-            if (!alias) continue;
-            aliasMap[row.product_id] = [...(aliasMap[row.product_id] ?? []), alias];
+        while (true) {
+          const offsets = Array.from({ length: 5 }, (_, index) => from + index * pageSize);
+          const [pages, aliasResult] = await Promise.all([
+            Promise.all(
+              offsets.map(async (offset) => {
+                const { data, error } = await supabase
+                  .from("products")
+                  .select(PRODUCT_SELECT_FIELDS)
+                  .order("name_ar", { ascending: true })
+                  .range(offset, offset + pageSize - 1);
+                if (error) throw error;
+                return (data ?? []) as ProductRecord[];
+              }),
+            ),
+            from === 0
+              ? supabase.from("product_aliases").select("product_id, alias").limit(20000)
+              : Promise.resolve({ data: null, error: null }),
+          ]);
+
+          for (const page of pages) allProducts.push(...page);
+
+          if (pages.every((page) => page.length < pageSize)) {
+            const aliasRows = aliasResult.data ?? [];
+            if (aliasResult.error) throw aliasResult.error;
+
+            for (const row of aliasRows) {
+              const alias = String(row.alias ?? "").trim();
+              if (!alias) continue;
+              aliasMap[row.product_id] = [...(aliasMap[row.product_id] ?? []), alias];
+            }
+
+            setProducts(allProducts);
+            setProductAliases(aliasMap);
+            return { products: allProducts, aliases: aliasMap };
           }
 
-          setProducts(allProducts);
-          setProductAliases(aliasMap);
-          return { products: allProducts, aliases: aliasMap };
+          from += pages.length * pageSize;
         }
-
-        from += pages.length * pageSize;
+      } catch {
+        setProducts([]);
+        setProductAliases({});
+        throw new Error("تعذر تحميل قاعدة المنتجات من Supabase.");
       }
+    })();
 
-    } catch {
-      setProducts([]);
-      setProductAliases({});
-      return { products: [], aliases: {} };
+    productsLoadPromiseRef.current = loadPromise;
+    try {
+      return await loadPromise;
+    } finally {
+      if (productsLoadPromiseRef.current === loadPromise) {
+        productsLoadPromiseRef.current = null;
+      }
     }
   };
 
@@ -1748,10 +1770,14 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           item.raw_text || item.description,
           catalogSkus,
         );
+        const normalizedCatalogQuery = stripOrderPrefix(
+          item.normalized_description_ar || item.description,
+          catalogSkus,
+        );
         const match = trustedSourceSku
           ? findLocalProductMatch(trustedSourceSku, matchingProducts, "", matchingAliases) ??
-            findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases)
-          : findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases);
+            findLocalProductMatch(productQuery, matchingProducts, normalizedCatalogQuery, matchingAliases)
+          : findLocalProductMatch(productQuery, matchingProducts, normalizedCatalogQuery, matchingAliases);
 
         // A plausible candidate is not the same as a confirmed product.
         // Never silently place a NEEDS_REVIEW candidate into the order:
