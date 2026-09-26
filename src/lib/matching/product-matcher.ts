@@ -213,6 +213,20 @@ function fieldValues<T>(product: T): string[] {
   ].filter(Boolean) as string[];
 }
 
+const normalizedFieldsCache = new WeakMap<object, string[]>();
+
+function cachedNormalizedFields<T>(product: T): string[] {
+  if (typeof product !== "object" || product === null) {
+    return fieldValues(product).map(normalizeProductText).filter(Boolean);
+  }
+  const key = product as object;
+  const cached = normalizedFieldsCache.get(key);
+  if (cached) return cached;
+  const normalized = fieldValues(product).map(normalizeProductText).filter(Boolean);
+  normalizedFieldsCache.set(key, normalized);
+  return normalized;
+}
+
 export function rankProductMatches<T>(
   query: string,
   products: T[],
@@ -236,7 +250,7 @@ export function rankProductMatches<T>(
 
   const ranked = products.map((product) => {
     const id = getId(product);
-    const normalizedFields = fieldValues(product).map(normalizeProductText).filter(Boolean);
+    const normalizedFields = cachedNormalizedFields(product);
     const productAliases = aliasesByProduct.get(id) ?? [];
     const searchable = [...normalizedFields, ...productAliases];
 
