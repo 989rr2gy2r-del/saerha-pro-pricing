@@ -223,6 +223,119 @@ function cachedNormalizedFields<T>(product: T): string[] {
   return normalized;
 }
 
+type PreparedText = {
+  value: string;
+  tokens: string[];
+  numbers: string[];
+  fractions: string[];
+  identity: string[];
+  bigrams: Set<string>;
+};
+
+const preparedTextCache = new Map<string, PreparedText>();
+
+function prepareText(value: string): PreparedText {
+  const normalized = normalizeProductText(value);
+  const cached = preparedTextCache.get(normalized);
+  if (cached) return cached;
+
+  const tokens = [...new Set(normalized.split(" ").filter(Boolean))];
+  const numbers = tokens.filter((token) => /^\d+(?:\.\d+)?$/.test(token));
+  const fractions = tokens.filter((token) => /^\d+\/\d+$/.test(token));
+  const identity = tokens.filter(
+    (token) =>
+      !NON_IDENTITY_TOKENS.has(token) &&
+      !/^\d+(?:\.\d+)?$/.test(token) &&
+      !/^\d+\/\d+$/.test(token),
+  );
+  const compact = normalized.replace(/\s/g, "");
+  const bigramSet = new Set<string>();
+  for (let i = 0; i < compact.length - 1; i += 1) {
+    bigramSet.add(compact.slice(i, i + 2));
+  }
+
+  const prepared = {
+    value: normalized,
+    tokens,
+    numbers,
+    fractions,
+    identity,
+    bigrams: bigramSet,
+  };
+  preparedTextCache.set(normalized, prepared);
+  return prepared;
+}
+
+type PreparedProduct<T> = {
+  product: T;
+  id: string;
+  fields: PreparedText[];
+};
+
+const preparedProductsCache = new WeakMap<object, PreparedProduct<unknown>>();
+const aliasesByArrayCache = new WeakMap<object, Map<string, string[]>>();
+
+function prepareProduct<T>(
+  product: T,
+  getId: (product: T) => string,
+): PreparedProduct<T> {
+  if (typeof product === "object" && product !== null) {
+    const cached = preparedProductsCache.get(product as object) as PreparedProduct<T> | undefined;
+    if (cached) return cached;
+  }
+
+  const prepared = {
+    product,
+    id: getId(product),
+    fields: fieldValues(product).map(prepareText).filter((field) => Boolean(field.value)),
+  };
+
+  if (typeof product === "object" && product !== null) {
+    preparedProductsCache.set(product as object, prepared as PreparedProduct<unknown>);
+  }
+  return prepared;
+}
+
+function prepareAliases(
+  aliases: Array<{ product_id: string; alias: string; normalized_alias?: string | null }>,
+) {
+  const cached = aliasesByArrayCache.get(aliases as object);
+  if (cached) return cached;
+
+  const byProduct = new Map<string, string[]>();
+  for (const row of aliases) {
+    const alias = normalizeProductText(row.normalized_alias || row.alias);
+    if (!alias) continue;
+    byProduct.set(row.product_id, [...(byProduct.get(row.product_id) ?? []), alias]);
+  }
+  aliasesByArrayCache.set(aliases as object, byProduct);
+  return byProduct;
+}
+
+function preparedSoftTokenScore(query: string[], candidate: string[]): number {
+  if (!query.length || !candidate.length) return 0;
+  let hits = 0;
+  for (const q of query) {
+    if (candidate.some((c) => c === q || (q.length >= 4 && (c.startsWith(q) || q.startsWith(c))))) hits += 1;
+  }
+  return hits / Math.max(query.length, candidate.length);
+}
+
+function preparedCharacterScore(left: Set<string>, right: Set<string>): number {
+  if (!left.size || !right.size) return 0;
+  let overlap = 0;
+  for (const item of left) if (right.has(item)) overlap += 1;
+  return (2 * overlap) / (left.size + right.size);
+}
+
+function preparedOverlapScore(query: string[], candidate: string[]): number {
+  if (!query.length || !candidate.length) return 0;
+  const candidateSet = new Set(candidate);
+  let hits = 0;
+  for (const token of query) if (candidateSet.has(token)) hits += 1;
+  return hits / query.length;
+}
+
 export function rankProductMatches<T>(
   query: string,
   products: T[],
@@ -233,35 +346,31 @@ export function rankProductMatches<T>(
   const normalizedQuery = normalizeProductText(query);
   if (!normalizedQuery) return [];
 
-  const queryNumbers = numericTokens(normalizedQuery);
-  const queryFractions = fractionTokens(normalizedQuery);
-  const queryIdentity = identityTokens(normalizedQuery);
-
-  const aliasesByProduct = new Map<string, string[]>();
-  for (const row of aliases) {
-    const alias = normalizeProductText(row.normalized_alias || row.alias);
-    if (!alias) continue;
-    aliasesByProduct.set(row.product_id, [...(aliasesByProduct.get(row.product_id) ?? []), alias]);
-  }
+  const queryPrepared = prepareText(normalizedQuery);
+  const queryNumbers = queryPrepared.numbers;
+  const queryFractions = queryPrepared.fractions;
+  const queryIdentity = queryPrepared.identity;
+  const aliasesByProduct = prepareAliases(aliases);
 
   const ranked = products.map((product) => {
-    const id = getId(product);
-    const normalizedFields = cachedNormalizedFields(product);
-    const productAliases = aliasesByProduct.get(id) ?? [];
-    const searchable = [...normalizedFields, ...productAliases];
+    const preparedProduct = prepareProduct(product, getId);
+    const productAliases = (aliasesByProduct.get(preparedProduct.id) ?? []).map(prepareText);
+    const searchable = [...preparedProduct.fields, ...productAliases];
 
-    const exact = normalizedFields.some((field) => field === normalizedQuery);
-    const alias = productAliases.some((field) => field === normalizedQuery);
+    const exact = preparedProduct.fields.some((field) => field.value === normalizedQuery);
+    const alias = productAliases.some((field) => field.value === normalizedQuery);
 
-    const token = Math.max(0, ...searchable.map((field) => softTokenScore(
-      uniqueTokens(normalizedQuery),
-      uniqueTokens(field),
-    )));
-    const character = Math.max(0, ...searchable.map((field) => characterScore(normalizedQuery, field)));
+    const token = Math.max(
+      0,
+      ...searchable.map((field) => preparedSoftTokenScore(queryPrepared.tokens, field.tokens)),
+    );
+    const character = Math.max(
+      0,
+      ...searchable.map((field) => preparedCharacterScore(queryPrepared.bigrams, field.bigrams)),
+    );
 
-    const candidateText = searchable.join(" ");
-    const candidateNumbers = numericTokens(candidateText);
-    const candidateFractions = fractionTokens(candidateText);
+    const candidateNumbers = [...new Set(searchable.flatMap((field) => field.numbers))];
+    const candidateFractions = [...new Set(searchable.flatMap((field) => field.fractions))];
 
     const numeric = queryNumbers.length
       ? queryNumbers.filter((number) => candidateNumbers.includes(number)).length / queryNumbers.length
@@ -271,21 +380,23 @@ export function rankProductMatches<T>(
       : 1;
 
     const identity = queryIdentity.length
-      ? Math.max(0, ...searchable.map((field) => overlapScore(queryIdentity, identityTokens(field))))
+      ? Math.max(
+          0,
+          ...searchable.map((field) => preparedOverlapScore(queryIdentity, field.identity)),
+        )
       : 1;
 
-    // Do not treat a longer product as an exact match for a short query.
-    // Example: "سيم" must not silently become "كماشه سيم", and
-    // "ساكت 3/4 عدساني" must not silently choose a green/hot variant.
-    // Exact catalog names and saved aliases remain authoritative.
     const identityPrecision = queryIdentity.length
-      ? Math.max(0, ...searchable.map((field) => {
-          const candidateIdentity = identityTokens(field);
-          if (!candidateIdentity.length) return 0;
-          const querySet = new Set(queryIdentity);
-          const matched = candidateIdentity.filter((token) => querySet.has(token)).length;
-          return matched / candidateIdentity.length;
-        }))
+      ? Math.max(
+          0,
+          ...searchable.map((field) => {
+            if (!field.identity.length) return 0;
+            const querySet = new Set(queryIdentity);
+            let matched = 0;
+            for (const token of field.identity) if (querySet.has(token)) matched += 1;
+            return matched / field.identity.length;
+          }),
+        )
       : 1;
 
     const attributes = Math.min(numeric, fraction);
@@ -319,7 +430,7 @@ export function rankProductMatches<T>(
 
     return {
       product,
-      productId: id,
+      productId: preparedProduct.id,
       score,
       status,
       reason,
