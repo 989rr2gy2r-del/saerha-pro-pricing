@@ -22,6 +22,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
+import { normalizeProductText, rankProductMatches } from "@/lib/matching/product-matcher";
 
 type ProductRecord = {
   id: string;
@@ -525,67 +526,42 @@ function findLocalProductMatch(
   normalizedArabic = "",
   aliases: Record<string, string[]> = {},
 ) {
-  const queries = [normalizeForMatch(text), normalizeForMatch(normalizedArabic)].filter(Boolean);
+  const queries = [text, normalizedArabic].filter(Boolean);
   if (!queries.length) return null;
 
-  const prepared = products.map((product) => prepareProductForMatch(product, aliases));
+  const aliasRows = Object.entries(aliases).flatMap(([productId, values]) =>
+    values.map((alias) => ({
+      product_id: productId,
+      alias,
+      normalized_alias: normalizeProductText(alias),
+    })),
+  );
 
-  // SKU is the strongest signal. A scanned table row usually contains
-  // the SKU together with the description, quantity and prices, so do not
-  // require the entire OCR line to be numeric. Resolve any exact 3–8 digit
-  // token that exists in the catalog before fuzzy matching.
-  for (const query of queries) {
-    const skuTokens = query.match(/\\b\\d{3,8}\\b/g) ?? [];
-    for (const sku of skuTokens) {
-      const exactSku = prepared.find((entry) => entry.sku === sku);
-      if (exactSku) return { product: exactSku.product, score: 1.25 };
-    }
+  const ranked = queries.flatMap((query) =>
+    rankProductMatches(
+      query,
+      products,
+      aliasRows,
+      (product) => product.id,
+      8,
+    ),
+  );
+
+  const byProduct = new Map<string, (typeof ranked)[number]>();
+  for (const candidate of ranked) {
+    const previous = byProduct.get(candidate.productId);
+    if (!previous || candidate.score > previous.score) byProduct.set(candidate.productId, candidate);
   }
 
-  // Narrow candidates cheaply using distinctive query tokens/numeric fragments.
-  // This avoids scoring all 4,583 products for every OCR line.
-  const candidateSet = new Set<PreparedProductMatch>();
-  for (const query of queries) {
-    const tokens = matchTokens(query).filter((token) => token.length >= 2);
-    for (const token of tokens.slice(0, 8)) {
-      for (const entry of prepared) {
-        if (entry.haystack.includes(token)) candidateSet.add(entry);
-      }
-    }
-  }
+  const best = [...byProduct.values()].sort((a, b) => b.score - a.score)[0];
+  if (!best || best.score < 0.55) return null;
 
-  let candidates = candidateSet.size ? [...candidateSet] : prepared;
-
-  // Numeric fragments such as "322" should surface SKUs like 3220/3222
-  // without forcing a full fuzzy scan.
-  const numericQueries = queries.filter((query) => /^\\d{2,}$/.test(query));
-  if (numericQueries.length) {
-    const numericCandidates = candidates.filter((entry) =>
-      numericQueries.some((query) => entry.sku.includes(query) || entry.haystack.includes(query)),
-    );
-    if (numericCandidates.length) candidates = numericCandidates;
-  }
-
-  const scored = candidates.map((entry) => {
-    let best = 0;
-    for (const query of queries) {
-      for (const field of entry.fields) {
-        const score = similarityScore(query, field.value) * field.weight;
-        best = Math.max(best, score);
-      }
-
-      const queryTokens = query.split(" ").filter(Boolean);
-      if (queryTokens.length > 1) {
-        const overlap = queryTokens.filter((token) => entry.haystack.includes(token)).length / queryTokens.length;
-        best = Math.max(best, overlap * 0.9);
-      }
-    }
-    return { product: entry.product, score: Math.min(best, 1.25) };
-  }).sort((a, b) => b.score - a.score);
-
-  const best = scored[0];
-  if (!best || best.score < 0.70) return null;
-  return best;
+  return {
+    product: best.product,
+    score: best.score,
+    status: best.status,
+    reason: best.reason,
+  };
 }
 
 export const Route = createFileRoute("/new-order")({
