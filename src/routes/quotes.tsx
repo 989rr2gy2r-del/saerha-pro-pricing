@@ -141,11 +141,45 @@ function Quotes() {
   const openWhatsApp = async (quote: Quote) => {
     const phone = getCustomerList(quote.customers)[0]?.phone?.replace(/\D/g, "");
     const message = `عرض سعر ${quote.reference} بإجمالي ${Number(quote.total ?? 0).toFixed(3)} KWD`;
-    const url = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+
+    try {
+      const pdfBlob = await createPdfBlob(quote);
+      const file = new File([pdfBlob], `${quote.reference}.pdf`, { type: "application/pdf" });
+      const shareData = { files: [file], title: `عرض سعر ${quote.reference}`, text: message };
+      const canShareFiles =
+        typeof navigator.share === "function" &&
+        typeof navigator.canShare === "function" &&
+        navigator.canShare({ files: [file] });
+
+      if (canShareFiles) {
+        await navigator.share(shareData);
+        return;
+      }
+
+      // Browsers that do not support sharing files cannot attach a PDF directly
+      // to WhatsApp. Keep the PDF available as a download and open the chat with
+      // the quote text pre-filled.
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const anchor = document.createElement("a");
+      anchor.href = pdfUrl;
+      anchor.download = `${quote.reference}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
+
+      const url = phone
+        ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+        : `https://wa.me/?text=${encodeURIComponent(message)}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      console.error("WhatsApp PDF share failed", error);
+      window.alert("تعذر تجهيز ملف PDF للإرسال عبر واتساب. حاول مرة أخرى.");
+    }
   };
 
-  const downloadPdf = async (quote: Quote) => {
+  const createPdfBlob = async (quote: Quote) => {
     try {
       const [fontResponse, headerResponse, footerResponse] = await Promise.all([
         fetch(`${import.meta.env.BASE_URL}fonts/NotoNaskhArabic-Regular.ttf`),
@@ -487,7 +521,24 @@ function Quotes() {
       drawTotals(y + 14);
       drawFooter();
 
-      doc.save(`${quote.reference}.pdf`);
+      return doc.output("blob");
+    } catch (error) {
+      console.error("PDF generation failed", error);
+      throw error instanceof Error ? error : new Error("تعذر إنشاء ملف PDF.");
+    }
+  };
+
+  const downloadPdf = async (quote: Quote) => {
+    try {
+      const pdfBlob = await createPdfBlob(quote);
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const anchor = document.createElement("a");
+      anchor.href = pdfUrl;
+      anchor.download = `${quote.reference}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
     } catch (error) {
       console.error("PDF export failed", error);
       window.alert("تعذر إنشاء ملف PDF. حاول مرة أخرى.");
