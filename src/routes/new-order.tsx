@@ -1728,8 +1728,12 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         const sourceSignals = extractOrderSignals(item.raw_text, catalogSkus);
         const modelSku = normalizeForMatch(item.sourceSku ?? "");
         const trustedSourceSku = sourceSignals.sku || (modelSku && catalogSkus.has(modelSku) ? modelSku : "");
+        // Product identity must come from the original order line.
+        // Never use an AI-normalized description as the search source: if OCR/model
+        // misreads "4 لفه واير 6 ملي" as "هوز ميزان 6 ملي", matching that description
+        // can silently select the wrong catalog item.
         const productQuery = stripLeadingOrderQuantity(
-          item.description || item.raw_text,
+          item.raw_text || item.description,
           catalogSkus,
         );
         const match = trustedSourceSku
@@ -1742,15 +1746,16 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         // this was the source of wrong selections such as "كماشه سيم",
         // the wrong "ساكت 3/4", and unrelated short matches.
         const confirmedMatch = match?.status === "HIGH_CONFIDENCE" ? match : null;
-        const confidence = Math.min(
-          1,
-          Math.max(0, confirmedMatch ? Math.max(item.confidence, confirmedMatch.score) : item.confidence),
-        );
-        const status: MatchStatus = match
+        const confidence = confirmedMatch
+          ? Math.min(1, Math.max(0, Math.max(item.confidence, confirmedMatch.score)))
+          : 0;
+        const status: MatchStatus = confirmedMatch
           ? confidence >= 0.85
             ? "HIGH_CONFIDENCE"
             : "NEEDS_REVIEW"
-          : "UNMATCHED";
+          : match
+            ? "NEEDS_REVIEW"
+            : "UNMATCHED";
 
         return {
           ...item,
