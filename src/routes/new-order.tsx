@@ -437,6 +437,13 @@ function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
 
   return { sku, unit, quantity };
 }
+function stripLeadingOrderQuantity(value: string): string {
+  return String(value ?? "")
+    .replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c)))
+    .replace(/^(\d+(?:\.\d+)?)\s+/, "")
+    .trim();
+}
+
 function normalizeQuantity(value: number): number {
   return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
 }
@@ -1700,10 +1707,11 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         const sourceSignals = extractOrderSignals(item.raw_text, catalogSkus);
         const modelSku = normalizeForMatch(item.sourceSku ?? "");
         const trustedSourceSku = sourceSignals.sku || (modelSku && catalogSkus.has(modelSku) ? modelSku : "");
+        const productQuery = stripLeadingOrderQuantity(item.description || item.raw_text);
         const match = trustedSourceSku
           ? findLocalProductMatch(trustedSourceSku, matchingProducts, "", matchingAliases) ??
-            findLocalProductMatch(item.raw_text || item.description, matchingProducts, "", matchingAliases)
-          : findLocalProductMatch(item.raw_text || item.description, matchingProducts, "", matchingAliases);
+            findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases)
+          : findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases);
         const confidence = Math.min(
           1,
           Math.max(0, match ? Math.max(item.confidence, match.score) : item.confidence),
