@@ -896,10 +896,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         const unitPrice = Number(row.unit_price ?? 0);
         const lineSubtotal = quantity * unitPrice;
         const lineDiscountAmount = Math.max(0, Number(row.discount_amount ?? 0));
-        const discountPercent =
-          lineSubtotal > 0
-            ? Math.min(100, Math.max(0, (lineDiscountAmount / lineSubtotal) * 100))
-            : 0;
+        const discountPercent = getSavedLineDiscountPercent(row, lineSubtotal);
 
         return {
           id: String(row.id ?? ("edit-" + quoteId + "-" + index)),
@@ -922,9 +919,9 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           basePriceUnit: product?.unit ?? String(row.unit ?? ""),
           priceType: row.is_manual_price ? "manual_quote" : String(row.applied_price_type ?? quote.price_type ?? "retail"),
           priceLabel: row.is_manual_price ? "سعر يدوي" : getPriceLookupKey(String(row.applied_price_type ?? quote.price_type ?? "retail")),
-          discountPercent,
+          discountPercent: Number(discountPercent.toFixed(2)),
           discountType: "percent",
-          discountValue: discountPercent,
+          discountValue: Number(discountPercent.toFixed(2)),
           quoteName: String(row.product_name ?? product?.name_ar ?? ""),
           sourceSku: String(row.sku ?? product?.sku ?? ""),
           sourceUnitPrice: unitPrice,
@@ -1505,6 +1502,19 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     const value = normalized === "" || !Number.isFinite(parsed) ? 0 : Math.max(0, parsed);
     if (kind === "percent") setInvoiceDiscountPercentDraft(String(Math.min(100, value)));
     else setInvoiceDiscountAmountDraft(String(value));
+  };
+
+  const getSavedLineDiscountPercent = (row: any, productSubtotal: number) => {
+    const note = String(row?.notes ?? "");
+    const noteMatch = note.match(/(?:خصم|discount)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*%/i);
+    if (noteMatch) {
+      const savedPercent = Number(noteMatch[1]);
+      if (Number.isFinite(savedPercent)) return Math.min(100, Math.max(0, savedPercent));
+    }
+
+    const amount = Number(row?.discount_amount ?? 0);
+    if (productSubtotal <= 0 || !Number.isFinite(amount) || amount <= 0) return 0;
+    return Math.min(100, Math.max(0, Number(((amount / productSubtotal) * 100).toFixed(2))));
   };
 
   const getLineDiscountDetails = (item: ReviewItem) => {
@@ -2192,7 +2202,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                 applied_price_type: (line.priceType ?? "retail") as
                   "retail" | "reseller" | "customer_special" | "manual_quote",
                 is_manual_price: line.priceType === "manual_quote",
-                notes: "سعر " + line.priceLabel,
+                notes: "سعر " + line.priceLabel + " — خصم " + Number(getLineDiscountDetails(line).value || 0).toFixed(2) + "%",
               },
             ];
           });
