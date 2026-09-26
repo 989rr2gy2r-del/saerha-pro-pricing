@@ -350,6 +350,11 @@ const PRODUCT_SELECT_FIELDS =
   "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, unit, description";
 
 const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
+  [/راليه|رليه|ريله/gi, "ريليه"],
+  [/دبي\s*بي|دي\s*بي/gi, "ديبي"],
+  [/ربطه|ربطة|رابطه/gi, "ربطه"],
+  [/ستالايت|ستلايت/gi, "ستلايت"],
+  [/ملي/gi, "مل"],
   [/\bpipe(?:s)?\b/gi, "بايب"], [/\belbow(?:s)?\b/gi, "كوع"],
   [/\btee(?:s)?\b/gi, "تي"], [/\bcoupling(?:s)?\b/gi, "وصلة"],
   [/\bcoupler(?:s)?\b/gi, "وصلة"], [/\bsocket(?:s)?\b/gi, "سكت"],
@@ -382,6 +387,7 @@ function normalizeForMatch(value: string): string {
     .replace(/(\d+(?:\.\d+)?)\s*(?:سم|cm)\b/gi, "$1 سم")
     .replace(/(\d+(?:\.\d+)?)\s*(?:انش|inch|in)\b/gi, "$1 انش")
     .replace(/(\d+)\s*["”″]/g, "$1 انش")
+    .replace(/(\d+(?:\.\d+)?)\s*ف\s*(\d+(?:\.\d+)?)/gi, "$1 x $2")
     .replace(/\s+/g, " ").trim();
   return normalized;
 }
