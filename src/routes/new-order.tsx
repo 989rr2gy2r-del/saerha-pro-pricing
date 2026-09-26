@@ -2036,7 +2036,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     }
 
     const validItems = analysisResult.items.filter(
-      (item) => !item.rejected && item.product && item.quantity > 0 && item.accepted,
+      (item) => !item.rejected && item.product && item.quantity > 0,
     );
     if (!validItems.length) {
       setAnalysisError("لا توجد عناصر مؤكدة ومطابقة لإنشاء عرض السعر بعد المراجعة.");
