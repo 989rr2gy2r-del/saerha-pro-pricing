@@ -15,6 +15,9 @@ export type MatchCandidate<T> = {
 };
 
 const MARKET_SYNONYMS: Array<[RegExp, string]> = [
+  [/\bamps?\b/gi, "امبير"], [/\bamperes?\b/gi, "امبير"], [/\bmeters?\b/gi, "متر"],
+  [/\bgangs?\b/gi, "دقمة"], [/\bround[-\s]?pin\b/gi, "دائري"],
+
   [/\bpvc\b/gi, "بلاستيك"], [/\bcircular\b/gi, "دائري"],
   [/\bsolution\s+glue\b/gi, "لاصق"], [/\bglue\b/gi, "لاصق"],
   [/\bfour[-\s]?way\b/gi, "رباعي"], [/\bthree[-\s]?way\b/gi, "ثلاثي"], [/\btwo[-\s]?way\b/gi, "ثنائي"],
