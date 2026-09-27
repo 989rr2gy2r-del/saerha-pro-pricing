@@ -358,6 +358,18 @@ const PRODUCT_SELECT_FIELDS =
   "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, unit, description";
 
 const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
+  [/\bpvc\b/gi, "بلاستيك"], [/\bcircular\b/gi, "دائري"],
+  [/\bsolution\s+glue\b/gi, "لاصق"], [/\bglue\b/gi, "لاصق"],
+  [/\bfour[-\s]?way\b/gi, "رباعي"], [/\bthree[-\s]?way\b/gi, "ثلاثي"], [/\btwo[-\s]?way\b/gi, "ثنائي"],
+  [/\bsingle[-\s]?pole\b/gi, "سنجل"], [/\bmcb\b/gi, "بريكر"], [/\brccb\b/gi, "بريكر"],
+  [/\bpanel\b/gi, "لوحة"], [/\bsdb\b/gi, "لوحة"], [/\bboard\b/gi, "لوحة"],
+  [/\belectrical\s+tape\b/gi, "تيب"], [/\btape\b/gi, "تيب"],
+  [/\bsmall\s+electrical\s+connector\b/gi, "موصل"], [/\bconnector\b/gi, "موصل"],
+  [/\bmain\s+power\s+cable\b/gi, "كيبل"], [/\bpower\s+cable\b/gi, "كيبل"], [/\bcable\b/gi, "كيبل"],
+  [/\bcoil(?:s)?\b/gi, "لف"], [/\bsteel\b/gi, "حديد"], [/\bbox(?:es)?\b/gi, "بوكس"],
+  [/\bpipe(?:s)?\b/gi, "بايب"], [/\bband\b/gi, "ربطه"], [/\bchoket\b/gi, "تشوكت"],
+  [/\bpower\s+socket\b/gi, "مفتاح"], [/\bsocket\b/gi, "ساكت"],
+
   [/\bpipe(?:s)?\b/gi, "بايب"], [/\b(?:كيوبكل|كوبيكل|كوبكل)\b/gi, "كيوبكل"],
   [/\b(?:دبي\s*بي|دي\s*بي)\b/gi, "ديبي"],
   [/\belbow(?:s)?\b/gi, "كوع"],
