@@ -169,6 +169,125 @@ function identityTokens(value: string): string[] {
   );
 }
 
+type MatchConstraints = {
+  productClass: "rccb" | "mcb" | "box" | "pipe" | "cable" | "wire" | "connector" | "tape" | "glue" | "switch" | "socket" | null;
+  amps: string[];
+  colors: string[];
+  fractions: string[];
+  metricSizes: string[];
+  inchSizes: string[];
+  pairs: string[];
+  gangs: string[];
+  poles: string[];
+};
+
+const NUMBER_WORD_TO_DIGIT: Record<string, string> = {
+  واحد: "1", واحدة: "1", اثنين: "2", اثنان: "2", اثنتين: "2", اثنتان: "2",
+  ثلاث: "3", ثلاثة: "3", ثلاثه: "3", اربع: "4", اربعة: "4", اربعه: "4",
+  خمس: "5", خمسة: "5", خمسه: "5", ست: "6", ستة: "6", سته: "6",
+  سبع: "7", سبعة: "7", سبعه: "7", ثمان: "8", ثمانية: "8", ثمانيه: "8",
+};
+
+function extractMatchConstraints(value: string): MatchConstraints {
+  const raw = normalizeProductText(value);
+  const text = raw
+    .replace(/(?:^|\\s)(?:four|4)\\s*(?:way|gang)\\b/gi, "4 دقمة")
+    .replace(/(?:^|\\s)(?:three|3)\\s*(?:way|gang)\\b/gi, "3 دقمة")
+    .replace(/(?:^|\\s)(?:two|2)\\s*(?:way|gang)\\b/gi, "2 دقمة")
+    .replace(/(?:^|\\s)(?:one|1)\\s*(?:way|gang)\\b/gi, "1 دقمة");
+
+  const productClass =
+    /\\brccb\\b|قاطع تسريب|تسريب أرضي/.test(text) ? "rccb" :
+    /\\bmcb\\b/.test(text) ? "mcb" :
+    /(?:^|\\s)(?:بوكس|صندوق)(?:\\s|$)/.test(text) ? "box" :
+    /(?:^|\\s)بايب(?:\\s|$)|\\bpipe(?:s)?\\b/.test(text) ? "pipe" :
+    /(?:^|\\s)(?:كيبل|كابل)(?:\\s|$)|\\bcable(?:s)?\\b/.test(text) ? "cable" :
+    /(?:^|\\s)واير(?:\\s|$)|\\bwire(?:s)?\\b/.test(text) ? "wire" :
+    /(?:^|\\s)كنكتر(?:\\s|$)|\\bconnector(?:s)?\\b/.test(text) ? "connector" :
+    /(?:^|\\s)تيب(?:\\s|$)|\\btape\\b/.test(text) ? "tape" :
+    /(?:^|\\s)(?:لاصق|غراء)(?:\\s|$)|\\bglue\\b/.test(text) ? "glue" :
+    /(?:^|\\s)مفتاح(?:\\s|$)|\\bswitch(?:es)?\\b/.test(text) ? "switch" :
+    /(?:^|\\s)(?:ساكت|سكت)(?:\\s|$)|\\bsocket(?:s)?\\b/.test(text) ? "socket" :
+    null;
+
+  const amps = [...text.matchAll(/(\\d+(?:\\.\\d+)?)\\s*(?:امبير|a)\\b/gi)].map((m) => m[1]);
+  const colors = ["احمر", "اسود", "اخضر", "ابيض", "ازرق"].filter((c) => text.includes(c));
+  const fractions = [...text.matchAll(/\\b(\\d+\\/\\d+)\\b/g)].map((m) => m[1]);
+  const metricSizes = [...text.matchAll(/(\\d+(?:\\.\\d+)?)\\s*(?:مم2|مم|mm2|mm)\\b/gi)].map((m) => m[1]);
+  const inchSizes = [...text.matchAll(/(\\d+(?:\\.\\d+)?)\\s*(?:انش|inch|in)\\b/gi)].map((m) => m[1]);
+  const pairs = [...text.matchAll(/(\\d+(?:\\.\\d+)?)\\s*x\\s*(\\d+(?:\\.\\d+)?)/gi)].map((m) => `${m[1]}x${m[2]}`);
+  const gangs = [...text.matchAll(/(\\d+)\\s*(?:دقمة|gang)\\b/gi)].map((m) => m[1]);
+  const poles = [...text.matchAll(/(\\d+)\\s*(?:قطب|pole)\\b/gi)].map((m) => m[1]);
+
+  for (const [word, digit] of Object.entries(NUMBER_WORD_TO_DIGIT)) {
+    if (text.includes(word)) {
+      if (text.includes("دقمة") && !gangs.length) gangs.push(digit);
+      if (text.includes("قطب") && !poles.length) poles.push(digit);
+    }
+  }
+
+  return { productClass, amps, colors, fractions, metricSizes, inchSizes, pairs, gangs, poles };
+}
+
+function candidateMatchesConstraints(text: string, constraints: MatchConstraints): boolean {
+  if (!constraints.productClass && !constraints.amps.length && !constraints.colors.length &&
+      !constraints.fractions.length && !constraints.metricSizes.length && !constraints.inchSizes.length &&
+      !constraints.pairs.length && !constraints.gangs.length && !constraints.poles.length) return true;
+
+  const normalized = normalizeProductText(text);
+  const hasClass = (kind: MatchConstraints["productClass"]) => {
+    switch (kind) {
+      case "rccb": return /\\brccb\\b|قاطع تسريب|تسريب أرضي/.test(normalized);
+      case "mcb": return /\\bبريكر\\b|\\bmcb\\b/.test(normalized) && !/\\brccb\\b|قاطع تسريب/.test(normalized);
+      case "box": return /(?:^|\\s)(?:بوكس|صندوق)(?:\\s|$)/.test(normalized);
+      case "pipe": return /(?:^|\\s)بايب(?:\\s|$)|\\bpipe(?:s)?\\b/.test(normalized);
+      case "cable": return /(?:^|\\s)(?:كيبل|كابل)(?:\\s|$)|\\bcable(?:s)?\\b/.test(normalized);
+      case "wire": return /(?:^|\\s)واير(?:\\s|$)|\\bwire(?:s)?\\b/.test(normalized);
+      case "connector": return /(?:^|\\s)كنكتر(?:\\s|$)|\\bconnector(?:s)?\\b/.test(normalized);
+      case "tape": return /(?:^|\\s)تيب(?:\\s|$)|\\btape\\b/.test(normalized);
+      case "glue": return /(?:^|\\s)(?:لاصق|غراء)(?:\\s|$)|\\bglue\\b/.test(normalized);
+      case "switch": return /(?:^|\\s)مفتاح(?:\\s|$)|\\bswitch(?:es)?\\b/.test(normalized);
+      case "socket": return /(?:^|\\s)(?:ساكت|سكت)(?:\\s|$)|\\bsocket(?:s)?\\b/.test(normalized);
+      default: return true;
+    }
+  };
+
+  if (constraints.productClass && !hasClass(constraints.productClass)) return false;
+
+  const hasAmp = (value: string) => new RegExp(`(?:^|\\s)${value}\\s*(?:امبير|a)(?:\\s|$)`, "i").test(normalized);
+  if (constraints.amps.some((value) => !hasAmp(value))) return false;
+
+  if (constraints.colors.some((color) => !normalized.includes(color))) return false;
+
+  if (constraints.fractions.some((fraction) => !normalized.includes(fraction))) return false;
+
+  const hasMetric = (value: string) => new RegExp(`(?:^|\\s)${value}\\s*(?:مم2|مم|mm2|mm)(?:\\s|$)`, "i").test(normalized);
+  if (constraints.metricSizes.some((value) => !hasMetric(value))) return false;
+
+  const hasInch = (value: string) => new RegExp(`(?:^|\\s)${value}\\s*(?:انش|inch|in)(?:\\s|$)`, "i").test(normalized);
+  if (constraints.inchSizes.some((value) => !hasInch(value))) return false;
+
+  if (constraints.pairs.some((pair) => {
+    const [a, b] = pair.split("x");
+    const nums = [...normalized.matchAll(/\\d+(?:\\.\\d+)?/g)].map((m) => m[0]);
+    return !(nums.includes(a) && nums.includes(b) && (normalized.includes(`${a} x ${b}`) || normalized.includes(`${b} x ${a}`) || normalized.includes(`${a}x${b}`)));
+  })) return false;
+
+  const hasGang = (value: string) =>
+    new RegExp(`(?:^|\\s)${value}\\s*(?:دقمة|gang)(?:\\s|$)`, "i").test(normalized) ||
+    (value === "4" && normalized.includes("رباعي")) ||
+    (value === "3" && normalized.includes("ثلاثي")) ||
+    (value === "2" && normalized.includes("ثنائي")) ||
+    (value === "1" && normalized.includes("احادي"));
+  if (constraints.gangs.some((value) => !hasGang(value))) return false;
+
+  const hasPole = (value: string) =>
+    new RegExp(`(?:^|\\s)${value}\\s*(?:قطب|pole)(?:\\s|$)`, "i").test(normalized);
+  if (constraints.poles.some((value) => !hasPole(value))) return false;
+
+  return true;
+}
+
 function overlapScore(query: string[], candidate: string[]): number {
   if (!query.length || !candidate.length) return 0;
   const candidateSet = new Set(candidate);
@@ -365,12 +484,25 @@ export function rankProductMatches<T>(
   const queryNumbers = queryPrepared.numbers;
   const queryFractions = queryPrepared.fractions;
   const queryIdentity = queryPrepared.identity;
+  const queryConstraints = extractMatchConstraints(query);
   const aliasesByProduct = prepareAliases(aliases);
 
   const ranked = products.map((product) => {
     const preparedProduct = prepareProduct(product, getId);
     const productAliases = (aliasesByProduct.get(preparedProduct.id) ?? []).map(prepareText);
     const searchable = [...preparedProduct.fields, ...productAliases];
+    const searchableText = searchable.map((field) => field.value).join(" ");
+
+    if (!candidateMatchesConstraints(searchableText, queryConstraints)) {
+      return {
+        product,
+        productId: preparedProduct.id,
+        score: 0,
+        status: "NEEDS_REVIEW" as const,
+        reason: "تم استبعاد الصنف لأن مواصفة مطلوبة في الطلب لا تطابق بياناته",
+        signals: { exact: false, alias: false, token: 0, character: 0, attributes: 0, numeric: 0, identity: 0 },
+      };
+    }
 
     const exact = preparedProduct.fields.some((field) => field.value === normalizedQuery);
     const alias = productAliases.some((field) => field.value === normalizedQuery);
