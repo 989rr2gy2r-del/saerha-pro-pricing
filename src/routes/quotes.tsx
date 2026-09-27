@@ -365,7 +365,7 @@ function Quotes() {
         // Official logo watermark: kept behind the live invoice data.
         const watermark = await createWatermark();
         doc.saveGraphicsState();
-        doc.setGState(new doc.GState({ opacity: 0.10 }));
+        doc.setGState(doc.GState({ opacity: 0.10 }));
         doc.addImage(watermark, "PNG", 92.5, 279, 410, 338);
         doc.restoreGraphicsState();
       };
