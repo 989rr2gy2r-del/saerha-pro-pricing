@@ -378,7 +378,7 @@ function Quotes() {
       const drawInfo = () => {
         // Exact geometry measured from the supplied official invoice PDF (A4: 595 x 842 pt).
         // The first information row starts directly below the official blue header band.
-        const top = 70;
+        const top = 132;
         const row = 29;
         const leftX = margin;
         const leftW = 180;
