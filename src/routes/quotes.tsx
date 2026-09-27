@@ -600,11 +600,11 @@ function Quotes() {
         doc.text(remaining.toFixed(3), boxX + 8, netY + 18);
 
         // Keep the barcode clearly below the table, with a visible breathing gap.
-        drawCode39(quote.reference, pageWidth - margin - 156, y, 156, 42);
+        drawCode39(quote.reference, pageWidth - margin - 156, y + 18, 156, 42);
       };
       let page = 1;
       // Keep the item table clearly below the blue header band and the invoice/customer information block.
-      let y = 300;
+      let y = 279;
       await drawHeader();
       drawInfo();
       y = drawTableHeader(y);
@@ -616,7 +616,7 @@ function Quotes() {
           doc.addPage();
           page += 1;
           await drawHeader();
-          y = 300;
+          y = 279;
           y = drawTableHeader(y);
         }
         y = drawTableRow(y, item, index);
@@ -627,7 +627,7 @@ function Quotes() {
         doc.addPage();
         page += 1;
         await drawHeader();
-        y = 300;
+        y = 279;
         y = drawTableHeader(y);
       }
 
