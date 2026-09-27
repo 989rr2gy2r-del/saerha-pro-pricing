@@ -58,7 +58,7 @@ type QuoteItem = {
   line_total?: number;
 };
 
-type QuoteCustomer = { name?: string; company?: string; phone?: string };
+type QuoteCustomer = { name?: string; company?: string; phone?: string; address?: string };
 
 type QuoteCustomerValue = QuoteCustomer | QuoteCustomer[] | null | undefined;
 
