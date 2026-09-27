@@ -46,6 +46,7 @@ type ProductRecord = {
   model: string | null;
   size: string | null;
   unit: string | null;
+  color: string | null;
   description: string | null;
 };
 
@@ -355,7 +356,7 @@ async function readImageLocally(file: File, onProgress?: (value: number) => void
 }
 
 const PRODUCT_SELECT_FIELDS =
-  "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, unit, description";
+  "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, color, unit, description";
 
 const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
   [/\bamps?\b/gi, "امبير"], [/\bamperes?\b/gi, "امبير"], [/\bmeters?\b/gi, "متر"],
@@ -364,10 +365,10 @@ const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
   [/\bpvc\b/gi, "بلاستيك"], [/\bcircular\b/gi, "دائري"],
   [/\bsolution\s+glue\b/gi, "لاصق"], [/\bglue\b/gi, "لاصق"],
   [/\bfour[-\s]?way\b/gi, "رباعي"], [/\bthree[-\s]?way\b/gi, "ثلاثي"], [/\btwo[-\s]?way\b/gi, "ثنائي"],
-  [/\bsingle[-\s]?pole\b/gi, "سنجل"], [/\bmcb\b/gi, "بريكر"], [/\brccb\b/gi, "بريكر"],
+  [/\bsingle[-\s]?pole\b/gi, "سنجل"], [/\bmcb\b/gi, "بريكر"], [/\brccb\b/gi, "rccb"],
   [/\bpanel\b/gi, "لوحة"], [/\bsdb\b/gi, "لوحة"], [/\bboard\b/gi, "لوحة"],
   [/\belectrical\s+tape\b/gi, "تيب"], [/\btape\b/gi, "تيب"],
-  [/\bsmall\s+electrical\s+connector\b/gi, "موصل"], [/\bconnector\b/gi, "موصل"],
+  [/\bsmall\s+electrical\s+connector\b/gi, "كنكتر"], [/\bconnector(?:s)?\b/gi, "كنكتر"],
   [/\bmain\s+power\s+cable\b/gi, "كيبل"], [/\bpower\s+cable\b/gi, "كيبل"], [/\bcable\b/gi, "كيبل"],
   [/\bcoil(?:s)?\b/gi, "لف"], [/\bsteel\b/gi, "حديد"], [/\bbox(?:es)?\b/gi, "بوكس"],
   [/\bpipe(?:s)?\b/gi, "بايب"], [/\bband\b/gi, "ربطه"], [/\bchoket\b/gi, "تشوكت"],
@@ -380,7 +381,7 @@ const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
   [/\bcoupler(?:s)?\b/gi, "وصلة"], [/\bsocket(?:s)?\b/gi, "سكت"],
   [/\badapter(?:s)?\b/gi, "أدبتر"], [/\badaptor(?:s)?\b/gi, "أدبتر"],
   [/\bconnector(?:s)?\b/gi, "موصل"], [/\bclamp(?:s)?\b/gi, "كلبس"],
-  [/\bbox(?:es)?\b/gi, "صندوق"], [/\bnipple(?:s)?\b/gi, "نبل"],
+  [/\bbox(?:es)?\b/gi, "بوكس"], [/\bnipple(?:s)?\b/gi, "نبل"],
   [/\bvalve(?:s)?\b/gi, "محبس"], [/\breducer(?:s)?\b/gi, "مخفض"],
   [/\bunion(?:s)?\b/gi, "وصلة"], [/\bflexible\b/gi, "فليكسيبل"],
   [/\bblack\b/gi, "اسود"], [/\bwhite\b/gi, "ابيض"],
@@ -619,6 +620,7 @@ function prepareProductForMatch(
     { value: product.brand, weight: 0.8 },
     { value: product.model, weight: 0.85 },
     { value: product.size, weight: 0.75 },
+    { value: product.color, weight: 0.95 },
     { value: product.description, weight: 0.65 },
     ...((aliases[product.id] ?? []).map((value) => ({ value, weight: 1.05 }))),
     { value: product.category_main, weight: 0.45 },
@@ -1975,14 +1977,14 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           item.raw_text || item.description,
           catalogSkus,
         );
-        const normalizedCatalogQuery = stripOrderPrefix(
-          item.normalized_description_ar || item.description,
-          catalogSkus,
-        );
+        // The AI-normalized description is display metadata only. It must
+        // never override the original customer wording during product matching,
+        // otherwise the model can invent an attribute (e.g. "black tape") that
+        // is not present in the order and force a wrong SKU.
         const match = trustedSourceSku
           ? findLocalProductMatch(trustedSourceSku, matchingProducts, "", matchingAliases) ??
-            findLocalProductMatch(productQuery, matchingProducts, normalizedCatalogQuery, matchingAliases)
-          : findLocalProductMatch(productQuery, matchingProducts, normalizedCatalogQuery, matchingAliases);
+            findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases)
+          : findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases);
 
         // Restore the previous automatic catalog selection behavior:
         // the matcher may return a strong candidate marked NEEDS_REVIEW when
@@ -1991,11 +1993,14 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         // Exact/alias/high-confidence matches keep their normal confidence;
         // weaker candidates remain visibly marked for review.
         const selectedMatch = match;
+        // Extraction confidence and catalog-match confidence are separate
+        // signals. An AI can be very confident about reading a line while still
+        // being wrong about which SKU it belongs to.
         const confidence = selectedMatch
-          ? Math.min(1, Math.max(0, Math.max(item.confidence, selectedMatch.score)))
+          ? Math.min(1, Math.max(0, selectedMatch.score))
           : 0;
         const status: MatchStatus = selectedMatch
-          ? confidence >= 0.85
+          ? selectedMatch.status === "HIGH_CONFIDENCE" && confidence >= 0.86
             ? "HIGH_CONFIDENCE"
             : "NEEDS_REVIEW"
           : "UNMATCHED";
@@ -2035,7 +2040,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
             : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة",
           status,
           rejected: false,
-          accepted: Boolean(selectedMatch && confidence >= 0.85),
+          accepted: Boolean(selectedMatch && status === "HIGH_CONFIDENCE"),
           priceAmount: null,
           priceType: null,
           priceLabel: "جاري جلب السعر...",
