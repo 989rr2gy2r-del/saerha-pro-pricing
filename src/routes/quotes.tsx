@@ -186,10 +186,11 @@ function Quotes() {
 
   const createPdfBlob = async (quote: Quote) => {
     try {
-      const [fontResponse, boldFontResponse, stationeryResponse] = await Promise.all([
+      const [fontResponse, boldFontResponse, stationeryResponse, fallbackFontResponse] = await Promise.all([
         fetch(`${import.meta.env.BASE_URL}invoice-template.jpg`),
         fetch("https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSansArabic/NotoSansArabic-Bold.ttf").catch(() => null),
         fetch("https://raw.githubusercontent.com/hotosm/HDM-CartoCSS/master/fonts/NotoSansArabic-Regular.ttf").catch(() => null),
+        fetch(import.meta.env.BASE_URL + "fonts/NotoNaskhArabic-Regular.ttf").catch(() => null),
       ]);
 
       if (!stationeryResponse.ok || !fontResponse.ok) {
@@ -208,7 +209,7 @@ function Quotes() {
 
       const [stationeryBase64, regularFontBase64] = await Promise.all([
         toBase64(fontResponse),
-        toBase64(stationeryResponse),
+        stationeryResponse?.ok ? toBase64(stationeryResponse) : toBase64(fallbackFontResponse as Response),
       ]);
       const regularBase64 = regularFontBase64;
       const boldBase64 = boldFontResponse?.ok ? await toBase64(boldFontResponse as Response) : regularBase64;
