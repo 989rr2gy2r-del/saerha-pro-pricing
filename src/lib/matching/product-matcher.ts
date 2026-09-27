@@ -15,6 +15,18 @@ export type MatchCandidate<T> = {
 };
 
 const MARKET_SYNONYMS: Array<[RegExp, string]> = [
+  [/\bpvc\b/gi, "بلاستيك"], [/\bcircular\b/gi, "دائري"],
+  [/\bsolution\s+glue\b/gi, "لاصق"], [/\bglue\b/gi, "لاصق"],
+  [/\bfour[-\s]?way\b/gi, "رباعي"], [/\bthree[-\s]?way\b/gi, "ثلاثي"], [/\btwo[-\s]?way\b/gi, "ثنائي"],
+  [/\bsingle[-\s]?pole\b/gi, "سنجل"], [/\bmcb\b/gi, "بريكر"], [/\brccb\b/gi, "بريكر"],
+  [/\bpanel\b/gi, "لوحة"], [/\bsdb\b/gi, "لوحة"], [/\bboard\b/gi, "لوحة"],
+  [/\belectrical\s+tape\b/gi, "تيب"], [/\btape\b/gi, "تيب"],
+  [/\bsmall\s+electrical\s+connector\b/gi, "موصل"], [/\bconnector\b/gi, "موصل"],
+  [/\bmain\s+power\s+cable\b/gi, "كيبل"], [/\bpower\s+cable\b/gi, "كيبل"], [/\bcable\b/gi, "كيبل"],
+  [/\bcoil(?:s)?\b/gi, "لف"], [/\bsteel\b/gi, "حديد"], [/\bbox(?:es)?\b/gi, "بوكس"],
+  [/\bpipe(?:s)?\b/gi, "بايب"], [/\bband\b/gi, "ربطه"], [/\bchoket\b/gi, "تشوكت"],
+  [/\bpower\s+socket\b/gi, "مفتاح"], [/\bsocket\b/gi, "ساكت"],
+
   [/راليه|رليه|ريله/gi, "ريليه"],
   [/دبي\s*بي|دي\s*بي/gi, "ديبي"],
   [/رابطه|ربطه|ربطة/gi, "ربطه"],
