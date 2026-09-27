@@ -329,6 +329,7 @@ function fieldValues<T>(product: T): string[] {
     model?: string | null;
     size?: string | null;
     unit?: string | null;
+    color?: string | null;
     description?: string | null;
     category_main?: string | null;
     category_sub?: string | null;
@@ -338,7 +339,7 @@ function fieldValues<T>(product: T): string[] {
 
   return [
     item.name_ar, item.name_en, item.short_name, item.brand, item.model, item.size,
-    item.description, item.category_main, item.category_sub, item.category_third,
+    item.color, item.description, item.category_main, item.category_sub, item.category_third,
     item.product_group, item.sku,
   ].filter(Boolean) as string[];
 }
