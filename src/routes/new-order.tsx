@@ -447,7 +447,8 @@ function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
     [/(?:^|\s)(?:pkt|pkts|pack|packs|packet|packets|باكت|باكيت|باك)(?:\s|$)/i, "باكيت"],
     [/(?:^|\s)(?:carton|cartons|كرتون|كرتونه)(?:\s|$)/i, "كرتون"],
     [/(?:^|\s)(?:pcs?|pieces?|piece|حبة|قطعة|قطع)(?:\s|$)/i, "حبة"],
-    [/(?:^|\s)(?:box|boxes|صندوق)(?:\s|$)/i, "صندوق"],
+    // "box" is often part of the PRODUCT name (e.g. PVC Circular Socket Box),
+    // so it must never be treated as an order unit here.
     [/(?:^|\s)(?:meter|meters|متر)(?:\s|$)/i, "متر"],
     [/(?:^|\s)(?:ربطة|ربطه)(?:\s|$)/i, "ربطة"],
     [/(?:^|\s)(?:كيس)(?:\s|$)/i, "كيس"],
@@ -491,13 +492,31 @@ function stripLeadingOrderQuantity(value: string, catalogSkus?: Set<string>): st
 
 function stripOrderPrefix(value: string, catalogSkus?: Set<string>): string {
   let text = stripLeadingOrderQuantity(value, catalogSkus);
-  // After quantity, customers often write the order unit before the product:
-  // "1 حبة ترنكي", "3 كرتون ساكت", "2 ربطة سيم". The unit belongs to the
-  // order line, not the catalog product name, so never show it as the product.
+  // After quantity, customers often write the order unit before the product.
   text = text.replace(
     /^(?:حبة|قطعة|قطع|كيس|كرتون|كرتونه|علبة|رول|لفة|لفه|لف|باكيت|باكت|باك|متر|سم|مم|كجم|كغ|جم|غ|لتر|مل|عبوة|طقم|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|packets?|packs?|cartons?|boxes?|meters?)\s+/i,
     "",
   );
+
+  // IMPORTANT: the quantity at the END of an order line is not a product
+  // specification. Leaving it in the matcher made "PVC Circular Socket Box -
+  // 15 pcs" compete against catalog products using a fake "15" specification,
+  // which suppressed otherwise correct matches.
+  text = text
+    .replace(
+      /(?:^|\s)(\d+(?:[.,]\d+)?)\s*(?:pcs?|pieces?|piece|حبة|قطعة|قطع|rolls?|roll|رول|لفات?|لفة|لفه|لف|coils?|coil|لفه|لف|packets?|packet|packs?|pack|باكيت|باكت|باك|cartons?|carton|كرتون|كرتونه|meters?|meter|m|متر)\s*$/i,
+      "",
+    )
+    .trim();
+
+  // Some customer lists put the quantity as a bare number at the end
+  // ("PVC pipe 5/8 inch - 20"). Remove it only when the line already looks
+  // like a product description; do not touch technical values such as 1.5,
+  // 2.5, 4x10 or 63A.
+  if (/\s[-–—]\s*\d+(?:[.,]\d+)?\s*$/.test(text)) {
+    text = text.replace(/\s[-–—]\s*\d+(?:[.,]\d+)?\s*$/, "").trim();
+  }
+
   return text.trim();
 }
 
