@@ -1967,8 +1967,11 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         // Catalog matching must be driven by what was actually read,
         // not by an AI-generated/translated product name.
         const sourceSignals = extractOrderSignals(item.raw_text, catalogSkus);
-        const modelSku = normalizeForMatch(item.sourceSku ?? "");
-        const trustedSourceSku = sourceSignals.sku || (modelSku && catalogSkus.has(modelSku) ? modelSku : "");
+        // Never trust the AI-extracted SKU as a product identity.
+        // Only a SKU physically present in the original order line can be used
+        // as a hard identity signal. This prevents a model hallucination such
+        // as "7555" from forcing the generic "Electrical Tape" into "تيب اسود".
+        const trustedSourceSku = sourceSignals.sku;
         // Product identity must come from the original order line.
         // Never use an AI-normalized description as the search source: if OCR/model
         // misreads "4 لفه واير 6 ملي" as "هوز ميزان 6 ملي", matching that description
