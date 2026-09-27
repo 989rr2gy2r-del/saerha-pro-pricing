@@ -482,13 +482,13 @@ function Quotes() {
         // TOTAL | PRICE | UNIT | QTY. | DESCRIPTION | CODE
         const widths = [104, 60, 52, 42, 188, 54, 23];
         const headers = [
-          ["الإجمالي", "TOTAL"],
-          ["السعر", "PRICE"],
-          ["الوحدة", "UNIT"],
-          ["الكمية", "QTY."],
-          ["الصنف", "DESCRIPTION"],
-          ["الكود", "CODE"],
-          ["م", "NO"],
+          "الإجمالي",
+          "السعر",
+          "الوحدة",
+          "الكمية",
+          "الصنف",
+          "الكود",
+          "م",
         ];
 
         let cursor = x;
@@ -496,15 +496,12 @@ function Quotes() {
         doc.setFillColor(BLUE);
         doc.rect(x, y, tableWidth, 34, "F");
 
-        headers.forEach(([ar, en], index) => {
+        headers.forEach((label, index) => {
           const w = widths[index];
           doc.setFont(arabicBoldFontName, "normal");
           doc.setTextColor("#FFFFFF");
-          doc.setFontSize(7.8);
-          doc.text(processArabic(ar), cursor + w / 2, y + 13, { align: "center" });
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(6.6);
-          doc.text(en, cursor + w / 2, y + 26, { align: "center" });
+          doc.setFontSize(8.2);
+          doc.text(processArabic(label), cursor + w / 2, y + 21, { align: "center" });
           cursor += w;
         });
 
@@ -519,10 +516,10 @@ function Quotes() {
         const rowHeight = Math.max(30, Math.min(52, 12 + descriptionLines.length * 11));
 
         let cursor = margin;
+        // Transparent body rows: keep the watermark visible through the table.
         doc.setDrawColor(GRID);
         doc.setLineWidth(0.45);
-        doc.setFillColor("#FFFFFF");
-        doc.rect(margin, y, tableWidth, rowHeight, "FD");
+        doc.rect(margin, y, tableWidth, rowHeight, "S");
 
         const values = [
           Number(item.line_total ?? 0).toFixed(3),
@@ -602,6 +599,7 @@ function Quotes() {
         doc.setFontSize(10);
         doc.text(remaining.toFixed(3), boxX + 8, netY + 18);
 
+        // Keep the barcode clearly below the table, with a visible breathing gap.
         drawCode39(quote.reference, pageWidth - margin - 156, y, 156, 42);
       };
       let page = 1;
@@ -632,7 +630,7 @@ function Quotes() {
         y = drawTableHeader(y);
       }
 
-      drawTotals(y + 6);
+      drawTotals(y + 14);
       drawFooter();
 
       return doc.output("blob");
