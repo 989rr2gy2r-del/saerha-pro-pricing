@@ -358,6 +358,9 @@ const PRODUCT_SELECT_FIELDS =
   "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, unit, description";
 
 const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
+  [/\bamps?\b/gi, "امبير"], [/\bamperes?\b/gi, "امبير"], [/\bmeters?\b/gi, "متر"],
+  [/\bgangs?\b/gi, "دقمة"], [/\bround[-\s]?pin\b/gi, "دائري"],
+
   [/\bpvc\b/gi, "بلاستيك"], [/\bcircular\b/gi, "دائري"],
   [/\bsolution\s+glue\b/gi, "لاصق"], [/\bglue\b/gi, "لاصق"],
   [/\bfour[-\s]?way\b/gi, "رباعي"], [/\bthree[-\s]?way\b/gi, "ثلاثي"], [/\btwo[-\s]?way\b/gi, "ثنائي"],
