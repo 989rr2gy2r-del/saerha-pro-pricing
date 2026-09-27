@@ -191,33 +191,33 @@ const NUMBER_WORD_TO_DIGIT: Record<string, string> = {
 function extractMatchConstraints(value: string): MatchConstraints {
   const raw = normalizeProductText(value);
   const text = raw
-    .replace(/(?:^|\\s)(?:four|4)\\s*(?:way|gang)\\b/gi, "4 دقمة")
-    .replace(/(?:^|\\s)(?:three|3)\\s*(?:way|gang)\\b/gi, "3 دقمة")
-    .replace(/(?:^|\\s)(?:two|2)\\s*(?:way|gang)\\b/gi, "2 دقمة")
-    .replace(/(?:^|\\s)(?:one|1)\\s*(?:way|gang)\\b/gi, "1 دقمة");
+    .replace(/(?:^|\s)(?:four|4)\s*(?:way|gang)\b/gi, "4 دقمة")
+    .replace(/(?:^|\s)(?:three|3)\s*(?:way|gang)\b/gi, "3 دقمة")
+    .replace(/(?:^|\s)(?:two|2)\s*(?:way|gang)\b/gi, "2 دقمة")
+    .replace(/(?:^|\s)(?:one|1)\s*(?:way|gang)\b/gi, "1 دقمة");
 
   const productClass =
-    /\\brccb\\b|قاطع تسريب|تسريب أرضي/.test(text) ? "rccb" :
-    /\\bmcb\\b/.test(text) ? "mcb" :
-    /(?:^|\\s)(?:بوكس|صندوق)(?:\\s|$)/.test(text) ? "box" :
-    /(?:^|\\s)بايب(?:\\s|$)|\\bpipe(?:s)?\\b/.test(text) ? "pipe" :
-    /(?:^|\\s)(?:كيبل|كابل)(?:\\s|$)|\\bcable(?:s)?\\b/.test(text) ? "cable" :
-    /(?:^|\\s)واير(?:\\s|$)|\\bwire(?:s)?\\b/.test(text) ? "wire" :
-    /(?:^|\\s)كنكتر(?:\\s|$)|\\bconnector(?:s)?\\b/.test(text) ? "connector" :
-    /(?:^|\\s)تيب(?:\\s|$)|\\btape\\b/.test(text) ? "tape" :
-    /(?:^|\\s)(?:لاصق|غراء)(?:\\s|$)|\\bglue\\b/.test(text) ? "glue" :
-    /(?:^|\\s)مفتاح(?:\\s|$)|\\bswitch(?:es)?\\b/.test(text) ? "switch" :
-    /(?:^|\\s)(?:ساكت|سكت)(?:\\s|$)|\\bsocket(?:s)?\\b/.test(text) ? "socket" :
+    /\brccb\b|قاطع تسريب|تسريب أرضي/.test(text) ? "rccb" :
+    /\bmcb\b/.test(text) ? "mcb" :
+    /(?:^|\s)(?:بوكس|صندوق)(?:\s|$)/.test(text) ? "box" :
+    /(?:^|\s)بايب(?:\s|$)|\bpipe(?:s)?\b/.test(text) ? "pipe" :
+    /(?:^|\s)(?:كيبل|كابل)(?:\s|$)|\bcable(?:s)?\b/.test(text) ? "cable" :
+    /(?:^|\s)واير(?:\s|$)|\bwire(?:s)?\b/.test(text) ? "wire" :
+    /(?:^|\s)كنكتر(?:\s|$)|\bconnector(?:s)?\b/.test(text) ? "connector" :
+    /(?:^|\s)تيب(?:\s|$)|\btape\b/.test(text) ? "tape" :
+    /(?:^|\s)(?:لاصق|غراء)(?:\s|$)|\bglue\b/.test(text) ? "glue" :
+    /(?:^|\s)مفتاح(?:\s|$)|\bswitch(?:es)?\b/.test(text) ? "switch" :
+    /(?:^|\s)(?:ساكت|سكت)(?:\s|$)|\bsocket(?:s)?\b/.test(text) ? "socket" :
     null;
 
-  const amps = [...text.matchAll(/(\\d+(?:\\.\\d+)?)\\s*(?:امبير|a)\\b/gi)].map((m) => m[1]);
+  const amps = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:امبير|a)\b/gi)].map((m) => m[1]);
   const colors = ["احمر", "اسود", "اخضر", "ابيض", "ازرق"].filter((c) => text.includes(c));
-  const fractions = [...text.matchAll(/\\b(\\d+\\/\\d+)\\b/g)].map((m) => m[1]);
-  const metricSizes = [...text.matchAll(/(\\d+(?:\\.\\d+)?)\\s*(?:مم2|مم|mm2|mm)\\b/gi)].map((m) => m[1]);
-  const inchSizes = [...text.matchAll(/(\\d+(?:\\.\\d+)?)\\s*(?:انش|inch|in)\\b/gi)].map((m) => m[1]);
-  const pairs = [...text.matchAll(/(\\d+(?:\\.\\d+)?)\\s*x\\s*(\\d+(?:\\.\\d+)?)/gi)].map((m) => `${m[1]}x${m[2]}`);
-  const gangs = [...text.matchAll(/(\\d+)\\s*(?:دقمة|gang)\\b/gi)].map((m) => m[1]);
-  const poles = [...text.matchAll(/(\\d+)\\s*(?:قطب|pole)\\b/gi)].map((m) => m[1]);
+  const fractions = [...text.matchAll(/\b(\d+\/\d+)\b/g)].map((m) => m[1]);
+  const metricSizes = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:مم2|مم|mm2|mm)\b/gi)].map((m) => m[1]);
+  const inchSizes = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:انش|inch|in)\b/gi)].map((m) => m[1]);
+  const pairs = [...text.matchAll(/(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/gi)].map((m) => `${m[1]}x${m[2]}`);
+  const gangs = [...text.matchAll(/(\d+)\s*(?:دقمة|gang)\b/gi)].map((m) => m[1]);
+  const poles = [...text.matchAll(/(\d+)\s*(?:قطب|pole)\b/gi)].map((m) => m[1]);
 
   for (const [word, digit] of Object.entries(NUMBER_WORD_TO_DIGIT)) {
     if (text.includes(word)) {
@@ -237,44 +237,44 @@ function candidateMatchesConstraints(text: string, constraints: MatchConstraints
   const normalized = normalizeProductText(text);
   const hasClass = (kind: MatchConstraints["productClass"]) => {
     switch (kind) {
-      case "rccb": return /\\brccb\\b|قاطع تسريب|تسريب أرضي/.test(normalized);
-      case "mcb": return /\\bبريكر\\b|\\bmcb\\b/.test(normalized) && !/\\brccb\\b|قاطع تسريب/.test(normalized);
-      case "box": return /(?:^|\\s)(?:بوكس|صندوق)(?:\\s|$)/.test(normalized);
-      case "pipe": return /(?:^|\\s)بايب(?:\\s|$)|\\bpipe(?:s)?\\b/.test(normalized);
-      case "cable": return /(?:^|\\s)(?:كيبل|كابل)(?:\\s|$)|\\bcable(?:s)?\\b/.test(normalized);
-      case "wire": return /(?:^|\\s)واير(?:\\s|$)|\\bwire(?:s)?\\b/.test(normalized);
-      case "connector": return /(?:^|\\s)كنكتر(?:\\s|$)|\\bconnector(?:s)?\\b/.test(normalized);
-      case "tape": return /(?:^|\\s)تيب(?:\\s|$)|\\btape\\b/.test(normalized);
-      case "glue": return /(?:^|\\s)(?:لاصق|غراء)(?:\\s|$)|\\bglue\\b/.test(normalized);
-      case "switch": return /(?:^|\\s)مفتاح(?:\\s|$)|\\bswitch(?:es)?\\b/.test(normalized);
-      case "socket": return /(?:^|\\s)(?:ساكت|سكت)(?:\\s|$)|\\bsocket(?:s)?\\b/.test(normalized);
+      case "rccb": return /\brccb\b|قاطع تسريب|تسريب أرضي/.test(normalized);
+      case "mcb": return /\bبريكر\b|\bmcb\b/.test(normalized) && !/\brccb\b|قاطع تسريب/.test(normalized);
+      case "box": return /(?:^|\s)(?:بوكس|صندوق)(?:\s|$)/.test(normalized);
+      case "pipe": return /(?:^|\s)بايب(?:\s|$)|\bpipe(?:s)?\b/.test(normalized);
+      case "cable": return /(?:^|\s)(?:كيبل|كابل)(?:\s|$)|\bcable(?:s)?\b/.test(normalized);
+      case "wire": return /(?:^|\s)واير(?:\s|$)|\bwire(?:s)?\b/.test(normalized);
+      case "connector": return /(?:^|\s)كنكتر(?:\s|$)|\bconnector(?:s)?\b/.test(normalized);
+      case "tape": return /(?:^|\s)تيب(?:\s|$)|\btape\b/.test(normalized);
+      case "glue": return /(?:^|\s)(?:لاصق|غراء)(?:\s|$)|\bglue\b/.test(normalized);
+      case "switch": return /(?:^|\s)مفتاح(?:\s|$)|\bswitch(?:es)?\b/.test(normalized);
+      case "socket": return /(?:^|\s)(?:ساكت|سكت)(?:\s|$)|\bsocket(?:s)?\b/.test(normalized);
       default: return true;
     }
   };
 
   if (constraints.productClass && !hasClass(constraints.productClass)) return false;
 
-  const hasAmp = (value: string) => new RegExp(`(?:^|\\s)${value}\\s*(?:امبير|a)(?:\\s|$)`, "i").test(normalized);
+  const hasAmp = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:امبير|a)(?:\s|$)`, "i").test(normalized);
   if (constraints.amps.some((value) => !hasAmp(value))) return false;
 
   if (constraints.colors.some((color) => !normalized.includes(color))) return false;
 
   if (constraints.fractions.some((fraction) => !normalized.includes(fraction))) return false;
 
-  const hasMetric = (value: string) => new RegExp(`(?:^|\\s)${value}\\s*(?:مم2|مم|mm2|mm)(?:\\s|$)`, "i").test(normalized);
+  const hasMetric = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:مم2|مم|mm2|mm)(?:\s|$)`, "i").test(normalized);
   if (constraints.metricSizes.some((value) => !hasMetric(value))) return false;
 
-  const hasInch = (value: string) => new RegExp(`(?:^|\\s)${value}\\s*(?:انش|inch|in)(?:\\s|$)`, "i").test(normalized);
+  const hasInch = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:انش|inch|in)(?:\s|$)`, "i").test(normalized);
   if (constraints.inchSizes.some((value) => !hasInch(value))) return false;
 
   if (constraints.pairs.some((pair) => {
     const [a, b] = pair.split("x");
-    const nums = [...normalized.matchAll(/\\d+(?:\\.\\d+)?/g)].map((m) => m[0]);
+    const nums = [...normalized.matchAll(/\d+(?:\.\d+)?/g)].map((m) => m[0]);
     return !(nums.includes(a) && nums.includes(b) && (normalized.includes(`${a} x ${b}`) || normalized.includes(`${b} x ${a}`) || normalized.includes(`${a}x${b}`)));
   })) return false;
 
   const hasGang = (value: string) =>
-    new RegExp(`(?:^|\\s)${value}\\s*(?:دقمة|gang)(?:\\s|$)`, "i").test(normalized) ||
+    new RegExp(`(?:^|\s)${value}\s*(?:دقمة|gang)(?:\s|$)`, "i").test(normalized) ||
     (value === "4" && normalized.includes("رباعي")) ||
     (value === "3" && normalized.includes("ثلاثي")) ||
     (value === "2" && normalized.includes("ثنائي")) ||
@@ -282,7 +282,7 @@ function candidateMatchesConstraints(text: string, constraints: MatchConstraints
   if (constraints.gangs.some((value) => !hasGang(value))) return false;
 
   const hasPole = (value: string) =>
-    new RegExp(`(?:^|\\s)${value}\\s*(?:قطب|pole)(?:\\s|$)`, "i").test(normalized);
+    new RegExp(`(?:^|\s)${value}\s*(?:قطب|pole)(?:\s|$)`, "i").test(normalized);
   if (constraints.poles.some((value) => !hasPole(value))) return false;
 
   return true;
