@@ -331,7 +331,7 @@ function Quotes() {
       const footerY = pageHeight - 36;
 
       const createWatermark = async () => {
-        const image = new Image();
+        const image = document.createElement("img");
         image.src = `data:image/jpeg;base64,${logoBase64}`;
         await new Promise<void>((resolve, reject) => {
           image.onload = () => resolve();
@@ -611,7 +611,7 @@ function Quotes() {
       y = drawTableHeader(y);
       const items = quote.quotation_items ?? [];
 
-      items.forEach((item, index) => {
+      for (const [index, item] of items.entries()) {
         if (y + 26 > footerY - 10) {
           drawFooter();
           doc.addPage();
@@ -621,7 +621,7 @@ function Quotes() {
           y = drawTableHeader(y);
         }
         y = drawTableRow(y, item, index);
-      });
+      }
 
       if (y + 145 > footerY - 10) {
         drawFooter();
