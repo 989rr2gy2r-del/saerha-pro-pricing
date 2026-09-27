@@ -328,9 +328,9 @@ function Quotes() {
       const drawHeader = () => {
         // The supplied official stationery is the complete page background.
         doc.addImage(`data:image/jpeg;base64,${stationeryBase64}`, "JPEG", 0, 0, pageWidth, pageHeight);
-        // Keep the official header/footer artwork, but remove the old body artwork/gray fill.
-        doc.setFillColor("#FFFFFF");
-        doc.rect(0, 150, pageWidth, pageHeight - 220, "F");
+        // Do not paint over the approved stationery.
+        // The supplied template already contains the official header, blue bands,
+        // watermark/logo treatment, and footer. Keep it intact at full-page scale.
       };
 
       const drawFooter = () => {
