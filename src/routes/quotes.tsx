@@ -186,14 +186,16 @@ function Quotes() {
 
   const createPdfBlob = async (quote: Quote) => {
     try {
-      const [fontResponse, boldFontResponse, stationeryResponse, fallbackFontResponse] = await Promise.all([
-        fetch(`${import.meta.env.BASE_URL}invoice-template.jpg`),
+      const [headerResponse, footerResponse, logoResponse, boldFontResponse, regularFontResponse, fallbackFontResponse] = await Promise.all([
+        fetch(`${import.meta.env.BASE_URL}invoice-header.png`),
+        fetch(`${import.meta.env.BASE_URL}invoice-footer.png`),
+        fetch(`${import.meta.env.BASE_URL}al-awab-logo.jpg`),
         fetch("https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSansArabic/NotoSansArabic-Bold.ttf").catch(() => null),
         fetch("https://raw.githubusercontent.com/hotosm/HDM-CartoCSS/master/fonts/NotoSansArabic-Regular.ttf").catch(() => null),
         fetch(import.meta.env.BASE_URL + "fonts/NotoNaskhArabic-Regular.ttf").catch(() => null),
       ]);
 
-      if (!fontResponse.ok || (!stationeryResponse?.ok && !fallbackFontResponse?.ok)) {
+      if (!headerResponse.ok || !footerResponse.ok || !logoResponse.ok || (!regularFontResponse?.ok && !fallbackFontResponse?.ok)) {
         throw new Error("تعذر تحميل موارد الفاتورة الرسمية");
       }
 
@@ -207,11 +209,12 @@ function Quotes() {
         return btoa(binary);
       };
 
-      const [stationeryBase64, regularFontBase64] = await Promise.all([
-        toBase64(fontResponse),
-        stationeryResponse?.ok ? toBase64(stationeryResponse) : toBase64(fallbackFontResponse as Response),
+      const [headerBase64, footerBase64, logoBase64, regularBase64] = await Promise.all([
+        toBase64(headerResponse),
+        toBase64(footerResponse),
+        toBase64(logoResponse),
+        regularFontResponse?.ok ? toBase64(regularFontResponse) : toBase64(fallbackFontResponse as Response),
       ]);
-      const regularBase64 = regularFontBase64;
       const boldBase64 = boldFontResponse?.ok ? await toBase64(boldFontResponse as Response) : regularBase64;
       const arabicFontFile = "NotoSansArabic-Regular.ttf";
       const arabicFontName = "ArabicInvoice";
@@ -325,19 +328,52 @@ function Quotes() {
       const contentWidth = pageWidth - margin * 2;
       const footerY = pageHeight - 48;
 
-      const drawHeader = () => {
-        // The supplied official stationery is the complete page background.
-        doc.addImage(`data:image/jpeg;base64,${stationeryBase64}`, "JPEG", 0, 0, pageWidth, pageHeight);
-        // Do not paint over the approved stationery.
-        // The supplied template already contains the official header, blue bands,
-        // watermark/logo treatment, and footer. Keep it intact at full-page scale.
+      const footerHeight = contentWidth * (112 / 2480);
+      const footerY = pageHeight - 36;
+
+      const createWatermark = async () => {
+        const image = new Image();
+        image.src = `data:image/jpeg;base64,${logoBase64}`;
+        await new Promise<void>((resolve, reject) => {
+          image.onload = () => resolve();
+          image.onerror = () => reject(new Error("تعذر تحميل شعار العلامة المائية"));
+        });
+        const canvas = document.createElement("canvas");
+        const crop = Math.round(Math.min(image.width, image.height) * 0.10);
+        canvas.width = Math.max(1, image.width - crop * 2);
+        canvas.height = Math.max(1, image.height - crop * 2);
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("تعذر تجهيز العلامة المائية");
+        context.drawImage(
+          image,
+          crop,
+          crop,
+          image.width - crop * 2,
+          image.height - crop * 2,
+          0,
+          0,
+          canvas.width,
+          canvas.height,
+        );
+        return canvas.toDataURL("image/png");
+      };
+
+      const drawHeader = async () => {
+        // Official header image from the approved invoice design.
+        const headerHeight = contentWidth * (244 / 1055);
+        doc.addImage(`data:image/png;base64,${headerBase64}`, "PNG", margin, 4, contentWidth, headerHeight);
+
+        // Official logo watermark: kept behind the live invoice data.
+        const watermark = await createWatermark();
+        doc.saveGraphicsState();
+        doc.setGState(new doc.GState({ opacity: 0.10 }));
+        doc.addImage(watermark, "PNG", 92.5, 279, 410, 338);
+        doc.restoreGraphicsState();
       };
 
       const drawFooter = () => {
-        // Footer is already part of the supplied official stationery.
-      };
-      const drawDocumentTitle = () => {
-        // Title is already part of the supplied official stationery.
+        // Official footer image from the approved invoice design.
+        doc.addImage(`data:image/png;base64,${footerBase64}`, "PNG", margin, footerY, contentWidth, footerHeight);
       };
 
       const drawInfo = () => {
@@ -567,11 +603,11 @@ function Quotes() {
         doc.setFontSize(10);
         doc.text(remaining.toFixed(3), boxX + 8, netY + 18);
 
-        drawCode39(quote.reference, pageWidth - margin - 156, y - 16, 156, 42);
+        drawCode39(quote.reference, pageWidth - margin - 156, y, 156, 42);
       };
       let page = 1;
       let y = 279;
-      drawHeader();
+      await drawHeader();
       drawInfo();
       y = drawTableHeader(y);
       const items = quote.quotation_items ?? [];
@@ -581,8 +617,8 @@ function Quotes() {
           drawFooter();
           doc.addPage();
           page += 1;
-          drawHeader();
-              y = 279;
+          await drawHeader();
+          y = 279;
           y = drawTableHeader(y);
         }
         y = drawTableRow(y, item, index);
@@ -592,8 +628,8 @@ function Quotes() {
         drawFooter();
         doc.addPage();
         page += 1;
-        drawHeader();
-          y = 279;
+        await drawHeader();
+        y = 279;
         y = drawTableHeader(y);
       }
 
