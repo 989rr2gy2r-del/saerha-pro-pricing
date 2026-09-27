@@ -337,77 +337,36 @@ function Quotes() {
         // Footer is already part of the supplied official stationery.
       };
       const drawDocumentTitle = () => {
-        // The official header already contains "SALE INVOICE". Use the clear
-        // band between the two blue bars for the document type.
-        const centerX = pageWidth / 2;
-        const centerY = 84;
-
-        doc.setDrawColor(BLUE);
-        doc.setLineWidth(0.9);
-        doc.circle(centerX - 52, centerY, 4.2, "S");
-        doc.circle(centerX + 52, centerY, 4.2, "S");
-
-        doc.setFont(arabicBoldFontName, "normal");
-        doc.setFontSize(11.5);
-        doc.setTextColor(TEXT);
-        doc.text(processArabic("فاتورة"), centerX + 24, centerY + 4, { align: "center" });
-        doc.text(processArabic("عرض سعر"), centerX - 24, centerY + 4, { align: "center" });
+        // Title is already part of the supplied official stationery.
       };
 
       const drawInfo = () => {
-        // Dimensions are taken from the supplied official invoice: one continuous
-        // information block, customer on the right and document data on the left.
-        const top = 118;
-        const row = 19;
-        const leftW = 158;
-        const rightX = margin + leftW;
-        const rightW = contentWidth - leftW;
+        // Exact geometry measured from the supplied official invoice PDF (A4: 595 x 842 pt).
+        // The first information row starts directly below the official blue header band.
+        const top = 149;
+        const row = 29;
+        const leftX = margin;
+        const leftW = 180;
+        const gap = 24;
+        const rightX = leftX + leftW + gap;
+        const rightW = contentWidth - leftW - gap;
 
-        const drawInfoRow = (
-          x: number,
-          width: number,
-          labelSide: "left" | "right",
-          labelWidth: number,
-          label: string,
-          value: string,
-        ) => {
+        const drawLabelCell = (x: number, y: number, width: number, label: string) => {
           doc.setDrawColor(GRID);
           doc.setLineWidth(0.55);
-          doc.setFillColor("#FFFFFF");
-          doc.rect(x, top, width, row, "FD");
-
-          const labelX = labelSide === "right" ? x + width - labelWidth : x;
           doc.setFillColor("#F1F5F7");
-          doc.rect(labelX, top, labelWidth, row, "F");
-
-          doc.setFont(arabicFontName, "normal");
+          doc.rect(x + width - 72, y, 72, row, "FD");
+          doc.setFont(arabicBoldFontName, "normal");
           doc.setFontSize(8.2);
           doc.setTextColor(TEXT);
-          doc.text(processArabic(label), labelX + labelWidth / 2, top + 16, { align: "center" });
-
-          const valueX = labelSide === "right" ? x + 8 : x + labelWidth + 8;
-          const valueWidth = width - labelWidth - 16;
-          doc.setFont(arabicFontName, "normal");
-          doc.setFontSize(8.2);
-          doc.setTextColor(TEXT);
-          const valueLines = doc.splitTextToSize(processArabic(value), Math.max(30, valueWidth)) as string[];
-          doc.text(valueLines.slice(0, 1), labelSide === "right" ? valueX : valueX, top + 16, {
-            align: labelSide === "right" ? "left" : "right",
-          });
+          doc.text(processArabic(label), x + width - 36, y + 19, { align: "center" });
         };
 
         const leftRows = [
-          ["رقم العرض", quote.reference],
+          ["رقم الفاتورة", quote.reference],
           ["التاريخ والوقت", formatInvoiceDate(quote.issue_date)],
           ["المستخدم", ""],
-          ["إجمالي العرض", Number(quote.total ?? 0).toFixed(3)],
-        ];
-
-        const customerRows = [
-          ["اسم العميل", customer.name ?? "عميل"],
-          ["التلفون", customer.phone ?? ""],
-          ["العنوان", ""],
-          ["التعامل", quote.price_type === "reseller" ? "جملة" : "أجل"],
+          ["إجمالي الفاتورة", Number(quote.total ?? 0).toFixed(3)],
         ];
 
         leftRows.forEach(([label, value], i) => {
@@ -415,18 +374,19 @@ function Quotes() {
           doc.setDrawColor(GRID);
           doc.setLineWidth(0.55);
           doc.setFillColor("#FFFFFF");
-          doc.rect(margin, y, leftW, row, "FD");
-          doc.setFillColor("#F1F5F7");
-          doc.rect(margin + leftW - 72, y, 72, row, "F");
-          doc.setFont(arabicBoldFontName, "normal");
-          doc.setFontSize(8.2);
-          doc.setTextColor(TEXT);
-          doc.text(processArabic(label), margin + leftW - 36, y + 16, { align: "center" });
+          doc.rect(leftX, y, leftW, row, "FD");
+          drawLabelCell(leftX, y, leftW, label);
           doc.setFont(arabicFontName, "normal");
           doc.setFontSize(8.2);
           doc.setTextColor(TEXT);
-          doc.text(processArabic(String(value)), margin + 8, y + 16, { align: "left" });
+          doc.text(processArabic(String(value)), leftX + 8, y + 19, { align: "left" });
         });
+
+        const customerRows = [
+          ["اسم العميل", customer.name ?? "عميل"],
+          ["التلفون", customer.phone ?? ""],
+          ["العنوان", ""],
+        ];
 
         customerRows.forEach(([label, value], i) => {
           const y = top + i * row;
@@ -434,14 +394,37 @@ function Quotes() {
           doc.setLineWidth(0.55);
           doc.setFillColor("#FFFFFF");
           doc.rect(rightX, y, rightW, row, "FD");
-          doc.setFillColor("#F1F5F7");
-          doc.rect(rightX + rightW - 72, y, 72, row, "F");
-          doc.setFont(arabicBoldFontName, "normal");
-          doc.setFontSize(8.2);
-          doc.setTextColor(TEXT);
-          doc.text(processArabic(label), rightX + rightW - 36, y + 16, { align: "center" });
-          drawText(String(value), rightX + rightW - 82, y + 16, 8.2, "right");
+          drawLabelCell(rightX, y, rightW, label);
+          drawText(String(value), rightX + rightW - 82, y + 19, 8.2, "right");
         });
+
+        // The last official row contains the transaction term plus the currency cell.
+        const lastY = top + 3 * row;
+        doc.setDrawColor(GRID);
+        doc.setLineWidth(0.55);
+        doc.setFillColor("#FFFFFF");
+        doc.rect(rightX, lastY, rightW, row, "FD");
+
+        const termLabelW = 72;
+        const currencyLabelW = 58;
+        const termValueW = 112;
+        const currencyValueW = rightW - termLabelW - currencyLabelW - termValueW;
+
+        doc.setFillColor("#F1F5F7");
+        doc.rect(rightX + rightW - termLabelW, lastY, termLabelW, row, "F");
+        doc.rect(rightX + rightW - termLabelW - termValueW - currencyLabelW, lastY, currencyLabelW, row, "F");
+
+        doc.setFont(arabicBoldFontName, "normal");
+        doc.setFontSize(8.2);
+        doc.setTextColor(TEXT);
+        doc.text(processArabic("التعامل"), rightX + rightW - termLabelW / 2, lastY + 19, { align: "center" });
+        doc.text(processArabic("العملة"), rightX + currencyValueW + termValueW + currencyLabelW / 2, lastY + 19, { align: "center" });
+
+        drawText(quote.price_type === "reseller" ? "جملة" : "أجل", rightX + rightW - termLabelW - 8, lastY + 19, 8.2, "right");
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.2);
+        doc.setTextColor(TEXT);
+        doc.text(currency, rightX + 8, lastY + 19, { align: "left" });
       };
 
       const formatInvoiceDate = (value?: string | null) => {
@@ -476,21 +459,21 @@ function Quotes() {
         let cursor = x;
         const tableWidth = widths.reduce((a, b) => a + b, 0);
         doc.setFillColor(BLUE);
-        doc.rect(x, y, tableWidth, 32, "F");
+        doc.rect(x, y, tableWidth, 34, "F");
 
         headers.forEach(([ar, en], index) => {
           const w = widths[index];
           doc.setFont(arabicBoldFontName, "normal");
           doc.setTextColor("#FFFFFF");
           doc.setFontSize(7.8);
-          doc.text(processArabic(ar), cursor + w / 2, y + 12, { align: "center" });
+          doc.text(processArabic(ar), cursor + w / 2, y + 13, { align: "center" });
           doc.setFont("helvetica", "normal");
           doc.setFontSize(6.6);
-          doc.text(en, cursor + w / 2, y + 24, { align: "center" });
+          doc.text(en, cursor + w / 2, y + 26, { align: "center" });
           cursor += w;
         });
 
-        return y + 32;
+        return y + 34;
       };
 
       const drawTableRow = (y: number, item: QuoteItem, index: number) => {
@@ -498,7 +481,7 @@ function Quotes() {
         const tableWidth = widths.reduce((a, b) => a + b, 0);
         const description = String(item.product_name ?? "");
         const descriptionLines = doc.splitTextToSize(processArabic(description), widths[4] - 10) as string[];
-        const rowHeight = Math.max(25, Math.min(48, 11 + descriptionLines.length * 11));
+        const rowHeight = Math.max(30, Math.min(52, 12 + descriptionLines.length * 11));
 
         let cursor = margin;
         doc.setDrawColor(GRID);
@@ -584,12 +567,11 @@ function Quotes() {
         doc.setFontSize(10);
         doc.text(remaining.toFixed(3), boxX + 8, netY + 18);
 
-        drawCode39(quote.reference, pageWidth - margin - 170, y + 8, 170, 42);
+        drawCode39(quote.reference, pageWidth - margin - 156, y - 16, 156, 42);
       };
       let page = 1;
-      let y = 236;
+      let y = 279;
       drawHeader();
-      drawDocumentTitle();
       drawInfo();
       y = drawTableHeader(y);
       const items = quote.quotation_items ?? [];
@@ -600,8 +582,7 @@ function Quotes() {
           doc.addPage();
           page += 1;
           drawHeader();
-          drawDocumentTitle();
-          y = 236;
+              y = 279;
           y = drawTableHeader(y);
         }
         y = drawTableRow(y, item, index);
@@ -612,12 +593,11 @@ function Quotes() {
         doc.addPage();
         page += 1;
         drawHeader();
-        drawDocumentTitle();
-        y = 280;
+          y = 279;
         y = drawTableHeader(y);
       }
 
-      drawTotals(y + 14);
+      drawTotals(y + 6);
       drawFooter();
 
       return doc.output("blob");
