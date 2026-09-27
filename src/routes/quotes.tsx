@@ -603,7 +603,8 @@ function Quotes() {
         drawCode39(quote.reference, pageWidth - margin - 156, y, 156, 42);
       };
       let page = 1;
-      let y = 279;
+      // Keep the item table clearly below the blue header band and the invoice/customer information block.
+      let y = 300;
       await drawHeader();
       drawInfo();
       y = drawTableHeader(y);
@@ -615,7 +616,7 @@ function Quotes() {
           doc.addPage();
           page += 1;
           await drawHeader();
-          y = 279;
+          y = 300;
           y = drawTableHeader(y);
         }
         y = drawTableRow(y, item, index);
@@ -626,7 +627,7 @@ function Quotes() {
         doc.addPage();
         page += 1;
         await drawHeader();
-        y = 279;
+        y = 300;
         y = drawTableHeader(y);
       }
 
