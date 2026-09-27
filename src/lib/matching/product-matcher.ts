@@ -225,6 +225,12 @@ function extractMatchConstraints(value: string): MatchConstraints {
       if (text.includes("قطب") && !poles.length) poles.push(digit);
     }
   }
+  if (!gangs.length) {
+    if (text.includes("رباعي")) gangs.push("4");
+    else if (text.includes("ثلاثي")) gangs.push("3");
+    else if (text.includes("ثنائي")) gangs.push("2");
+    else if (text.includes("مفرد") || text.includes("احادي") || text.includes("سنجل")) gangs.push("1");
+  }
 
   return { productClass, amps, colors, fractions, metricSizes, inchSizes, pairs, gangs, poles };
 }
@@ -270,7 +276,7 @@ function candidateMatchesConstraints(text: string, constraints: MatchConstraints
   if (constraints.pairs.some((pair) => {
     const [a, b] = pair.split("x");
     const nums = [...normalized.matchAll(/\d+(?:\.\d+)?/g)].map((m) => m[0]);
-    return !(nums.includes(a) && nums.includes(b) && (normalized.includes(`${a} x ${b}`) || normalized.includes(`${b} x ${a}`) || normalized.includes(`${a}x${b}`)));
+    return !(nums.includes(a) && nums.includes(b));
   })) return false;
 
   const hasGang = (value: string) =>
