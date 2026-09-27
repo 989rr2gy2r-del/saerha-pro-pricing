@@ -193,7 +193,7 @@ function Quotes() {
         fetch(import.meta.env.BASE_URL + "fonts/NotoNaskhArabic-Regular.ttf").catch(() => null),
       ]);
 
-      if (!stationeryResponse.ok || !fontResponse.ok) {
+      if (!fontResponse.ok || (!stationeryResponse?.ok && !fallbackFontResponse?.ok)) {
         throw new Error("تعذر تحميل موارد الفاتورة الرسمية");
       }
 
