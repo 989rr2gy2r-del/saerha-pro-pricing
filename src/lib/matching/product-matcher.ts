@@ -198,7 +198,7 @@ function extractMatchConstraints(value: string): MatchConstraints {
 
   const productClass =
     /\brccb\b|قاطع تسريب|تسريب أرضي/.test(text) ? "rccb" :
-    /\bmcb\b/.test(text) ? "mcb" :
+    /\bmcb\b/.test(text) || (/(?:^|\s)بريكر(?:\s|$)/.test(text) && /(?:^|\s)سنجل(?:\s|$)/.test(text)) ? "mcb" :
     /(?:^|\s)(?:بوكس|صندوق)(?:\s|$)/.test(text) ? "box" :
     /(?:^|\s)بايب(?:\s|$)|\bpipe(?:s)?\b/.test(text) ? "pipe" :
     /(?:^|\s)(?:كيبل|كابل)(?:\s|$)|\bcable(?:s)?\b/.test(text) ? "cable" :
@@ -573,6 +573,28 @@ export function rankProductMatches<T>(
     if (identity >= 1 && identityPrecision >= 0.95 && attributes === 1) score += 0.12;
     if (specificationConflict) score = Math.min(score, 0.72);
     score = Math.max(0, Math.min(1, score));
+
+    const constraintSignals =
+      (queryConstraints.productClass && queryConstraints.productClass !== null ? 1 : 0) +
+      queryConstraints.amps.length +
+      queryConstraints.colors.length +
+      queryConstraints.fractions.length +
+      queryConstraints.metricSizes.length +
+      queryConstraints.inchSizes.length +
+      queryConstraints.pairs.length +
+      queryConstraints.gangs.length +
+      queryConstraints.poles.length;
+
+    // When the catalog candidate satisfies the product class and every
+    // explicit technical constraint, give that evidence meaningful weight.
+    // Technical attributes must outrank broad name similarity.
+    if (!exactNameOrAlias && constraintSignals > 0 && attributes === 1) {
+      const classMatched = queryConstraints.productClass !== null;
+      if (classMatched) score = Math.min(1, score + 0.12);
+      if (queryConstraints.amps.length || queryConstraints.gangs.length || queryConstraints.poles.length) {
+        score = Math.min(1, score + 0.08);
+      }
+    }
 
     const reason = exact
       ? "مطابقة مباشرة لاسم الصنف في قاعدة البيانات"
