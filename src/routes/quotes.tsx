@@ -378,7 +378,7 @@ function Quotes() {
       const drawInfo = () => {
         // Exact geometry measured from the supplied official invoice PDF (A4: 595 x 842 pt).
         // The first information row starts directly below the official blue header band.
-        const top = 149;
+        const top = 70;
         const row = 29;
         const leftX = margin;
         const leftW = 180;
@@ -392,7 +392,7 @@ function Quotes() {
           doc.setFillColor("#F1F5F7");
           doc.rect(x + width - 72, y, 72, row, "FD");
           doc.setFont(arabicBoldFontName, "normal");
-          doc.setFontSize(8.2);
+          doc.setFontSize(9.2);
           doc.setTextColor(TEXT);
           doc.text(processArabic(label), x + width - 36, y + 19, { align: "center" });
         };
@@ -411,8 +411,8 @@ function Quotes() {
           doc.setFillColor("#FFFFFF");
           doc.rect(leftX, y, leftW, row, "FD");
           drawLabelCell(leftX, y, leftW, label);
-          doc.setFont(arabicFontName, "normal");
-          doc.setFontSize(8.2);
+          doc.setFont(arabicBoldFontName, "normal");
+          doc.setFontSize(9.2);
           doc.setTextColor(TEXT);
           doc.text(processArabic(String(value)), leftX + 8, y + 19, { align: "left" });
         });
@@ -420,7 +420,7 @@ function Quotes() {
         const customerRows = [
           ["اسم العميل", customer.name ?? "عميل"],
           ["التلفون", customer.phone ?? ""],
-          ["العنوان", ""],
+          ["العنوان", customer.address ?? ""],
         ];
 
         customerRows.forEach(([label, value], i) => {
@@ -430,7 +430,7 @@ function Quotes() {
           doc.setFillColor("#FFFFFF");
           doc.rect(rightX, y, rightW, row, "FD");
           drawLabelCell(rightX, y, rightW, label);
-          drawText(String(value), rightX + rightW - 82, y + 19, 8.2, "right");
+          drawText(String(value), rightX + rightW - 82, y + 19, 9.2, "right", true);
         });
 
         // The last official row contains the transaction term plus the currency cell.
@@ -455,7 +455,7 @@ function Quotes() {
         doc.text(processArabic("التعامل"), rightX + rightW - termLabelW / 2, lastY + 19, { align: "center" });
         doc.text(processArabic("العملة"), rightX + currencyValueW + termValueW + currencyLabelW / 2, lastY + 19, { align: "center" });
 
-        drawText(quote.price_type === "reseller" ? "جملة" : "أجل", rightX + rightW - termLabelW - 8, lastY + 19, 8.2, "right");
+        drawText(quote.price_type === "reseller" ? "جملة" : "أجل", rightX + rightW - termLabelW - 8, lastY + 19, 9.2, "right", true);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8.2);
         doc.setTextColor(TEXT);
@@ -534,21 +534,21 @@ function Quotes() {
         values.forEach((value, i) => {
           const w = widths[i];
           if (i === 4) {
-            doc.setFont(arabicFontName, "normal");
-            doc.setFontSize(8.1);
+            doc.setFont(arabicBoldFontName, "normal");
+            doc.setFontSize(8.8);
             doc.setTextColor(TEXT);
             descriptionLines.slice(0, 3).forEach((line, lineIndex) => {
               doc.text(line, cursor + w - 7, y + 15 + lineIndex * 10, { align: "right" });
             });
           } else if (i === 0 || i === 1 || i === 2 || i === 3 || i === 5 || i === 6) {
             if (i === 2) {
-              doc.setFont(arabicFontName, "normal");
-              doc.setFontSize(8);
+              doc.setFont(arabicBoldFontName, "normal");
+              doc.setFontSize(8.8);
               doc.setTextColor(TEXT);
               doc.text(processArabic(value), cursor + w / 2, y + rowHeight / 2 + 3, { align: "center" });
             } else {
-              doc.setFont("helvetica", "normal");
-              doc.setFontSize(8);
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(8.8);
               doc.setTextColor(TEXT);
               doc.text(value, cursor + w / 2, y + rowHeight / 2 + 3, { align: "center" });
             }
@@ -580,7 +580,7 @@ function Quotes() {
           doc.setFillColor(BLUE);
           doc.rect(boxX, yy, boxW, rowH, "F");
           doc.setFont(arabicBoldFontName, "normal");
-          doc.setFontSize(8.2);
+          doc.setFontSize(9);
           doc.setTextColor("#FFFFFF");
           doc.text(processArabic(String(label)), boxX + boxW - 8, yy + 15, { align: "right" });
           doc.setFont("helvetica", "normal");
