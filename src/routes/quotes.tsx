@@ -326,7 +326,6 @@ function Quotes() {
       };
 
       const contentWidth = pageWidth - margin * 2;
-      const footerY = pageHeight - 48;
 
       const footerHeight = contentWidth * (112 / 2480);
       const footerY = pageHeight - 36;
