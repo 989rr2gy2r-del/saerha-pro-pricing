@@ -15,6 +15,7 @@ const MODELS = [
 ];
 
 const MAX_IMAGE_BASE64 = 12_000_000;
+const MAX_EXPECTED_LINE_GAP = 2;
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -195,6 +196,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const image = typeof body?.image === "string" ? body.image : "";
     const textInput = typeof body?.text === "string" ? body.text.trim() : "";
+    const textSource = typeof body?.textSource === "string" ? body.textSource : "";
     const textSource = typeof body?.textSource === "string" ? body.textSource.trim().toLowerCase() : "";
     if (!image && !textInput) return json({ success: false, error: "أرسل صورة أو نصًا." }, 400);
 
@@ -221,6 +223,13 @@ Deno.serve(async (req) => {
 5) quantity: الكمية الرقمية الموجودة في نفس السطر فقط.
 6) unit: الوحدة المرتبطة بالكمية في نفس السطر مثل حبة، قطعة، رول، كرتون، دزينة، متر.
 7) confidence: ثقتك في قراءة السطر من 0 إلى 1.
+
+المصدر الإضافي للنص إن وُجد:
+- textSource = "${textSource}".
+- إذا كان هناك نص مستخرج من PDF أو Excel أو OCR، استخدمه كدليل مساعد فقط.
+- في الصورة، الصورة الأصلية هي المرجع البصري الأعلى؛ لا تستبدل كلمة أو رقمًا من الصورة لمجرد أن OCR قرأه بشكل مختلف.
+- في PDF/Excel/text، حافظ على ترتيب الصفوف والأسطر ولا تسقط بندًا موجودًا في النص.
+- يجب أن يخرج عنصر واحد لكل سطر طلب واضح، ولا تدمج سطرين مختلفين لمجرد تشابه الصنف.
 
 قاعدة الكمية مهمة جدًا:
 - اقرأ الكمية من الطلبية كما هي مكتوبة، حتى لو كانت في بداية السطر أو نهايته أو بجانب الوحدة.
@@ -293,17 +302,34 @@ ${textInput
           ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length
           : 0;
 
-        if (result.items.length > 0 && averageConfidence >= 0.78) {
+        const expectedLines = textInput
+          ? textInput
+              .split(/\r?\n/)
+              .map((line) => line.trim())
+              .filter((line) => line.length >= 3)
+              .filter((line) => !/^(?:الصنف|الكمية|الطلبية|البيان|item|product|quantity)$/i.test(line))
+              .length
+          : 0;
+        const missingLines = expectedLines > 0
+          ? expectedLines - result.items.length
+          : 0;
+        const lineCoverageOk = missingLines <= MAX_EXPECTED_LINE_GAP;
+
+        if (result.items.length > 0 && averageConfidence >= 0.78 && lineCoverageOk) {
           return json({ success: true, result });
+        }
+
+        if (result.items.length > 0 && index < MODELS.length - 1) {
+          continue;
         }
 
         if (result.items.length > 0) {
           return json({
             success: true,
             result,
-            warning: index === MODELS.length - 1
-              ? "تمت القراءة لكن الثقة منخفضة؛ راجع السطور قبل الاعتماد."
-              : "تمت القراءة من المحرك الأول لكن الثقة منخفضة؛ تمت مراجعة النتيجة بمحرك احتياطي.",
+            warning: !lineCoverageOk
+              ? "تمت القراءة لكن بعض السطور لم تُستخرج؛ راجع الطلبية قبل الاعتماد."
+              : "تمت القراءة لكن الثقة منخفضة؛ راجع السطور قبل الاعتماد.",
           });
         }
       } catch (error) {
