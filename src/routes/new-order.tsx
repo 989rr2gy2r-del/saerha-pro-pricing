@@ -2017,7 +2017,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           // If no match is confirmed, show the cleaned product query without the
           // leading quantity/unit; keep the untouched line in raw_text for audit.
           description: selectedMatch?.product.name_ar ?? productQuery,
-          normalized_description_ar: selectedMatch?.product.name_ar ?? marketTranslationAr,
+          normalized_description_ar: marketTranslationAr,
           quoteName: selectedMatch?.product.name_ar ?? undefined,
           quantity:
             sourceSignals.quantity && sourceSignals.quantity > 0
@@ -2631,6 +2631,46 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                             {analysisResult.items.length} صنف
                           </p>
                         </div>
+                      </div>
+
+                      <div className="mb-4 overflow-x-auto rounded-xl border bg-muted/20" dir="rtl">
+                        <div className="border-b bg-muted/50 px-3 py-2">
+                          <p className="text-sm font-black">نتيجة المطابقة مع قاعدة المنتجات</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            المطابقة تعتمد على الاسم والمقاس والمواصفات؛ الأصناف غير المؤكدة تبقى للمراجعة ولا تُعتمد تلقائيًا.
+                          </p>
+                        </div>
+                        <table className="w-full min-w-[760px] text-xs">
+                          <thead className="bg-background font-extrabold">
+                            <tr>
+                              <th className="px-3 py-2 text-right">الأصل</th>
+                              <th className="px-3 py-2 text-right">العربية السوقية</th>
+                              <th className="px-3 py-2 text-right">الكود</th>
+                              <th className="px-3 py-2 text-right">الثقة</th>
+                              <th className="px-3 py-2 text-right">الحالة</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {analysisResult.items.map((item) => {
+                              const confidencePercent = Math.round(Math.min(1, Math.max(0, item.confidence || 0)) * 100);
+                              const statusLabel =
+                                item.status === "HIGH_CONFIDENCE"
+                                  ? "مطابقة مؤكدة"
+                                  : item.status === "NEEDS_REVIEW"
+                                    ? "تحتاج مراجعة"
+                                    : "غير مطابق";
+                              return (
+                                <tr key={`match-summary-${item.id}`}>
+                                  <td className="max-w-[260px] px-3 py-2 align-top font-semibold">{item.raw_text || item.description || "—"}</td>
+                                  <td className="max-w-[300px] px-3 py-2 align-top text-muted-foreground">{item.normalized_description_ar || "—"}</td>
+                                  <td className="px-3 py-2 align-top font-mono font-black tabular-nums">{item.product?.sku || "—"}</td>
+                                  <td className="px-3 py-2 align-top font-black tabular-nums">{confidencePercent}%</td>
+                                  <td className="px-3 py-2 align-top font-bold">{statusLabel}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
 
                       <div className="hidden overflow-x-auto md:block">
