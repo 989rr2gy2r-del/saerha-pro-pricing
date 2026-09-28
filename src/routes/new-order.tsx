@@ -2098,7 +2098,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         });
 
         if (candidates.length > 0) {
-          item.product = candidates[0].id;
+          item.product = candidates[0];
         }
       }
 
