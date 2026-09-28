@@ -101,6 +101,9 @@ for (const [line, quantity, unit] of handwrittenOcrLines) {
 
 assert.equal(normalizeOrderUnit("coil"), "رول");
 assert.equal(normalizeOrderUnit("dozen"), "دزينة");
+assert.equal(normalizeQuantity(0.5), 0.5, "decimal quantities must not be rounded");
+const decimal = parseTextOrderFallback("PVC Pipe - 0.5 meter");
+assert.equal(decimal.items[0]?.quantity, 0.5);
 
 console.log("order-input regression: PASS");
 console.log(`validated pasted rows: ${parsed.items.length}`);
