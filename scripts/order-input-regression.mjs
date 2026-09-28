@@ -39,8 +39,10 @@ const extractOrderSignals = new Function(
   `${stripTypes(extractFunction("extractOrderSignals"))}; return extractOrderSignals;`,
 )();
 const parseTextOrderFallback = new Function(
+  "normalizeUnitValue",
+  "normalizeQuantity",
   `${stripTypes(extractFunction("parseTextOrderFallback"))}; return parseTextOrderFallback;`,
-)();
+)(normalizeUnitValue, normalizeQuantity);
 
 const whatsappOrder = `1. PVC Circular Socket Box – 15 pcs
 2. PVC Solution Glue – 500 ml
