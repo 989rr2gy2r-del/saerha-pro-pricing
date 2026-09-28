@@ -100,6 +100,7 @@ for (const [line, quantity, unit] of handwrittenOcrLines) {
 }
 
 assert.equal(normalizeOrderUnit("coil"), "رول");
+assert.equal(normalizeOrderUnit("لف"), "رول");
 assert.equal(normalizeOrderUnit("dozen"), "دزينة");
 assert.equal(normalizeQuantity(0.5), 0.5, "decimal quantities must not be rounded");
 const decimal = parseTextOrderFallback("PVC Pipe - 0.5 meter");
