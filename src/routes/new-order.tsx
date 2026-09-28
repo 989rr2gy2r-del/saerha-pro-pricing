@@ -549,6 +549,33 @@ function prepareProductForMatch(
   return prepared;
 }
 
+function normalizeCommercialMatchUnit(value: string): string {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (/^(?:حبة|قطعة|قطع|pcs?|pieces?|piece)$/.test(raw)) return "piece";
+  if (/^(?:رول|لفة|لفه|لف|rolls?|coils?)$/.test(raw)) return "roll";
+  if (/^(?:متر|meters?|meter|m)$/.test(raw)) return "meter";
+  if (/^(?:كرتون|كرتونه|cartons?|carton|box|boxes)$/.test(raw)) return "carton";
+  if (/^(?:علبة|عبوة)$/.test(raw)) return "container";
+  if (/^(?:طقم)$/.test(raw)) return "set";
+  if (/^(?:باكيت|باك|packs?|packets?)$/.test(raw)) return "pack";
+  return raw;
+}
+
+function hasExplicitColor(text: string): boolean {
+  return /(احمر|اسود|ابيض|اخضر|ازرق|اصفر|بني|رمادي|ذهبي|silver|red|black|white|green|blue|yellow|brown|grey|gray|gold)/i.test(
+    normalizeForMatch(text),
+  );
+}
+
+function candidateHasSpecificColor(product: ProductRecord): boolean {
+  return Boolean(
+    product.color?.trim() ||
+      /(احمر|اسود|ابيض|اخضر|ازرق|اصفر|بني|رمادي|ذهبي|فضي|red|black|white|green|blue|yellow|brown|grey|gray|gold|silver)/i.test(
+        normalizeForMatch(product.name_ar + " " + (product.name_en ?? "")),
+      ),
+  );
+}
+
 function findLocalProductMatch(
   text: string,
   products: ProductRecord[],
@@ -559,15 +586,8 @@ function findLocalProductMatch(
   if (!queries.length) return null;
 
   const aliasRows = prepareAliasRows(aliases);
-
   const ranked = queries.flatMap((query) =>
-    rankProductMatches(
-      query,
-      products,
-      aliasRows,
-      (product) => product.id,
-      8,
-    ),
+    rankProductMatches(query, products, aliasRows, (product) => product.id, 8),
   );
 
   const byProduct = new Map<string, (typeof ranked)[number]>();
@@ -581,21 +601,55 @@ function findLocalProductMatch(
   const second = sorted[1];
   if (!best || best.score < 0.55) return null;
 
-  // Do not auto-accept a generic product when another catalog product is
-  // almost equally plausible. This is critical for names such as "كوع 1.5".
   const margin = second ? best.score - second.score : 1;
   const ambiguous = margin < 0.10 && !best.signals.exact && !best.signals.alias;
 
-  // A ranked candidate is not the same thing as a selected product. If the
-  // matcher cannot prove the winner, leave the product unset so the UI can
-  // present the catalog picker instead of silently choosing a variant.
-  if (ambiguous || best.status !== "HIGH_CONFIDENCE") return null;
+  const requestedUnit = normalizeCommercialMatchUnit(
+    text.match(/(?:حبة|قطعة|قطع|كرتون|كرتونه|رول|لفة|لفه|لف|باكيت|باك|متر|عبوة|طقم|كيس|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|coils?|packets?|packs?|cartons?|boxes?|meters?|meter)$/i)?.[0] ?? "",
+  );
+  const bestUnit = normalizeCommercialMatchUnit(best.product.unit ?? "");
+  const unitMismatch = Boolean(requestedUnit && bestUnit && requestedUnit !== bestUnit);
+
+  // If the order does not state a color, a color-specific catalog variant is
+  // not allowed to become an automatic selection when a generic peer is also
+  // plausible. This prevents "Electrical Tape" from silently becoming "black".
+  const colorVariantAmbiguous =
+    !hasExplicitColor(text) &&
+    candidateHasSpecificColor(best.product) &&
+    sorted.some(
+      (candidate) =>
+        !candidateHasSpecificColor(candidate.product) &&
+        candidate.score >= best.score - 0.12,
+    );
+
+  const autoAccept =
+    best.status === "HIGH_CONFIDENCE" &&
+    !ambiguous &&
+    !unitMismatch &&
+    !colorVariantAmbiguous;
+
+  const candidates = sorted.slice(0, 5).map((candidate) => ({
+    id: candidate.product.id,
+    sku: candidate.product.sku,
+    name_ar: candidate.product.name_ar,
+    score: candidate.score,
+    reason: candidate.reason,
+  }));
 
   return {
-    product: best.product,
+    product: autoAccept ? best.product : null,
     score: best.score,
-    status: "HIGH_CONFIDENCE" as const,
-    reason: best.reason,
+    status: autoAccept ? ("HIGH_CONFIDENCE" as const) : ("NEEDS_REVIEW" as const),
+    reason: autoAccept
+      ? best.reason
+      : unitMismatch
+        ? "مرشح قوي لكن وحدة الطلب لا تطابق وحدة بيع المنتج في القاعدة"
+        : colorVariantAmbiguous
+          ? "الطلب لم يحدد اللون والمرشح مرتبط بلون محدد"
+          : ambiguous
+            ? "أكثر من صنف في القاعدة متقارب؛ يلزم اختيار المستخدم"
+            : "المرشح لم يتجاوز شروط المطابقة الآمنة",
+    candidates,
   };
 }
 
@@ -2031,7 +2085,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           ? Math.min(1, Math.max(0, selectedMatch.score))
           : 0;
         const status: MatchStatus = selectedMatch
-          ? selectedMatch.status === "HIGH_CONFIDENCE" && confidence >= 0.86
+          ? selectedMatch.status === "HIGH_CONFIDENCE" && selectedMatch.product && confidence >= 0.86
             ? "HIGH_CONFIDENCE"
             : "NEEDS_REVIEW"
           : "UNMATCHED";
@@ -2055,6 +2109,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           sourceSku: selectedMatch?.product.sku || sourceSignals.sku || item.sourceSku || "",
           sourceUnitPrice: item.sourceUnitPrice ?? null,
           sourceLineTotal: item.sourceLineTotal ?? null,
+          matchCandidates: selectedMatch?.candidates,
           // A unit printed next to a quantity in the source row is stronger
           // than a generic model guess.
           unit:
@@ -2063,11 +2118,11 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             normalizeUnitValue(selectedMatch?.product?.unit ?? "") ||
             "حبة",
           matchReason: selectedMatch
-            ? sourceSignals.sku
+            ? sourceSignals.sku && selectedMatch.product
               ? "تمت المطابقة برقم الصنف الموجود في الطلب ثم اختيار المنتج من قاعدة البيانات"
-              : selectedMatch.status === "HIGH_CONFIDENCE"
+              : selectedMatch.status === "HIGH_CONFIDENCE" && selectedMatch.product
                 ? "تمت المطابقة مع قاعدة المنتجات — الاسم والبيانات من Supabase"
-                : "تم اختيار أقرب منتج من قاعدة البيانات مع إبقاء السطر للمراجعة"
+                : selectedMatch.reason
             : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة",
           status,
           rejected: false,
@@ -2804,6 +2859,31 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                           )}
                                         </div>
                                       </button>
+
+                                      {!item.product && item.matchCandidates && item.matchCandidates.length > 0 && (
+                                        <div className="mt-2 rounded-lg border bg-background p-2">
+                                          <p className="mb-2 text-[10px] font-extrabold text-muted-foreground">
+                                            أفضل الخيارات الموجودة في قاعدة البيانات:
+                                          </p>
+                                          <div className="space-y-1">
+                                            {item.matchCandidates.slice(0, 3).map((candidate) => (
+                                              <button
+                                                key={candidate.id}
+                                                type="button"
+                                                className="grid w-full grid-cols-[72px_1fr] gap-2 rounded-md border px-2 py-2 text-right hover:bg-muted"
+                                                onClick={() => {
+                                                  handleProductSelect(index, candidate.id);
+                                                  handleCloseProductPicker();
+                                                  focusOrderField(index, "quantity");
+                                                }}
+                                              >
+                                                <span className="font-mono text-[10px] font-black text-primary">{candidate.sku}</span>
+                                                <span className="min-w-0 text-[10px] font-bold">{candidate.name_ar}</span>
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
 
                                       {openProductPickerId === item.id && (
                                         <div
