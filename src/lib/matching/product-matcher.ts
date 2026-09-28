@@ -179,6 +179,8 @@ type MatchConstraints = {
   pairs: string[];
   gangs: string[];
   poles: string[];
+  alternativeFractions: boolean;
+  alternativeInches: boolean;
 };
 
 const NUMBER_WORD_TO_DIGIT: Record<string, string> = {
@@ -218,6 +220,8 @@ function extractMatchConstraints(value: string): MatchConstraints {
   const pairs = [...text.matchAll(/(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/gi)].map((m) => `${m[1]}x${m[2]}`);
   const gangs = [...text.matchAll(/(\d+)\s*(?:دقمة|gang)\b/gi)].map((m) => m[1]);
   const poles = [...text.matchAll(/(\d+)\s*(?:قطب|pole)\b/gi)].map((m) => m[1]);
+  const alternativeFractions = /(?:\b(?:or|او)\b)/i.test(text) && fractions.length > 1;
+  const alternativeInches = /(?:\b(?:or|او)\b)/i.test(text) && inchSizes.length > 1;
 
   for (const [word, digit] of Object.entries(NUMBER_WORD_TO_DIGIT)) {
     if (text.includes(word)) {
@@ -229,10 +233,11 @@ function extractMatchConstraints(value: string): MatchConstraints {
     if (text.includes("رباعي")) gangs.push("4");
     else if (text.includes("ثلاثي")) gangs.push("3");
     else if (text.includes("ثنائي")) gangs.push("2");
-    else if (text.includes("مفرد") || text.includes("احادي") || text.includes("سنجل")) gangs.push("1");
+    else if (text.includes("مفرد") || text.includes("احادي")) gangs.push("1");
   }
+  if (!poles.length && (text.includes("سنجل") || text.includes("single"))) poles.push("1");
 
-  return { productClass, amps, colors, fractions, metricSizes, inchSizes, pairs, gangs, poles };
+  return { productClass, amps, colors, fractions, metricSizes, inchSizes, pairs, gangs, poles, alternativeFractions, alternativeInches };
 }
 
 function candidateMatchesConstraints(text: string, constraints: MatchConstraints): boolean {
@@ -265,13 +270,19 @@ function candidateMatchesConstraints(text: string, constraints: MatchConstraints
 
   if (constraints.colors.some((color) => !normalized.includes(color))) return false;
 
-  if (constraints.fractions.some((fraction) => !normalized.includes(fraction))) return false;
+  if (constraints.fractions.length) {
+    const fractionMatches = constraints.fractions.filter((fraction) => normalized.includes(fraction));
+    if (constraints.alternativeFractions ? fractionMatches.length === 0 : fractionMatches.length < constraints.fractions.length) return false;
+  }
 
   const hasMetric = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:مم2|مم|mm2|mm)(?:\s|$)`, "i").test(normalized);
   if (constraints.metricSizes.some((value) => !hasMetric(value))) return false;
 
   const hasInch = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:انش|inch|in)(?:\s|$)`, "i").test(normalized);
-  if (constraints.inchSizes.some((value) => !hasInch(value))) return false;
+  if (constraints.inchSizes.length) {
+    const inchMatches = constraints.inchSizes.filter(hasInch);
+    if (constraints.alternativeInches ? inchMatches.length === 0 : inchMatches.length < constraints.inchSizes.length) return false;
+  }
 
   if (constraints.pairs.some((pair) => {
     const [a, b] = pair.split("x");
@@ -288,7 +299,8 @@ function candidateMatchesConstraints(text: string, constraints: MatchConstraints
   if (constraints.gangs.some((value) => !hasGang(value))) return false;
 
   const hasPole = (value: string) =>
-    new RegExp(`(?:^|\s)${value}\s*(?:قطب|pole)(?:\s|$)`, "i").test(normalized);
+    new RegExp("(?:^|\\s)" + value + "\\s*(?:قطب|pole)(?:\\s|$)", "i").test(normalized) ||
+    (value === "1" && /(?:^|\s)(?:سنجل|single)(?:\s|$)/i.test(normalized));
   if (constraints.poles.some((value) => !hasPole(value))) return false;
 
   return true;
@@ -542,7 +554,9 @@ export function rankProductMatches<T>(
       ? queryNumbers.filter((number) => candidateNumbers.includes(number)).length / queryNumbers.length
       : 1;
     const fraction = queryFractions.length
-      ? queryFractions.filter((number) => candidateFractions.includes(number)).length / queryFractions.length
+      ? queryConstraints.alternativeFractions
+        ? (queryFractions.some((number) => candidateFractions.includes(number)) ? 1 : 0)
+        : queryFractions.filter((number) => candidateFractions.includes(number)).length / queryFractions.length
       : 1;
 
     const identity = queryIdentity.length ? candidateIdentityQuick : 1;
@@ -607,7 +621,7 @@ export function rankProductMatches<T>(
             : "تشابه جزئي يحتاج مراجعة";
 
     const status: MatchCandidate<T>["status"] =
-      exactNameOrAlias || (identity >= 0.9 && identityPrecision >= 0.95 && attributes === 1 && score >= 0.86)
+      exactNameOrAlias || (identity >= 0.9 && attributes === 1 && score >= 0.86)
         ? "HIGH_CONFIDENCE"
         : "NEEDS_REVIEW";
 
