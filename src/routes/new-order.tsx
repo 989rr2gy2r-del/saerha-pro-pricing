@@ -217,6 +217,14 @@ async function prepareOcrImage(file: File): Promise<HTMLCanvasElement> {
 function parseLocalOcrText(text: string) {
   const units = "حبة|قطعة|علبة|كرتون|كرتونه|كرتون|متر|سم|مم|كجم|كغ|جم|غ|لتر|ل|مل|رول|لفة|باكيت|كيس|طقم|زوج|متر".split("|");
   const unitPattern = units.join("|");
+  const normalizeFallbackUnit = (value: string) => {
+    const unit = String(value ?? "").trim();
+    if (/^meters?$/i.test(unit) || /^m$/i.test(unit)) return "متر";
+    if (/^ml$/i.test(unit)) return "مل";
+    if (/^rolls?$/i.test(unit)) return "رول";
+    if (/^pcs?$/i.test(unit)) return "قطعة";
+    return normalizeUnitValue(unit);
+  };
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.replace(/[|¦]+/g, " ").replace(/\s+/g, " ").trim())
@@ -272,7 +280,7 @@ function parseLocalOcrText(text: string) {
 }
 
 async function parseTextOrderFallback(text: string) {
-  const units = "حبة|قطعة|قطع|علبة|كرتون|كرتونه|رول|لفة|باكيت|باك|متر|سم|مم|كجم|كغ|جم|غ|لتر|مل|عبوة|طقم|كيس|صندوق|دزينة|زوج|pcs|pc|pieces|piece|roll|packet|pack|carton|box".split("|");
+  const units = "حبة|قطعة|قطع|علبة|كرتون|كرتونه|رول|لفة|باكيت|باك|متر|مترات|meter|meters|m|سم|cm|مم|mm|كجم|كغ|جم|غ|لتر|مل|ml|عبوة|طقم|كيس|صندوق|دزينة|زوج|pcs|pc|pieces|piece|roll|rolls|packet|packets|pack|packs|carton|cartons|box|boxes".split("|");
   const unitPattern = units.join("|");
   const toNumber = (value: string) => Number(String(value ?? "").replace(/[٠-٩]/g, (char) => String("٠١٢٣٤٥٦٧٨٩".indexOf(char))).replace(/,/g, "."));
   const lines = text.split(/\r?\n/).map((line) => line.replace(/[|¦]+/g, "\t").trim()).filter(Boolean);
@@ -291,7 +299,7 @@ async function parseTextOrderFallback(text: string) {
       const lastMatch = last.match(quantityUnit);
       if (lastMatch) {
         quantity = toNumber(lastMatch[1] ?? "");
-        unit = normalizeUnitValue(lastMatch[2] ?? "");
+        unit = normalizeFallbackUnit(lastMatch[2] ?? "");
         description = columns.slice(0, -1).join(" ").replace(/^\d+\s+/, "").trim();
       }
     }
@@ -300,11 +308,11 @@ async function parseTextOrderFallback(text: string) {
       const trailing = cleaned.match(trailingQuantity);
       if (leading) {
         quantity = toNumber(leading[3] ?? "");
-        unit = normalizeUnitValue(leading[4] ?? "");
+        unit = normalizeFallbackUnit(leading[4] ?? "");
         description = (leading[2] ?? "").trim();
       } else if (trailing) {
         quantity = toNumber(trailing[2] ?? "");
-        unit = normalizeUnitValue(trailing[3] ?? "");
+        unit = normalizeFallbackUnit(trailing[3] ?? "");
         description = (trailing[1] ?? "").replace(/^\d+\s+/, "").trim();
       } else {
         description = cleaned.replace(/^\d+[.)\-:]?\s+/, "").trim();
@@ -2631,46 +2639,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                             {analysisResult.items.length} صنف
                           </p>
                         </div>
-                      </div>
-
-                      <div className="mb-4 overflow-x-auto rounded-xl border bg-muted/20" dir="rtl">
-                        <div className="border-b bg-muted/50 px-3 py-2">
-                          <p className="text-sm font-black">نتيجة المطابقة مع قاعدة المنتجات</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            المطابقة تعتمد على الاسم والمقاس والمواصفات؛ الأصناف غير المؤكدة تبقى للمراجعة ولا تُعتمد تلقائيًا.
-                          </p>
-                        </div>
-                        <table className="w-full min-w-[760px] text-xs">
-                          <thead className="bg-background font-extrabold">
-                            <tr>
-                              <th className="px-3 py-2 text-right">الأصل</th>
-                              <th className="px-3 py-2 text-right">العربية السوقية</th>
-                              <th className="px-3 py-2 text-right">الكود</th>
-                              <th className="px-3 py-2 text-right">الثقة</th>
-                              <th className="px-3 py-2 text-right">الحالة</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y">
-                            {analysisResult.items.map((item) => {
-                              const confidencePercent = Math.round(Math.min(1, Math.max(0, item.confidence || 0)) * 100);
-                              const statusLabel =
-                                item.status === "HIGH_CONFIDENCE"
-                                  ? "مطابقة مؤكدة"
-                                  : item.status === "NEEDS_REVIEW"
-                                    ? "تحتاج مراجعة"
-                                    : "غير مطابق";
-                              return (
-                                <tr key={`match-summary-${item.id}`}>
-                                  <td className="max-w-[260px] px-3 py-2 align-top font-semibold">{item.raw_text || item.description || "—"}</td>
-                                  <td className="max-w-[300px] px-3 py-2 align-top text-muted-foreground">{item.normalized_description_ar || "—"}</td>
-                                  <td className="px-3 py-2 align-top font-mono font-black tabular-nums">{item.product?.sku || "—"}</td>
-                                  <td className="px-3 py-2 align-top font-black tabular-nums">{confidencePercent}%</td>
-                                  <td className="px-3 py-2 align-top font-bold">{statusLabel}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
                       </div>
 
                       <div className="hidden overflow-x-auto md:block">
