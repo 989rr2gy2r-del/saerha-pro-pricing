@@ -1,4 +1,4 @@
-import { ratio as rapidRatio, tokenSetRatio as rapidTokenSetRatio, tokenSortRatio as rapidTokenSortRatio } from "string-metrics-wasm";
+import { ratio as rapidRatio, tokenSetRatio as rapidTokenSetRatio, tokenSortRatio as rapidTokenSortRatio } from "@3leaps/string-metrics-wasm";
 
 export type MatchCandidate<T> = {
   product: T;
