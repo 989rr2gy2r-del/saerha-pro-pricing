@@ -2094,7 +2094,9 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
             .map((v) => String(v).toLowerCase().trim());
 
           const haystack = fields.join(" ");
-          return queryTokens.every((token) => haystack.includes(token));
+          return queryTokens.some(token => 
+  token.length > 2 && haystack.includes(token)
+);
         });
 
         if (candidates.length > 0) {
