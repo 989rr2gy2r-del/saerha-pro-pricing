@@ -248,7 +248,7 @@ const PRODUCT_SELECT_FIELDS =
 const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
   [/\bamps?\b/gi, "امبير"], [/\bamperes?\b/gi, "امبير"], [/\bmeters?\b/gi, "متر"],
   [/\bgangs?\b/gi, "دقمة"],
-  [/\b(?:1|2|3|4|5|6)[-\s]?way\b/gi, (match) => `${match.match(/\d+/)?.[0] ?? ""} دقمة`], [/\bround[-\s]?pin\b/gi, "دائري"],
+  [/\b1[-\s]?way\b/gi, "1 دقمة"], [ /\b2[-\s]?way\b/gi, "2 دقمة"], [ /\b3[-\s]?way\b/gi, "3 دقمة"], [ /\b4[-\s]?way\b/gi, "4 دقمة"], [ /\b5[-\s]?way\b/gi, "5 دقمة"], [ /\b6[-\s]?way\b/gi, "6 دقمة"], [/\bround[-\s]?pin\b/gi, "دائري"],
 
   [/\bpvc\b/gi, "بلاستيك"], [/\bcircular\b/gi, "دائري"],
   [/\bsolution\s+glue\b/gi, "لاصق"], [/\bglue\b/gi, "لاصق"],
