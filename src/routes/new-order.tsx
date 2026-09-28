@@ -1999,9 +1999,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           catalogSkus,
         );
         const marketTranslationAr = getMarketArabicTranslation(productQuery);
-        if (item === normalizedItems[0]) {
-          window.alert(`marketTranslation: ${marketTranslationAr || "(فارغة)"}`);
-        }
         // The AI-normalized description is display metadata only. It must
         // never override the original customer wording during product matching,
         // otherwise the model can invent an attribute (e.g. "black tape") that
@@ -2772,6 +2769,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                             <div className="flex items-center gap-2 font-bold text-foreground"><PenLine className="h-3.5 w-3.5 shrink-0 text-primary" />{displayName}</div>
                                             <div className="mt-1 text-[10px] text-muted-foreground">الطلب: <span dir="ltr">{item.raw_text || item.description || "—"}</span></div>
                                             <div className="mt-0.5 text-[10px] text-muted-foreground">العربية السوقية: {item.normalized_description_ar || "—"}</div>
+                                            <div className="mt-0.5 text-[9px] text-gray-400">تشخيص normalized_description_ar: {item.normalized_description_ar || "(فارغة)"}</div>
                                             {item.product?.name_en && (
                                               <div className="mt-1 text-[10px] text-muted-foreground" dir="ltr">
                                                 {item.product.name_en}
