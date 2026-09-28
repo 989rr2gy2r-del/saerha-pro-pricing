@@ -105,8 +105,6 @@ const MARKET_QUERY_EXPANSIONS: Array<{ pattern: RegExp; terms: string[] }> = [
 
   // Keep "main/power cable" specificity intact; do not add a generic cable
   // variant that can beat a more specific catalog candidate.
-  // Keep "main/power cable" specificity intact; do not add a generic cable
-  // variant that can beat a more specific catalog candidate.
   { pattern: /(?<!main power )(?<!power )\bcable\b|\bwire\b/gi, terms: ["كابل كهربائي", "واير سلك"] },
 ];
 
