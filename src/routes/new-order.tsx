@@ -2154,9 +2154,9 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             normalizeUnitValue(selectedProduct?.unit ?? "") ||
             "حبة",
           matchReason: selectedMatch
-            ? sourceSignals.sku && selectedMatch.product
+            ? sourceSignals.sku && selectedProduct
               ? "تمت المطابقة برقم الصنف الموجود في الطلب ثم اختيار المنتج من قاعدة البيانات"
-              : selectedMatch.status === "HIGH_CONFIDENCE" && selectedMatch.product
+              : selectedMatch.status === "HIGH_CONFIDENCE" && selectedProduct
                 ? "تمت المطابقة مع قاعدة المنتجات — الاسم والبيانات من Supabase"
                 : selectedMatch.reason
             : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة",
