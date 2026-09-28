@@ -2068,27 +2068,38 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         };
       });
 
-      for (let index = 0; index < matchedItems.length; index += 1) {
-        const item = matchedItems[index];
-        if (item.product || !item.normalized_description_ar) continue;
-        const options = filterProductOptions(item.normalized_description_ar);
-        if (!options.length) continue;
-        const selected = productById.get(options[0].value);
-        if (!selected) continue;
-        matchedItems[index] = {
-          ...item,
-          product: selected,
-          quoteName: selected.name_ar,
-          sourceSku: selected.sku,
-          unit: normalizeUnitValue(selected.unit ?? "") || item.unit || "حبة",
-          priceAmount: null,
-          priceType: null,
-          priceLabel: "جارٍ جلب السعر من قاعدة الأسعار...",
-          accepted: true,
-          rejected: false,
-          status: "HIGH_CONFIDENCE",
-          matchReason: "تم الاختيار تلقائياً من قائمة المنتجات بناءً على العربية السوقية",
-        };
+      for (const item of matchedItems) {
+        const arabicQuery = item.normalized_description_ar;
+        if (!arabicQuery || item.product) continue;
+
+        const queryTokens = arabicQuery
+          .split(" ")
+          .filter(Boolean)
+          .map((t) => t.toLowerCase().trim());
+
+        const aliases = matchingAliases;
+
+        const candidates = matchingProducts.filter((p) => {
+          const fields = [
+            p.sku,
+            p.name_ar,
+            p.name_en,
+            p.short_name,
+            p.brand,
+            p.model,
+            p.size,
+            ...(aliases[p.id] ?? []),
+          ]
+            .filter(Boolean)
+            .map((v) => String(v).toLowerCase().trim());
+
+          const haystack = fields.join(" ");
+          return queryTokens.every((token) => haystack.includes(token));
+        });
+
+        if (candidates.length > 0) {
+          item.product = candidates[0].id;
+        }
       }
 
       setAnalysisError(fallbackNotice);
