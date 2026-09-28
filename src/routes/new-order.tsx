@@ -1879,7 +1879,12 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
       let rawResult: Record<string, unknown>;
       let fallbackNotice = "";
-      try {
+      if (first.name === "طلبية-ملصقة.txt") {
+        // Pasted text is already structured input. Parse every line deterministically
+        // so an LLM cannot omit rows from a customer order.
+        rawResult = await parseTextOrderFallback(text);
+      } else {
+        try {
         const supabaseUrl =
           import.meta.env["VITE_SUPABASE_URL"] ||
           "https://ebtjwwrjhsebojurkvgy.supabase.co";
@@ -1927,6 +1932,9 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           rawResult = localText;
         } else {
           throw serverError;
+        }
+      }
+
         }
       }
 
