@@ -1739,10 +1739,12 @@ let pdfJsLoader: Promise<PdfJsModule> | null = null;
 
 function loadPdfJs(): Promise<PdfJsModule> {
   if (pdfJsLoader) return pdfJsLoader;
-  pdfJsLoader = import(
-    /* @vite-ignore */
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.3.289/pdf.min.mjs"
-  ) as Promise<PdfJsModule>;
+  const remoteImport = new Function("specifier", "return import(specifier)") as (
+    specifier: string,
+  ) => Promise<PdfJsModule>;
+  pdfJsLoader = remoteImport(
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.3.289/pdf.min.mjs",
+  );
   return pdfJsLoader.then((pdfjs) => {
     pdfjs.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.3.289/pdf.worker.min.mjs";
@@ -2100,6 +2102,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
               score: 1,
               status: "HIGH_CONFIDENCE" as const,
               reason: "تمت المطابقة المباشرة برقم الصنف الموجود في الطلب",
+              candidates: [],
             }
           : trustedSourceSku
             ? findLocalProductMatch(searchQuery, matchingProducts, marketTranslationAr, matchingAliases)
@@ -2110,6 +2113,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         // from the catalog picker; this prevents an arbitrary color/brand/SKU
         // from becoming part of the quotation.
         const selectedMatch = match;
+        const selectedProduct = selectedMatch?.product ?? null;
         // Extraction confidence and catalog-match confidence are separate
         // signals. An AI can be very confident about reading a line while still
         // being wrong about which SKU it belongs to.
@@ -2117,7 +2121,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           ? Math.min(1, Math.max(0, selectedMatch.score))
           : 0;
         const status: MatchStatus = selectedMatch
-          ? selectedMatch.status === "HIGH_CONFIDENCE" && selectedMatch.product && confidence >= 0.86
+          ? selectedMatch.status === "HIGH_CONFIDENCE" && selectedProduct && confidence >= 0.86
             ? "HIGH_CONFIDENCE"
             : "NEEDS_REVIEW"
           : "UNMATCHED";
@@ -2129,16 +2133,16 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           // The product column is a catalog field, not the original order line.
           // If no match is confirmed, show the cleaned product query without the
           // leading quantity/unit; keep the untouched line in raw_text for audit.
-          description: selectedMatch?.product.name_ar ?? productQuery,
+          description: selectedProduct?.name_ar ?? productQuery,
           normalized_description_ar: marketTranslationAr,
-          quoteName: selectedMatch?.product.name_ar ?? undefined,
+          quoteName: selectedProduct?.name_ar ?? undefined,
           quantity:
             sourceSignals.quantity && sourceSignals.quantity > 0
               ? normalizeQuantity(sourceSignals.quantity)
               : normalizeQuantity(item.quantity),
           confidence,
-          product: selectedMatch?.product ?? null,
-          sourceSku: selectedMatch?.product.sku || sourceSignals.sku || item.sourceSku || "",
+          product: selectedProduct,
+          sourceSku: selectedProduct?.sku || sourceSignals.sku || item.sourceSku || "",
           sourceUnitPrice: item.sourceUnitPrice ?? null,
           sourceLineTotal: item.sourceLineTotal ?? null,
           matchCandidates: selectedMatch?.candidates,
@@ -2147,7 +2151,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           unit:
             sourceSignals.unit ||
             normalizeUnitValue(item.unit ?? "") ||
-            normalizeUnitValue(selectedMatch?.product?.unit ?? "") ||
+            normalizeUnitValue(selectedProduct?.unit ?? "") ||
             "حبة",
           matchReason: selectedMatch
             ? sourceSignals.sku && selectedMatch.product
