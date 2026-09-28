@@ -47,6 +47,8 @@ function normalize(value: unknown) {
       const confidence = Number(row.confidence);
       return {
         description: typeof row.description === "string" ? row.description.trim() : "",
+        category_ar:
+          typeof row.category_ar === "string" ? row.category_ar.trim() : "",
         normalized_description_ar:
           typeof row.normalized_description_ar === "string"
             ? row.normalized_description_ar.trim()
@@ -129,6 +131,7 @@ async function callGemini(
                     type: "object",
                     properties: {
                       description: { type: "string" },
+                      category_ar: { type: "string" },
                       normalized_description_ar: { type: "string" },
                       quantity: { type: ["number", "null"] },
                       unit: { type: "string" },
@@ -136,7 +139,7 @@ async function callGemini(
                       confidence: { type: "number", minimum: 0, maximum: 1 },
                       notes: { type: "string" },
                     },
-                    required: ["description", "normalized_description_ar", "quantity", "unit", "raw_text", "confidence", "notes"],
+                    required: ["description", "category_ar", "normalized_description_ar", "quantity", "unit", "raw_text", "confidence", "notes"],
                   },
                 },
                 notes: { type: "string" },
@@ -210,12 +213,13 @@ Deno.serve(async (req) => {
 
 اقرأ الطلبية سطرًا سطرًا من أعلى إلى أسفل، ولا تدمج سطرين مختلفين.
 لكل سطر أرجع:
-1) raw_text: النص الذي استطعت قراءته من الصورة كما هو قدر الإمكان.
-2) description: الاسم الإنجليزي/العربي المقروء بعد تصحيح أخطاء OCR الواضحة فقط.
-3) normalized_description_ar: الاسم التجاري المفهوم بالعربية، لأن هذا الحقل سيُستخدم لمطابقة قاعدة المنتجات.
-4) quantity: الكمية الرقمية الموجودة في نفس السطر فقط.
-5) unit: الوحدة المرتبطة بالكمية في نفس السطر مثل حبة، قطعة، رول، كرتون، دزينة، متر.
-6) confidence: ثقتك في قراءة السطر من 0 إلى 1.
+1) raw_text: النص الخام المقروء من الصورة، محافظًا على ترتيب الكلمات والأرقام كما ظهرت قدر الإمكان. لا تعيد بناء السطر من الترجمة.
+2) description: الوصف المقروء بعد تصحيح أخطاء OCR الواضحة فقط، من دون اختراع اسم أو إضافة رقم.
+3) category_ar: نوع المنتج الفني كما هو مفهوم من النص فقط، بكلمة/عبارة قصيرة مثل: كوع، سوكت، بايب، نيبل، نبل، محبس، بوكس، كنكتر. إذا لم يكن النوع واضحًا اتركه فارغًا.
+4) normalized_description_ar: الاسم التجاري المفهوم بالعربية، لأن هذا الحقل سيُستخدم لمطابقة قاعدة المنتجات. لا تستخدمه لاستبدال raw_text.
+5) quantity: الكمية الرقمية الموجودة في نفس السطر فقط.
+6) unit: الوحدة المرتبطة بالكمية في نفس السطر مثل حبة، قطعة، رول، كرتون، دزينة، متر.
+7) confidence: ثقتك في قراءة السطر من 0 إلى 1.
 
 قاعدة الكمية مهمة جدًا:
 - اقرأ الكمية من الطلبية كما هي مكتوبة، حتى لو كانت في بداية السطر أو نهايته أو بجانب الوحدة.
@@ -235,7 +239,9 @@ Deno.serve(async (req) => {
 - "1 Roll" تعني quantity=1 وunit="رول".
 - "pcs" تعني unit="قطعة".
 - مهم جدًا: نفّذ القراءة أولًا ثم الفهم. لا تجعل الترجمة تغيّر النص المقروء.
-- raw_text يجب أن يكون أقرب نسخة ممكنة لما هو مكتوب في الصورة، وليس تخمينًا لمعناه.
+- raw_text يجب أن يكون أقرب نسخة ممكنة لما هو مكتوب في الصورة، وليس تخمينًا لمعناه. لا تلصق رقم الكمية أو رقم المقاس في بداية اسم المنتج إذا لم يكن ظاهرًا هناك. إذا كانت الكلمة "Elbow" أو "كوع" ظاهرة، فلا تحولها إلى رقم أو إلى كلمة غير مرتبطة بها.
+- category_ar حقل مستقل للنوع الفني. استخرج النوع قبل الترجمة، ولا تتركه فارغًا إذا كان النوع ظاهرًا بوضوح.
+- إذا كان في السطر "Elbow" أو "Double Elbow" أو "Street Elbow" فـ category_ar يجب أن يكون "كوع" أو "كوع دبل" أو "كوع ذكر وانثى" على الترتيب، مع بقاء المصطلح الأصلي في raw_text وdescription.
 - description يجب أن يعكس النص المقروء بعد تصحيح OCR واضح فقط. إذا كانت الكلمة مثل "petan" أو "melbus" غير مؤكدة، لا تستبدلها بكلمة أخرى.
 - normalized_description_ar لا يجوز أن يكون نسخة عربية مخترعة من نص غير مفهوم. املأه فقط عندما يكون معنى الصنف واضحًا من النص والمقاس والسياق. مثال: "PVC capling - 20mm" => "وصلة PVC - 20 ملم". أما "petan - 2" إذا لم يتضح المقصود => normalized_description_ar="" وnotes="الكلمة غير واضحة".
 - ممنوع تحويل أي كلمة غير مفهومة إلى كلمة عربية لمجرد أنها تشبهها صوتيًا. وممنوع إضافة "مسمار" أو "كام" أو أي اسم منتج غير موجود في النص.
@@ -250,7 +256,7 @@ Deno.serve(async (req) => {
 - أرجع JSON فقط.
 
 الشكل المطلوب:
-{"items":[{"description":"","normalized_description_ar":"","quantity":0,"unit":"","raw_text":"","confidence":0,"notes":""}],"notes":""}
+{"items":[{"description":"","category_ar":"","normalized_description_ar":"","quantity":0,"unit":"","raw_text":"","confidence":0,"notes":""}],"notes":""}
 ${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
 
     const attempts: Array<{ model: string; error: string; upstreamStatus: number | null }> = [];
