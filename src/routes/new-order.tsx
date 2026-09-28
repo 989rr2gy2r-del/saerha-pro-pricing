@@ -31,6 +31,7 @@ import { createCustomer, fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
 import { getMarketArabicTranslation, normalizeProductText, rankProductMatches } from "@/lib/matching/product-matcher";
+import { normalizeQuantity, parseLocalOcrText, parseTextOrderFallback } from "@/lib/order/order-input";
 
 type ProductRecord = {
   id: string;
@@ -79,6 +80,7 @@ type ReviewItem = {
   sourceSku?: string;
   sourceUnitPrice?: number | null;
   sourceLineTotal?: number | null;
+  matchCandidates?: Array<{ id: string; sku: string; name_ar: string; score: number; reason: string }>;
 };
 
 type OrderAnalysisResult = {
@@ -215,132 +217,6 @@ async function prepareOcrImage(file: File): Promise<HTMLCanvasElement> {
   return canvas;
 }
 
-function parseLocalOcrText(text: string) {
-  const units = "حبة|قطعة|علبة|كرتون|كرتونه|كرتون|متر|سم|مم|كجم|كغ|جم|غ|لتر|ل|مل|رول|لفة|باكيت|كيس|طقم|زوج|دزينة|درزن|dozen|dozens|dz|dzn|pcs|pc|pieces|piece".split("|");
-  const unitPattern = units.join("|");
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.replace(/[|¦]+/g, " ").replace(/\s+/g, " ").trim())
-    .filter((line) => line.length >= 2);
-
-  return lines.map((line, index) => {
-    let description = line;
-    let quantity = 0;
-    let unit = "";
-
-    const startMatch = line.match(new RegExp(`^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?\\s+(.+)$`, "i"));
-    const endMatch = line.match(new RegExp(`^(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?$`, "i"));
-
-    // Table OCR often returns columns in this order:
-    // amount | unit-price | UNIT | QTY | DESCRIPTION | SKU | LINE NO.
-    // The quantity is the number immediately AFTER the unit, not the price
-    // immediately BEFORE it. Prefer this deterministic table pattern first.
-    const tableUnitMatch = line.match(
-      /(?:^|\\s)(roll|rolls|rOLL|pkt|pkts|pack|packet|رول|لفة|باكيت|باك|كرتون|حبة|قطعة|pcs?|pieces?)(?:\\s+)([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)/i,
-    );
-    const numberBeforeUnit = line.match(
-      /([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s+(roll|rolls|pkt|pkts|pack|packet|رول|لفة|باكيت|باك|كرتون|حبة|قطعة|pcs?|pieces?)(?:\\s|$)/i,
-    );
-
-    if (tableUnitMatch) {
-      quantity = Number(String(tableUnitMatch[2] ?? "").replace(/[٠-٩]/g, (c: string) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(",", "."));
-      unit = normalizeUnitValue(tableUnitMatch[1] ?? "");
-      description = line;
-    } else if (numberBeforeUnit) {
-      quantity = Number(String(numberBeforeUnit[1] ?? "").replace(/[٠-٩]/g, (c: string) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(",", "."));
-      unit = normalizeUnitValue(numberBeforeUnit[2] ?? "");
-      description = line;
-    } else if (startMatch) {
-      quantity = Number(String(startMatch[1] ?? "").replace(/[٠-٩]/g, (c: string) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(",", "."));
-      unit = startMatch[2] ?? "";
-      description = startMatch[3].trim();
-    } else if (endMatch) {
-      quantity = Number(String(endMatch[2] ?? "").replace(/[٠-٩]/g, (c: string) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(",", "."));
-      unit = endMatch[3] ?? "";
-      description = endMatch[1].trim();
-    }
-
-    return {
-      id: `ocr-${Date.now()}-${index}`,
-      description,
-      raw_text: line,
-      quantity: normalizeQuantity(quantity),
-      unit,
-      confidence: 0.45,
-      notes: "تمت القراءة محليًا من الصورة؛ راجع السطر قبل اعتماد العرض.",
-    };
-  });
-}
-
-async function parseTextOrderFallback(text: string) {
-  const units = "حبة|قطعة|قطع|علبة|كرتون|كرتونه|رول|لفة|باكيت|باك|متر|مترات|meter|meters|m|سم|cm|مم|mm|كجم|كغ|جم|غ|لتر|مل|ml|عبوة|طقم|كيس|صندوق|دزينة|درزن|dozen|dozens|dz|dzn|زوج|pcs|pc|pieces|piece|roll|rolls|coil|coils|packet|packets|pack|packs|carton|cartons|box|boxes".split("|");
-  const unitPattern = units.join("|");
-  const normalizeFallbackUnit = (value: string) => {
-    const unit = String(value ?? "").trim();
-    if (/^meters?$/i.test(unit) || /^m$/i.test(unit)) return "متر";
-    if (/^ml$/i.test(unit)) return "مل";
-    if (/^rolls?$/i.test(unit)) return "رول";
-    if (/^coils?$/i.test(unit)) return "رول";
-    if (/^pcs?$/i.test(unit)) return "قطعة";
-    if (/^dozens?$/i.test(unit) || /^(dz|dzn)$/i.test(unit)) return "دزينة";
-    return normalizeUnitValue(unit);
-  };
-  const toNumber = (value: string) => Number(String(value ?? "").replace(/[٠-٩]/g, (char) => String("٠١٢٣٤٥٦٧٨٩".indexOf(char))).replace(/,/g, "."));
-  const lines = text.split(/\r?\n/).map((line) => line.replace(/[|¦]+/g, "\t").trim()).filter(Boolean);
-  const items = lines.flatMap((line, index) => {
-    const cleaned = line.replace(/^[-*•]+\s*/, "").replace(/^\s*(?:م|رقم|no|item)\.?\s*/i, "").trim();
-    if (!cleaned || /^(?:الصنف|الكمية|الطلبية|البيان|item|product|quantity)\b/i.test(cleaned)) return [];
-    const columns = cleaned.split(/\t+/).map((part) => part.trim()).filter(Boolean);
-    let description = "";
-    let quantity = 0;
-    let unit = "";
-    const quantityUnit = new RegExp("^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(" + unitPattern + ")?\\s*$", "i");
-    const trailingQuantity = new RegExp("^(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(" + unitPattern + ")?\\s*$", "i");
-    const leadingQuantity = new RegExp("^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s+(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(" + unitPattern + ")?\\s*$", "i");
-    if (columns.length >= 2) {
-      const last = columns[columns.length - 1] ?? "";
-      const lastMatch = last.match(quantityUnit);
-      if (lastMatch) {
-        quantity = toNumber(lastMatch[1] ?? "");
-        unit = normalizeFallbackUnit(lastMatch[2] ?? "");
-        description = columns.slice(0, -1).join(" ").replace(/^\d+[.)\-:]?\s+/, "").trim();
-      }
-    }
-    if (!description) {
-      const leading = cleaned.match(leadingQuantity);
-      const trailing = cleaned.match(trailingQuantity);
-      if (leading) {
-        quantity = toNumber(leading[3] ?? "");
-        unit = normalizeFallbackUnit(leading[4] ?? "");
-        description = (leading[2] ?? "").replace(/^\d+[.)\-:]?\s+/, "").trim();
-      } else if (trailing) {
-        quantity = toNumber(trailing[2] ?? "");
-        unit = normalizeFallbackUnit(trailing[3] ?? "");
-        description = (trailing[1] ?? "").replace(/^\d+[.)\-:]?\s+/, "").trim();
-      } else {
-        description = cleaned.replace(/^\d+[.)\-:]?\s+/, "").trim();
-      }
-    }
-    if (!description || !Number.isFinite(quantity) || quantity <= 0) return [];
-    return [{
-      id: "text-fallback-" + Date.now() + "-" + index,
-      description,
-      normalized_description_ar: description,
-      quantity,
-      unit,
-      raw_text: line,
-      confidence: 0.35,
-      notes: "تعذر تشغيل التحليل الذكي للنص؛ تمت قراءة السطر محليًا، راجع المطابقة قبل الاعتماد.",
-    }];
-  });
-  return {
-    items,
-    notes: items.length
-      ? "تمت قراءة النص محليًا كخطة احتياطية. يمكنك تعديل أي سطر قبل اعتماد العرض."
-      : "لم يتم العثور على صفوف واضحة في النص. جرّب فصل الصنف والكمية بعلامة Tab أو اكتب الكمية مع الوحدة.",
-  };
-}
-
 async function getTesseractWorker(onProgress?: (value: number) => void) {
   if (!tesseractWorkerPromise) {
     const tesseract = await loadLocalTesseract();
@@ -371,7 +247,8 @@ const PRODUCT_SELECT_FIELDS =
 
 const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
   [/\bamps?\b/gi, "امبير"], [/\bamperes?\b/gi, "امبير"], [/\bmeters?\b/gi, "متر"],
-  [/\bgangs?\b/gi, "دقمة"], [/\bround[-\s]?pin\b/gi, "دائري"],
+  [/\bgangs?\b/gi, "دقمة"],
+  [/\b(?:1|2|3|4|5|6)[-\s]?way\b/gi, (match) => `${match.match(/\d+/)?.[0] ?? ""} دقمة`], [/\bround[-\s]?pin\b/gi, "دائري"],
 
   [/\bpvc\b/gi, "بلاستيك"], [/\bcircular\b/gi, "دائري"],
   [/\bsolution\s+glue\b/gi, "لاصق"], [/\bglue\b/gi, "لاصق"],
@@ -554,9 +431,6 @@ function stripOrderPrefix(value: string, catalogSkus?: Set<string>): string {
   return text.trim();
 }
 
-function normalizeQuantity(value: number): number {
-  return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
-}
 
 function normalizeUnitValue(value: string): string {
   const raw = String(value ?? "").trim();
@@ -1790,7 +1664,89 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     } as ChangeEvent<HTMLInputElement>);
   };
 
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  
+async function extractPdfText(file: File): Promise<{ text: string; pageCount: number }> {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const data = new Uint8Array(await file.arrayBuffer());
+  const pdfDocument = await pdfjs.getDocument({ data, disableWorker: true }).promise;
+  const pages: string[] = [];
+
+  for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+    const page = await pdfDocument.getPage(pageNumber);
+    const content = await page.getTextContent({
+      normalizeWhitespace: false,
+      disableCombineTextItems: false,
+    });
+    const pageText = content.items
+      .map((item) => ("str" in item ? item.str : ""))
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (pageText) pages.push(pageText);
+  }
+
+  return { text: pages.join("\n"), pageCount: pdfDocument.numPages };
+}
+
+async function readCanvasLocally(canvas: HTMLCanvasElement, onProgress?: (value: number) => void) {
+  const worker = await getTesseractWorker(onProgress);
+  const result = await worker.recognize(canvas);
+  const text = result.data.text.trim();
+  if (!text) throw new Error("لم يتم العثور على نص واضح في الصفحة.");
+  return { text, items: parseLocalOcrText(text) };
+}
+
+async function readPdfLocally(file: File, onProgress?: (value: number) => void) {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const data = new Uint8Array(await file.arrayBuffer());
+  const pdfDocument = await pdfjs.getDocument({ data, disableWorker: true }).promise;
+  const chunks: string[] = [];
+  const maxPagesForOcr = Math.min(pdfDocument.numPages, 8);
+
+  for (let pageNumber = 1; pageNumber <= maxPagesForOcr; pageNumber += 1) {
+    const page = await pdfDocument.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1.6 });
+    const canvas = window.document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const context = canvas.getContext("2d");
+    if (!context) continue;
+    await page.render({ canvasContext: context, viewport }).promise;
+    try {
+      const local = await readCanvasLocally(canvas, onProgress);
+      if (local.text.trim()) chunks.push(local.text.trim());
+    } catch {
+      // Continue with the next page. A single bad page must not erase the PDF.
+    }
+    onProgress?.(30 + Math.round((pageNumber / maxPagesForOcr) * 20));
+  }
+
+  return chunks.join("\n");
+}
+
+function workbookToPreservedText(workbook: XLSX.WorkBook): string {
+  return workbook.SheetNames.map((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    const ref = sheet["!ref"];
+    if (!ref) return \`ورقة: \${sheetName}\`;
+
+    const range = XLSX.utils.decode_range(ref);
+    const rows: string[] = [];
+    for (let row = range.s.r; row <= range.e.r; row += 1) {
+      const cells: string[] = [];
+      for (let col = range.s.c; col <= range.e.c; col += 1) {
+        const address = XLSX.utils.encode_cell({ r: row, c: col });
+        const cell = sheet[address];
+        cells.push(String(cell?.w ?? cell?.v ?? ""));
+      }
+      rows.push(cells.join("\t"));
+    }
+    return \`ورقة: \${sheetName}\n\${rows.join("\n")}\`;
+  }).join("\n\n");
+}
+
+const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     if (!files.length) return;
 
@@ -1866,28 +1822,29 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         first.type === "application/vnd.ms-excel" ||
         /\.(xlsx|xls)$/i.test(first.name)
       ) {
-        const workbook = XLSX.read(await first.arrayBuffer(), { type: "array" });
-        text = workbook.SheetNames.map((sheetName) => {
-          const sheet = workbook.Sheets[sheetName];
-          const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
-          return `ورقة: ${sheetName}\n${csv}`;
-        }).join("\n\n");
+        const workbook = XLSX.read(await first.arrayBuffer(), { type: "array", cellDates: true });
+        text = workbookToPreservedText(workbook);
       } else if (first.type === "application/pdf" || /\.pdf$/i.test(first.name)) {
         setProgress(20);
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () =>
-            typeof reader.result === "string"
-              ? resolve(reader.result)
-              : reject(new Error("تعذر قراءة ملف PDF."));
-          reader.onerror = () => reject(new Error("تعذر قراءة ملف PDF."));
-          reader.readAsDataURL(first);
-        });
-        if (!/^data:application\/pdf;base64,/i.test(dataUrl)) {
-          throw new Error("تعذر تجهيز ملف PDF للتحليل.");
+        const extractedPdf = await extractPdfText(first);
+        text = extractedPdf.text;
+
+        if (text.trim().length < 20) {
+          setProgress(25);
+          text = await readPdfLocally(first, setProgress);
+          if (!text.trim()) {
+            const reader = new FileReader();
+            image = await new Promise<string>((resolve, reject) => {
+              reader.onload = () =>
+                typeof reader.result === "string"
+                  ? resolve(reader.result)
+                  : reject(new Error("تعذر تجهيز ملف PDF للتحليل."));
+              reader.onerror = () => reject(new Error("تعذر قراءة ملف PDF."));
+              reader.readAsDataURL(first);
+            });
+          }
         }
-        image = dataUrl;
-        setProgress(35);
+        setProgress(50);
       } else {
         setProgress(20);
         image = await prepareGeminiImage(first);
@@ -2037,7 +1994,10 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           catalogSkus,
         );
         const category = item.category_ar?.trim() ?? "";
-        const searchQuery = [category, productQuery].filter(Boolean).join(" ").trim();
+        const commercialUnit = /^(حبة|قطعة|قطع|كرتون|علبة|رول|لفة|لفه|باكيت|باك|متر|عبوة|طقم|كيس|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|coils?|packets?|packs?|cartons?|boxes?|meters?|meter)$/i.test(sourceSignals.unit)
+          ? sourceSignals.unit
+          : "";
+        const searchQuery = [category, productQuery, commercialUnit].filter(Boolean).join(" ").trim();
         const marketTranslationAr = getMarketArabicTranslation(searchQuery);
         // The AI-normalized description is display metadata only. It must
         // never override the original customer wording during product matching,
