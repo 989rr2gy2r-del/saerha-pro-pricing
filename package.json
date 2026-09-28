@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit --strict false --strictNullChecks true --exactOptionalPropertyTypes false --noImplicitAny false --noUncheckedIndexedAccess false --noPropertyAccessFromIndexSignature false",
-    "test:order-input": "node scripts/order-input-regression.mjs"
+    "test:order-input": "node scripts/order-input-regression.mjs",
+    "test": "vitest run"
   },
   "overrides": {
     "rolldown": "1.2.1"
@@ -73,7 +74,8 @@
     "vite-tsconfig-paths": "^6.0.2",
     "xlsx": "^0.18.5",
     "zod": "^3.25.76",
-    "@3leaps/string-metrics-wasm": "^0.3.11"
+    "@3leaps/string-metrics-wasm": "^0.3.11",
+    "pdfjs-dist": "^6.3.289"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
@@ -95,6 +97,7 @@
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "8.1.5"
+    "vite": "8.1.5",
+    "vitest": "^5.0.2"
   }
 }
