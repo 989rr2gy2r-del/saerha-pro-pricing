@@ -288,7 +288,7 @@ function normalizeForMatch(value: string): string {
     .replace(/[٠-٩]/g, (char) => "٠١٢٣٤٥٦٧٨٩".indexOf(char).toString())
     .replace(/[أآإ]/g, "ا").replace(/ى/g, "ي").replace(/ؤ/g, "و").replace(/ئ/g, "ي").replace(/ء/g, "")
     .replace(/ـ/g, "").replace(/[ة]/g, "ة")
-    .replace(/[\`~!@#$%^&*()_+=\]{}\\|;:'",<>/?]/g, " ")
+    .replace(/[`~!@#$%^&*()_+=\]{}\\|;:'",<>/?]/g, " ")
     .replace(/[_/\\-]+/g, " ").toLowerCase();
   for (const [pattern, replacement] of PRODUCT_SYNONYMS) normalized = normalized.replace(pattern, replacement);
   normalized = normalized
@@ -1815,7 +1815,7 @@ function workbookToPreservedText(workbook: XLSX.WorkBook): string {
   return workbook.SheetNames.map((sheetName) => {
     const sheet = workbook.Sheets[sheetName];
     const ref = sheet["!ref"];
-    if (!ref) return \`ورقة: \${sheetName}\`;
+    if (!ref) return `ورقة: ${sheetName}`;
 
     const range = XLSX.utils.decode_range(ref);
     const rows: string[] = [];
@@ -1828,7 +1828,7 @@ function workbookToPreservedText(workbook: XLSX.WorkBook): string {
       }
       rows.push(cells.join("\t"));
     }
-    return \`ورقة: \${sheetName}\n\${rows.join("\n")}\`;
+    return `ورقة: ${sheetName}\n${rows.join("\n")}`;
   }).join("\n\n");
 }
 
