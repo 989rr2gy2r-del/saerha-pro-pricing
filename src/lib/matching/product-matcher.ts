@@ -57,6 +57,46 @@ const MARKET_SYNONYMS: Array<[RegExp, string]> = [
   [/ازرق|أزرق/gi, "ازرق"],
 ];
 
+
+/**
+ * Market-language expansion for English/Arabic order lines.
+ * These are deterministic catalog-search synonyms, not AI corrections.
+ * The original order text remains the source of hard technical constraints.
+ */
+const MARKET_QUERY_EXPANSIONS: Array<{ pattern: RegExp; terms: string[] }> = [
+  { pattern: /\bpvc\s+pipe\b|\bpipe\b/gi, terms: ["ماسورة pvc", "بايب pvc", "قصبة pvc", "انبوب بلاستيك", "بايب", "ماسورة"] },
+  { pattern: /\bmcb\b/gi, terms: ["mcb", "بريكر", "قاطع", "مفتاح حراري", "مينيتشر"] },
+  { pattern: /\brccb\b/gi, terms: ["rccb", "قاطع تفاضلي", "قاطع تسريب", "حماية تسرب"] },
+  { pattern: /\bcable\b|\bwire\b/gi, terms: ["كابل", "كيبل", "سلك", "واير", "توصيل"] },
+  { pattern: /\bsocket\s+box\b/gi, terms: ["علبة مفتاح", "جعبة", "صندوق كهربائي", "بوكس سويتش", "بوكس"] },
+  { pattern: /\bsdb\b|\bdistribution\s+board\b/gi, terms: ["لوحة توزيع", "لوح", "كيوشك", "لوحة"] },
+  { pattern: /\bpvc\s+glue\b|\bglue\b/gi, terms: ["غراء pvc", "صمغ مواسير", "لاصق", "غراء"] },
+  { pattern: /\bpvc\s+band\b|\bband\b/gi, terms: ["بكلة pvc", "مشبك", "حلقة تثبيت", "ربطة"] },
+  { pattern: /\bpvc\s+socket\s*\(\s*choket\s*\)|\bchoket\b/gi, terms: ["شوكيه", "وصلة", "كوع", "تشوكت"] },
+  { pattern: /\bconnector\b/gi, terms: ["كنكتر", "موصل", "وصلة"] },
+  { pattern: /\belectrical\s+tape\b|\btape\b/gi, terms: ["تيب كهربا", "تيب", "شطرطون كهرباء"] },
+];
+
+function buildMarketQueryVariants(query: string): string[] {
+  const source = String(query ?? "").trim();
+  if (!source) return [];
+  const variants = new Set<string>([normalizeProductText(source)]);
+
+  for (const expansion of MARKET_QUERY_EXPANSIONS) {
+    if (!expansion.pattern.test(source)) {
+      expansion.pattern.lastIndex = 0;
+      continue;
+    }
+    expansion.pattern.lastIndex = 0;
+    for (const term of expansion.terms) {
+      const replaced = source.replace(expansion.pattern, term);
+      variants.add(normalizeProductText(replaced));
+    }
+  }
+
+  return [...variants].filter(Boolean);
+}
+
 const NUMBER_WORDS: Record<string, string> = {
   صفر: "0", واحد: "1", واحدة: "1",
   اثنين: "2", اثنان: "2", اثنتين: "2", اثنتان: "2",
@@ -170,7 +210,7 @@ function identityTokens(value: string): string[] {
 }
 
 type MatchConstraints = {
-  productClass: "rccb" | "mcb" | "box" | "pipe" | "cable" | "wire" | "connector" | "tape" | "glue" | "switch" | "socket" | null;
+  productClass: "rccb" | "mcb" | "box" | "pipe" | "cable" | "wire" | "connector" | "tape" | "glue" | "switch" | "socket" | "distribution_board" | null;
   amps: string[];
   colors: string[];
   fractions: string[];
@@ -199,8 +239,8 @@ function extractMatchConstraints(value: string): MatchConstraints {
     .replace(/(?:^|\s)(?:one|1)\s*(?:way|gang)\b/gi, "1 دقمة");
 
   const productClass =
-    /\brccb\b|قاطع تسريب|تسريب أرضي/.test(text) ? "rccb" :
-    /\bmcb\b/.test(text) || (/(?:^|\s)بريكر(?:\s|$)/.test(text) && /(?:^|\s)سنجل(?:\s|$)/.test(text)) ? "mcb" :
+    /\brccb\b|قاطع تسريب|قاطع تفاضلي|حماية تسرب|تسريب أرضي/.test(text) ? "rccb" :
+    /\bmcb\b/.test(text) || /(?:^|\s)بريكر(?:\s|$)/.test(text) || /مفتاح حراري|مينيتشر/.test(text) ? "mcb" :
     /(?:^|\s)(?:بوكس|صندوق)(?:\s|$)/.test(text) ? "box" :
     /(?:^|\s)بايب(?:\s|$)|\bpipe(?:s)?\b/.test(text) ? "pipe" :
     /(?:^|\s)(?:كيبل|كابل)(?:\s|$)|\bcable(?:s)?\b/.test(text) ? "cable" :
@@ -210,6 +250,7 @@ function extractMatchConstraints(value: string): MatchConstraints {
     /(?:^|\s)(?:لاصق|غراء)(?:\s|$)|\bglue\b/.test(text) ? "glue" :
     /(?:^|\s)مفتاح(?:\s|$)|\bswitch(?:es)?\b/.test(text) ? "switch" :
     /(?:^|\s)(?:ساكت|سكت)(?:\s|$)|\bsocket(?:s)?\b/.test(text) ? "socket" :
+    /(?:^|\s)لوحة(?:\s|$)|\bsdb\b|distribution board|لوحة توزيع/.test(text) ? "distribution_board" :
     null;
 
   const amps = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:امبير|a)\b/gi)].map((m) => m[1]);
@@ -248,8 +289,8 @@ function candidateMatchesConstraints(text: string, constraints: MatchConstraints
   const normalized = normalizeProductText(text);
   const hasClass = (kind: MatchConstraints["productClass"]) => {
     switch (kind) {
-      case "rccb": return /\brccb\b|قاطع تسريب|تسريب أرضي/.test(normalized);
-      case "mcb": return /\bبريكر\b|\bmcb\b/.test(normalized) && !/\brccb\b|قاطع تسريب/.test(normalized);
+      case "rccb": return /\brccb\b|قاطع تسريب|قاطع تفاضلي|حماية تسرب|تسريب أرضي/.test(normalized);
+      case "mcb": return /\bبريكر\b|\bmcb\b|مفتاح حراري|مينيتشر/.test(normalized) && !/\brccb\b|قاطع تسريب|قاطع تفاضلي|حماية تسرب/.test(normalized);
       case "box": return /(?:^|\s)(?:بوكس|صندوق)(?:\s|$)/.test(normalized);
       case "pipe": return /(?:^|\s)بايب(?:\s|$)|\bpipe(?:s)?\b/.test(normalized);
       case "cable": return /(?:^|\s)(?:كيبل|كابل)(?:\s|$)|\bcable(?:s)?\b/.test(normalized);
@@ -259,6 +300,7 @@ function candidateMatchesConstraints(text: string, constraints: MatchConstraints
       case "glue": return /(?:^|\s)(?:لاصق|غراء)(?:\s|$)|\bglue\b/.test(normalized);
       case "switch": return /(?:^|\s)مفتاح(?:\s|$)|\bswitch(?:es)?\b/.test(normalized);
       case "socket": return /(?:^|\s)(?:ساكت|سكت)(?:\s|$)|\bsocket(?:s)?\b/.test(normalized);
+      case "distribution_board": return /(?:^|\s)لوحة(?:\s|$)|لوحة توزيع|\bsdb\b|distribution board/.test(normalized);
       default: return true;
     }
   };
@@ -496,14 +538,14 @@ export function rankProductMatches<T>(
   getId: (product: T) => string,
   limit = 8,
 ): Array<MatchCandidate<T> & { productId: string }> {
-  const normalizedQuery = normalizeProductText(query);
+  const queryVariants = buildMarketQueryVariants(query);
+  const normalizedQuery = queryVariants[0] ?? "";
   if (!normalizedQuery) return [];
 
-  const queryPrepared = prepareText(normalizedQuery);
-  const queryNumbers = queryPrepared.numbers;
-  const queryFractions = queryPrepared.fractions;
-  const queryIdentity = queryPrepared.identity;
+  // Hard constraints are ALWAYS extracted from the original customer wording.
+  // Synonym expansion is only used to improve lexical retrieval/ranking.
   const queryConstraints = extractMatchConstraints(query);
+  const preparedVariants = queryVariants.map((variant) => prepareText(variant));
   const aliasesByProduct = prepareAliases(aliases);
 
   const ranked = products.map((product) => {
@@ -523,30 +565,53 @@ export function rankProductMatches<T>(
       };
     }
 
-    const exact = preparedProduct.fields.some((field) => field.value === normalizedQuery);
-    const alias = productAliases.some((field) => field.value === normalizedQuery);
+    const exact = preparedVariants.some((variant) => preparedProduct.fields.some((field) => field.value === variant.value));
+    const alias = preparedVariants.some((variant) => productAliases.some((field) => field.value === variant.value));
 
-    const token = Math.max(
-      0,
-      ...searchable.map((field) => preparedSoftTokenScore(queryPrepared.tokens, field.tokens)),
-    );
-
-    // Character-level comparison is the most expensive part of matching.
-    // Do not run it across every catalog field when the candidate has no
-    // token-level/identity overlap at all. This keeps fuzzy matching useful
-    // for OCR typos while avoiding thousands of needless bigram comparisons.
-    const candidateIdentityQuick = Math.max(
-      0,
-      ...searchable.map((field) => preparedOverlapScore(queryPrepared.identity, field.identity)),
-    );
-    const character =
-      token > 0 || candidateIdentityQuick > 0
+    const variantScores = preparedVariants.map((variant) => {
+      const token = Math.max(
+        0,
+        ...searchable.map((field) => preparedSoftTokenScore(variant.tokens, field.tokens)),
+      );
+      const candidateIdentityQuick = Math.max(
+        0,
+        ...searchable.map((field) => preparedOverlapScore(variant.identity, field.identity)),
+      );
+      const character =
+        token > 0 || candidateIdentityQuick > 0
+          ? Math.max(
+              0,
+              ...searchable.map((field) => preparedCharacterScore(variant.bigrams, field.bigrams)),
+            )
+          : 0;
+      const identity = variant.identity.length ? candidateIdentityQuick : 1;
+      const identityPrecision = variant.identity.length
         ? Math.max(
             0,
-            ...searchable.map((field) => preparedCharacterScore(queryPrepared.bigrams, field.bigrams)),
+            ...searchable.map((field) => {
+              if (!field.identity.length) return 0;
+              const variantSet = new Set(variant.identity);
+              let matched = 0;
+              for (const token of field.identity) if (variantSet.has(token)) matched += 1;
+              return matched / field.identity.length;
+            }),
           )
-        : 0;
+        : 1;
+      return { token, character, identity, identityPrecision, variant };
+    });
 
+    const bestLexical = variantScores.reduce((best, current) => {
+      const currentValue = 0.55 * current.identity + 0.25 * current.token + 0.20 * current.character;
+      const bestValue = 0.55 * best.identity + 0.25 * best.token + 0.20 * best.character;
+      return currentValue > bestValue ? current : best;
+    }, variantScores[0]);
+
+    const token = bestLexical.token;
+    const character = bestLexical.character;
+    const identity = bestLexical.identity;
+    const identityPrecision = bestLexical.identityPrecision;
+    const queryNumbers = [...new Set(preparedVariants.flatMap((variant) => variant.numbers))];
+    const queryFractions = [...new Set(preparedVariants.flatMap((variant) => variant.fractions))];
     const candidateNumbers = [...new Set(searchable.flatMap((field) => field.numbers))];
     const candidateFractions = [...new Set(searchable.flatMap((field) => field.fractions))];
 
@@ -557,21 +622,6 @@ export function rankProductMatches<T>(
       ? queryConstraints.alternativeFractions
         ? (queryFractions.some((number) => candidateFractions.includes(number)) ? 1 : 0)
         : queryFractions.filter((number) => candidateFractions.includes(number)).length / queryFractions.length
-      : 1;
-
-    const identity = queryIdentity.length ? candidateIdentityQuick : 1;
-
-    const identityPrecision = queryIdentity.length
-      ? Math.max(
-          0,
-          ...searchable.map((field) => {
-            if (!field.identity.length) return 0;
-            const querySet = new Set(queryIdentity);
-            let matched = 0;
-            for (const token of field.identity) if (querySet.has(token)) matched += 1;
-            return matched / field.identity.length;
-          }),
-        )
       : 1;
 
     const attributes = Math.min(numeric, fraction);
@@ -620,8 +670,9 @@ export function rankProductMatches<T>(
             ? "مطابقة قوية للاسم والمواصفات"
             : "تشابه جزئي يحتاج مراجعة";
 
+    const fuzzyPass = (0.55 * identity + 0.25 * token + 0.20 * character) >= 0.70;
     const status: MatchCandidate<T>["status"] =
-      exactNameOrAlias || (identity >= 0.9 && attributes === 1 && score >= 0.86)
+      exactNameOrAlias || (fuzzyPass && identity >= 0.70 && attributes === 1 && score >= 0.70)
         ? "HIGH_CONFIDENCE"
         : "NEEDS_REVIEW";
 
