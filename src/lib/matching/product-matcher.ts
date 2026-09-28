@@ -100,10 +100,14 @@ const MARKET_QUERY_EXPANSIONS: Array<{ pattern: RegExp; terms: string[] }> = [
   { pattern: /\b(?:alfa)\b/gi, terms: ["الفا", "ألفا"] },
   { pattern: /\bpvc\s+glue\b|\bsolution\s+glue\b/gi, terms: ["غراء مواسير", "لاصق بلاستيك"] },
   { pattern: /\belectrical\s+tape\b/gi, terms: ["تيب كهربائي", "شريط عازل"] },
-  { pattern: /(?<!small\s+electrical\s)\bconnector\b/gi, terms: ["كنكتر كهربائي", "موصل سلك"] },
+  // "connector" is already normalized by MARKET_SYNONYMS; avoid a generic
+  // expansion that can erase "small electrical connector" specificity.
+
   // Keep "main/power cable" specificity intact; do not add a generic cable
   // variant that can beat a more specific catalog candidate.
-  { pattern: /(?<!main\s+power\s)(?<!power\s)\bcable\b|\bwire\b/gi, terms: ["كابل كهربائي", "واير سلك"] },
+  // Keep "main/power cable" specificity intact; do not add a generic cable
+  // variant that can beat a more specific catalog candidate.
+  { pattern: /(?<!main power )(?<!power )\bcable\b|\bwire\b/gi, terms: ["كابل كهربائي", "واير سلك"] },
 ];
 
 function buildMarketQueryVariants(query: string): string[] {
