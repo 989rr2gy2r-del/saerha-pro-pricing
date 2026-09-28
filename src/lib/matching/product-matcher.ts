@@ -1,3 +1,5 @@
+import { ratio as rapidRatio, tokenSetRatio as rapidTokenSetRatio, tokenSortRatio as rapidTokenSortRatio } from "string-metrics-wasm";
+
 export type MatchCandidate<T> = {
   product: T;
   score: number;
@@ -97,11 +99,24 @@ function buildMarketQueryVariants(query: string): string[] {
   return [...variants].filter(Boolean);
 }
 
-/** Return a deterministic Arabic market-search phrase for display/audit. */
+/**
+ * Return the deterministic Arabic market-search expansion used for audit/display.
+ * This is a fixed dictionary, never an AI correction or a persisted alias.
+ */
 export function getMarketArabicTranslation(query: string): string {
-  const variants = buildMarketQueryVariants(query);
-  const arabic = variants.find((variant) => /[\u0600-\u06ff]/.test(variant) && !/\b(?:mcb|rccb)\b/i.test(variant));
-  return arabic ?? normalizeProductText(query);
+  const source = String(query ?? "").trim();
+  if (!source) return "";
+  const arabicTerms = new Set<string>();
+  for (const expansion of MARKET_QUERY_EXPANSIONS) {
+    expansion.pattern.lastIndex = 0;
+    if (!expansion.pattern.test(source)) continue;
+    expansion.pattern.lastIndex = 0;
+    for (const term of expansion.terms) {
+      if (/[^a-z]/i.test(term)) arabicTerms.add(normalizeProductText(term));
+    }
+  }
+  if (!arabicTerms.size) return normalizeProductText(source);
+  return [...arabicTerms].join(" / ");
 }
 
 const NUMBER_WORDS: Record<string, string> = {
@@ -530,6 +545,15 @@ function preparedCharacterScore(left: Set<string>, right: Set<string>): number {
   return (2 * overlap) / (left.size + right.size);
 }
 
+/** RapidFuzz-compatible fuzzy score, normalized to 0..1. */
+function rapidFuzzyScore(query: string, candidate: string): number {
+  if (!query || !candidate) return 0;
+  const ratio = rapidRatio(query, candidate) / 100;
+  const tokenSort = rapidTokenSortRatio(query, candidate) / 100;
+  const tokenSet = rapidTokenSetRatio(query, candidate) / 100;
+  return Math.max(ratio, tokenSort, tokenSet);
+}
+
 function preparedOverlapScore(query: string[], candidate: string[]): number {
   if (!query.length || !candidate.length) return 0;
   const candidateSet = new Set(candidate);
@@ -591,6 +615,10 @@ export function rankProductMatches<T>(
               ...searchable.map((field) => preparedCharacterScore(variant.bigrams, field.bigrams)),
             )
           : 0;
+      const rapid = Math.max(
+        0,
+        ...searchable.map((field) => rapidFuzzyScore(variant.value, field.value)),
+      );
       const identity = variant.identity.length ? candidateIdentityQuick : 1;
       const identityPrecision = variant.identity.length
         ? Math.max(
@@ -615,6 +643,7 @@ export function rankProductMatches<T>(
 
     const token = bestLexical.token;
     const character = bestLexical.character;
+    const rapid = Math.max(...variantScores.map((item) => item.rapid));
     const identity = bestLexical.identity;
     const identityPrecision = bestLexical.identityPrecision;
     const queryNumbers = [...new Set(preparedVariants.flatMap((variant) => variant.numbers))];
@@ -677,9 +706,9 @@ export function rankProductMatches<T>(
             ? "مطابقة قوية للاسم والمواصفات"
             : "تشابه جزئي يحتاج مراجعة";
 
-    const fuzzyPass = (0.55 * identity + 0.25 * token + 0.20 * character) >= 0.70;
+    const fuzzyPass = rapid >= 0.70;
     const status: MatchCandidate<T>["status"] =
-      exactNameOrAlias || (fuzzyPass && identity >= 0.70 && attributes === 1 && score >= 0.70)
+      exactNameOrAlias || (fuzzyPass && attributes === 1 && score >= 0.70)
         ? "HIGH_CONFIDENCE"
         : "NEEDS_REVIEW";
 
