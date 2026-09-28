@@ -119,6 +119,7 @@ export function parseTextOrderFallback(text: string): { items: ParsedOrderItem[]
       .replace(/[|¦]+/g, "\t")
       .replace(/^[-*•]+\s*/, "")
       .replace(/^\s*(?:م|رقم|no|item)\.?\s*/i, "")
+      .replace(/^\s*\d+[.)\-:]\s*/, "")
       .trim();
 
     if (!cleaned || /^(?:الصنف|الكمية|الطلبية|البيان|item|product|quantity)\b/i.test(cleaned)) return [];
