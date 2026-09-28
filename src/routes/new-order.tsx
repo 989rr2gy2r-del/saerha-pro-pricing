@@ -2108,9 +2108,21 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           });
         });
 
-        if (candidates.length > 0) {
-          item.product = candidates[0];
-        }
+        const numbers = arabicQuery.match(/\d+/g) ?? [];
+
+        const filtered = candidates.filter(product => {
+          if (numbers.length === 0) return true;
+          const productText = [
+            product.name_ar, product.name_en,
+            product.size, product.model,
+            ...(matchingAliases[product.id] ?? [])
+          ].filter(Boolean).join(" ").toLowerCase();
+          
+          return numbers.every(num => productText.includes(num));
+        });
+
+        const finalCandidates = filtered.length > 0 ? filtered : candidates;
+        item.product = finalCandidates[0];
       }
 
       setAnalysisError(fallbackNotice);
