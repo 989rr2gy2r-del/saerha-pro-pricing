@@ -216,7 +216,7 @@ async function prepareOcrImage(file: File): Promise<HTMLCanvasElement> {
 }
 
 function parseLocalOcrText(text: string) {
-  const units = "حبة|قطعة|علبة|كرتون|كرتونه|كرتون|متر|سم|مم|كجم|كغ|جم|غ|لتر|ل|مل|رول|لفة|باكيت|كيس|طقم|زوج|متر".split("|");
+  const units = "حبة|قطعة|علبة|كرتون|كرتونه|كرتون|متر|سم|مم|كجم|كغ|جم|غ|لتر|ل|مل|رول|لفة|باكيت|كيس|طقم|زوج|دزينة|درزن|dozen|dozens|dz|dzn|pcs|pc|pieces|piece".split("|");
   const unitPattern = units.join("|");
   const lines = text
     .split(/\r?\n/)
@@ -273,7 +273,7 @@ function parseLocalOcrText(text: string) {
 }
 
 async function parseTextOrderFallback(text: string) {
-  const units = "حبة|قطعة|قطع|علبة|كرتون|كرتونه|رول|لفة|باكيت|باك|متر|مترات|meter|meters|m|سم|cm|مم|mm|كجم|كغ|جم|غ|لتر|مل|ml|عبوة|طقم|كيس|صندوق|دزينة|زوج|pcs|pc|pieces|piece|roll|rolls|packet|packets|pack|packs|carton|cartons|box|boxes".split("|");
+  const units = "حبة|قطعة|قطع|علبة|كرتون|كرتونه|رول|لفة|باكيت|باك|متر|مترات|meter|meters|m|سم|cm|مم|mm|كجم|كغ|جم|غ|لتر|مل|ml|عبوة|طقم|كيس|صندوق|دزينة|درزن|dozen|dozens|dz|dzn|زوج|pcs|pc|pieces|piece|roll|rolls|packet|packets|pack|packs|carton|cartons|box|boxes".split("|");
   const unitPattern = units.join("|");
   const normalizeFallbackUnit = (value: string) => {
     const unit = String(value ?? "").trim();
@@ -281,6 +281,7 @@ async function parseTextOrderFallback(text: string) {
     if (/^ml$/i.test(unit)) return "مل";
     if (/^rolls?$/i.test(unit)) return "رول";
     if (/^pcs?$/i.test(unit)) return "قطعة";
+    if (/^dozens?$/i.test(unit) || /^(dz|dzn)$/i.test(unit)) return "دزينة";
     return normalizeUnitValue(unit);
   };
   const toNumber = (value: string) => Number(String(value ?? "").replace(/[٠-٩]/g, (char) => String("٠١٢٣٤٥٦٧٨٩".indexOf(char))).replace(/,/g, "."));
@@ -301,7 +302,7 @@ async function parseTextOrderFallback(text: string) {
       if (lastMatch) {
         quantity = toNumber(lastMatch[1] ?? "");
         unit = normalizeFallbackUnit(lastMatch[2] ?? "");
-        description = columns.slice(0, -1).join(" ").replace(/^\d+\s+/, "").trim();
+        description = columns.slice(0, -1).join(" ").replace(/^\d+[.)\-:]?\s+/, "").trim();
       }
     }
     if (!description) {
@@ -310,11 +311,11 @@ async function parseTextOrderFallback(text: string) {
       if (leading) {
         quantity = toNumber(leading[3] ?? "");
         unit = normalizeFallbackUnit(leading[4] ?? "");
-        description = (leading[2] ?? "").trim();
+        description = (leading[2] ?? "").replace(/^\d+[.)\-:]?\s+/, "").trim();
       } else if (trailing) {
         quantity = toNumber(trailing[2] ?? "");
         unit = normalizeFallbackUnit(trailing[3] ?? "");
-        description = (trailing[1] ?? "").replace(/^\d+\s+/, "").trim();
+        description = (trailing[1] ?? "").replace(/^\d+[.)\-:]?\s+/, "").trim();
       } else {
         description = cleaned.replace(/^\d+[.)\-:]?\s+/, "").trim();
       }
@@ -434,7 +435,10 @@ function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
   // In customer orders the first number is the quantity, even when it is
   // glued to the product name ("3بوكس", "3دي بي"). The only exception is
   // an actual catalog SKU placed at the beginning of the line.
-  const leadingQuantityMatch = asciiText.match(/^(\d+(?:\.\d+)?)(?=\s|[^\d])/);
+  // A numbered WhatsApp/Excel list such as "2. PVC capling ... 100 pcs"
+  // starts with a line number, not the requested quantity. The punctuation
+  // is therefore significant: "2." is never a quantity here.
+  const leadingQuantityMatch = asciiText.match(/^(\d+(?:\.\d+)?)(?=\s|$)/);
   const leadingToken = leadingQuantityMatch?.[1] ?? "";
   // In order text, a leading 1/2/3/5/6 is overwhelmingly a quantity.
   // Some catalog service items happen to have one-digit SKUs (1, 2, 3, 5, 6),
@@ -457,6 +461,7 @@ function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
     [/(?:^|\s)(?:pkt|pkts|pack|packs|packet|packets|باكت|باكيت|باك)(?:\s|$)/i, "باكيت"],
     [/(?:^|\s)(?:carton|cartons|كرتون|كرتونه)(?:\s|$)/i, "كرتون"],
     [/(?:^|\s)(?:pcs?|pieces?|piece|حبة|قطعة|قطع)(?:\s|$)/i, "حبة"],
+    [/(?:^|\s)(?:dozen|dozens|dz|dzn|دزينة|درزن)(?:\s|$)/i, "دزينة"],
     // "box" is often part of the PRODUCT name (e.g. PVC Circular Socket Box),
     // so it must never be treated as an order unit here.
     [/(?:^|\s)(?:meter|meters|متر)(?:\s|$)/i, "متر"],
@@ -465,7 +470,7 @@ function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
   ];
 
   let unit = "";
-  let quantity: number | null = leadingQuantity;
+  let quantity: number | null = null;
 
   for (const [pattern, normalizedUnit] of unitMatches) {
     const match = asciiText.match(pattern);
@@ -477,12 +482,28 @@ function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
     const candidate = after?.[1] ?? before?.[1] ?? "";
     const parsed = Number(candidate);
 
-    // The leading quantity always wins. Only infer a quantity from a unit
-    // when there was no explicit quantity at the start of the line.
-    if (quantity == null && candidate && Number.isFinite(parsed) && parsed > 0) {
+    // A number attached to an explicit order unit is stronger than a leading
+    // list number. This fixes "2. PVC capling ... 100 pcs" where 2 is the
+    // WhatsApp line number and 100 is the requested quantity.
+    if (candidate && Number.isFinite(parsed) && parsed > 0) {
       quantity = parsed;
     }
     break;
+  }
+
+  // Some orders put the quantity at the end without a unit, e.g.
+  // "PVC pipe 5/8 inch or 3/4 inch - 20". Only accept a bare trailing number
+  // when it is separated from the product text by a dash/colon.
+  if (quantity == null) {
+    const trailingQuantity = asciiText.match(/[\-–—:]\s*(\d+(?:\.\d+)?)\s*$/);
+    if (trailingQuantity) {
+      const parsed = Number(trailingQuantity[1]);
+      if (Number.isFinite(parsed) && parsed > 0) quantity = parsed;
+    }
+  }
+
+  if (quantity == null && leadingQuantity != null) {
+    quantity = leadingQuantity;
   }
 
   return { sku, unit, quantity };
@@ -1867,6 +1888,16 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       } else {
         setProgress(20);
         image = await prepareGeminiImage(first);
+        setProgress(28);
+        // Run the existing local OCR before Gemini as a second, auditable text
+        // channel. Gemini still sees the original image and remains authoritative
+        // for ambiguous handwriting; the OCR text is only supporting evidence.
+        try {
+          const localOcr = await readImageLocally(first, setProgress);
+          text = localOcr.text;
+        } catch {
+          text = "";
+        }
         setProgress(35);
       }
 
@@ -1904,6 +1935,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
             image,
             fileType: first.type || first.name,
             text,
+            textSource: detectedSource === "image" ? "ocr" : detectedSource,
           }),
         }, 90000);
 
@@ -1946,6 +1978,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       const normalizedItems = rawItems.map((item, index: number) => ({
         id: `${Date.now()}-${index}`,
         description: String(item["description"] ?? item["raw_text"] ?? "").trim(),
+        category_ar: String(item["category_ar"] ?? "").trim(),
         normalized_description_ar: String(
           item["normalized_description_ar"] ?? item["arabic_name"] ?? item["description"] ?? item["raw_text"] ?? "",
         ).trim(),
@@ -2000,7 +2033,9 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           item.raw_text || item.description,
           catalogSkus,
         );
-        const marketTranslationAr = getMarketArabicTranslation(productQuery);
+        const category = item.category_ar?.trim() ?? "";
+        const searchQuery = [category, productQuery].filter(Boolean).join(" ").trim();
+        const marketTranslationAr = getMarketArabicTranslation(searchQuery);
         // The AI-normalized description is display metadata only. It must
         // never override the original customer wording during product matching,
         // otherwise the model can invent an attribute (e.g. "black tape") that
@@ -2018,8 +2053,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
               reason: "تمت المطابقة المباشرة برقم الصنف الموجود في الطلب",
             }
           : trustedSourceSku
-            ? findLocalProductMatch(productQuery, matchingProducts, marketTranslationAr, matchingAliases)
-            : findLocalProductMatch(productQuery, matchingProducts, marketTranslationAr, matchingAliases);
+            ? findLocalProductMatch(searchQuery, matchingProducts, marketTranslationAr, matchingAliases)
+            : findLocalProductMatch(searchQuery, matchingProducts, marketTranslationAr, matchingAliases);
 
         // Only HIGH_CONFIDENCE matches may populate the product field.
         // NEEDS_REVIEW candidates remain unselected and can be chosen explicitly
@@ -2079,27 +2114,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           priceLabel: "جاري جلب السعر...",
         };
       });
-
-      for (const item of matchedItems) {
-        if (item.product) continue;
-
-        const sourceText = item.raw_text || item.description;
-        const productQuery = stripOrderPrefix(sourceText, catalogSkus);
-        if (!productQuery) continue;
-
-        const category = item.category_ar?.trim() ?? "";
-        const searchQuery = [category, productQuery].filter(Boolean).join(" ");
-        const fallbackMatch = findLocalProductMatch(
-          searchQuery,
-          matchingProducts,
-          "",
-          matchingAliases,
-        );
-
-        if (fallbackMatch) {
-          item.product = fallbackMatch.product;
-        }
-      }
 
       setAnalysisError(fallbackNotice);
       setAnalysisResult({
