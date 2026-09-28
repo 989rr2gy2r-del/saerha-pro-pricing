@@ -56,7 +56,7 @@ assert.deepEqual(parsed.items.map((item) => item.quantity), expectedQuantities);
 assert.deepEqual(parsed.items.map((item) => item.unit), expectedUnits);
 assert.ok(parsed.items.every((item) => !/^\d+[.)\-:]/.test(item.description)), "line numbers must not leak into descriptions");
 assert.equal(parsed.items[0].raw_text, "1. PVC Circular Socket Box – 15 pcs");
-assert.equal(parsed.items[23].raw_text, "Pvc band 5/8inch 15 pcs");
+assert.equal(parsed.items[23].raw_text, "24. Pvc band 5/8inch 15 pcs");
 
 const handwrittenOcrLines = [
   ["PVC pipe Adsany - 20mm - 1 Roll", 1, "رول"],
