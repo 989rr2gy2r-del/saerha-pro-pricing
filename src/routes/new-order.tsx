@@ -1079,7 +1079,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
     const initialSearch = item.product
       ? ""
-      : item.normalized_description_ar\n        || stripLeadingOrderQuantity(item.description || item.raw_text);
+      : item.normalized_description_ar
+        || stripLeadingOrderQuantity(item.description || item.raw_text);
     setOpenProductPickerId(item.id);
     setProductSearches((previous) => ({
       ...previous,
