@@ -195,6 +195,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const image = typeof body?.image === "string" ? body.image : "";
     const textInput = typeof body?.text === "string" ? body.text.trim() : "";
+    const textSource = typeof body?.textSource === "string" ? body.textSource.trim().toLowerCase() : "";
     if (!image && !textInput) return json({ success: false, error: "أرسل صورة أو نصًا." }, 400);
 
     let mimeType = "";
@@ -225,7 +226,9 @@ Deno.serve(async (req) => {
 - اقرأ الكمية من الطلبية كما هي مكتوبة، حتى لو كانت في بداية السطر أو نهايته أو بجانب الوحدة.
 - لا تجعل quantity=0 إذا كانت هناك كمية مقروءة في السطر.
 - لا تعتبر رقم الكود/SKU أو المقاس أو الأمبير أو الجهد كمية. مثال: "1200 PVC pipe 12 ROLL" الكمية هنا 12 والوحدة رول، وليس 1200.
-- إذا ظهر رقم مع وحدة واضحة مثل "4 رول" أو "12 حبة" أو "3 كرتون" فهو quantity.
+- إذا كان السطر يبدأ بترقيم قائمة مثل "2. PVC capling..." أو "2) PVC capling..." أو "2- PVC capling..." فهذا الرقم رقم السطر وليس quantity.
+- إذا ظهر رقم مع وحدة واضحة مثل "4 رول" أو "12 حبة" أو "3 كرتون" أو "3 dozen" فهو quantity.
+- إذا ظهر رقم واضح بعد وحدة أو قبلها في نهاية السطر مثل "100 pcs" أو "3 dozen" فهذه هي الكمية حتى لو بدأ السطر برقم ترقيم.
 - إذا كانت الكمية غير واضحة فعلًا فقط عندها استخدم 0 وضع ذلك في notes.
 7) notes: أي كلمة أو جزء غير مؤكد.
 
@@ -237,9 +240,10 @@ Deno.serve(async (req) => {
 - حافظ على المقاسات والأرقام والألوان والأمبير والجهد والماركة والموديل.
 - "3 dozen" تعني quantity=3 وunit="دزينة"؛ لا تحولها إلى 36.
 - "1 Roll" تعني quantity=1 وunit="رول".
-- "pcs" تعني unit="قطعة".
+- "pcs" و"pc" تعني unit="قطعة"، و"dozen/dozens" تعني unit="دزينة".
 - مهم جدًا: نفّذ القراءة أولًا ثم الفهم. لا تجعل الترجمة تغيّر النص المقروء.
 - raw_text يجب أن يكون أقرب نسخة ممكنة لما هو مكتوب في الصورة، وليس تخمينًا لمعناه. لا تلصق رقم الكمية أو رقم المقاس في بداية اسم المنتج إذا لم يكن ظاهرًا هناك. إذا كانت الكلمة "Elbow" أو "كوع" ظاهرة، فلا تحولها إلى رقم أو إلى كلمة غير مرتبطة بها.
+- إذا كان أمامك نص OCR مساعد، فقد يحتوي على أخطاء أو أرقام مفقودة؛ استخدم الصورة الأصلية للتحقق منه، ولا تنقل خطأ OCR إلى raw_text أو quantity دون مراجعة.
 - category_ar حقل مستقل للنوع الفني. استخرج النوع قبل الترجمة، ولا تتركه فارغًا إذا كان النوع ظاهرًا بوضوح.
 - إذا كان في السطر "Elbow" أو "Double Elbow" أو "Street Elbow" فـ category_ar يجب أن يكون "كوع" أو "كوع دبل" أو "كوع ذكر وانثى" على الترتيب، مع بقاء المصطلح الأصلي في raw_text وdescription.
 - description يجب أن يعكس النص المقروء بعد تصحيح OCR واضح فقط. إذا كانت الكلمة مثل "petan" أو "melbus" غير مؤكدة، لا تستبدلها بكلمة أخرى.
@@ -257,7 +261,11 @@ Deno.serve(async (req) => {
 
 الشكل المطلوب:
 {"items":[{"description":"","category_ar":"","normalized_description_ar":"","quantity":0,"unit":"","raw_text":"","confidence":0,"notes":""}],"notes":""}
-${textInput ? "\nالمدخل النصي:\n" + textInput : ""}`;
+${textInput
+  ? textSource === "ocr"
+    ? "\nنص OCR مساعد مستخرج آليًا من الصورة (قد يحتوي أخطاء؛ الصورة الأصلية هي المرجع):\n" + textInput
+    : "\nالمدخل النصي الأصلي:\n" + textInput
+  : ""}`;
 
     const attempts: Array<{ model: string; error: string; upstreamStatus: number | null }> = [];
     let lastResult: ReturnType<typeof normalize> | null = null;
