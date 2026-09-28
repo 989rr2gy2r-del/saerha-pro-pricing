@@ -1999,6 +1999,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           catalogSkus,
         );
         const marketTranslationAr = getMarketArabicTranslation(productQuery);
+        console.log("marketTranslation:", marketTranslationAr);
         // The AI-normalized description is display metadata only. It must
         // never override the original customer wording during product matching,
         // otherwise the model can invent an attribute (e.g. "black tape") that
