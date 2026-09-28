@@ -78,6 +78,13 @@ const MARKET_QUERY_EXPANSIONS: Array<{ pattern: RegExp; terms: string[] }> = [
   { pattern: /\bpvc\s+socket\s*\(\s*choket\s*\)|\bchoket\b/gi, terms: ["شوكيه", "وصلة", "كوع", "تشوكت"] },
   { pattern: /\bconnector\b/gi, terms: ["كنكتر", "موصل", "وصلة"] },
   { pattern: /\belectrical\s+tape\b|\btape\b/gi, terms: ["تيب كهربا", "تيب", "شطرطون كهرباء"] },
+  { pattern: /\\bcircular\\s+socket\\s+box\\b|\\bsocket\\s+box\\b|\\bcircular\\s+box\\b/gi, terms: ["علبة مفتاح", "جعبة مفتاح", "بوكس مفتاح", "صندوق كهربائي", "بوكس دائري"] },
+  { pattern: /\\bfour.way\\s+switch\\b|\\b4.way\\s+switch\\b/gi, terms: ["مفتاح رباعي", "سويتش رباعي", "مفتاح 4", "رباعي"] },
+  { pattern: /\\bround.pin\\s+power\\s+socket\\b|\\bpower\\s+socket\\b/gi, terms: ["بريزة", "بريزة دائرية", "فيشة", "مقبس كهربائي", "بريزة مستديرة"] },
+  { pattern: /\\bmulti\\s+power\\s+socket\\b|\\bmulti\\s+socket\\b/gi, terms: ["بريزة متعددة", "وصلة كهربائية", "مقبس متعدد", "باور سوكيت"] },
+  { pattern: /\\bsteel\\s+switch\\b|\\bsteel\\s+box\\b|\\bmetal\\s+box\\b/gi, terms: ["علبة حديد", "بوكس حديد", "جعبة معدنية", "صندوق حديد"] },
+  { pattern: /\\bswitch\\b/gi, terms: ["مفتاح", "سويتش", "كهرباء مفتاح"] },
+  { pattern: /\\b1\\.5\\s*mm\\b|\\b2\\.5\\s*mm\\b|\\b4\\s*mm\\b|\\b10\\s*mm\\b/gi, terms: ["كابل", "سلك", "توصيل", "واير"] },
 ];
 
 function buildMarketQueryVariants(query: string): string[] {
