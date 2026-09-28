@@ -2094,10 +2094,18 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
             .map((v) => String(v).toLowerCase().trim());
 
           const haystack = fields.join(" ");
-          const tokens = queryTokens.filter(t => t.length > 2);
-          const matchCount = tokens.filter(t => haystack.includes(t)).length;
-          const matchRatio = matchCount / tokens.length;
-          return matchRatio >= 0.5;
+          const arabicVariants = arabicQuery
+            .split(" / ")
+            .map(v => v.trim())
+            .filter(Boolean);
+
+          return arabicVariants.some(variant => {
+            const variantTokens = variant
+              .split(" ")
+              .filter(t => t.length > 2);
+            if (!variantTokens.length) return false;
+            return variantTokens.every(token => haystack.includes(token));
+          });
         });
 
         if (candidates.length > 0) {
