@@ -340,7 +340,10 @@ function candidateMatchesConstraints(text: string, constraints: MatchConstraints
     if (constraints.alternativeFractions ? fractionMatches.length === 0 : fractionMatches.length < constraints.fractions.length) return false;
   }
 
-  const hasMetric = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:مم2|مم|mm2|mm)(?:\s|$)`, "i").test(normalized);
+  // Gulf electrical catalogs often write millimetres as "مل" (e.g. 1.5مل).
+  // Accept it for technical cable/wire size matching without globally normalizing
+  // "مل", which can mean millilitre in unrelated products.
+  const hasMetric = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:مم2|مم|مل|mm2|mm)(?:\s|$)`, "i").test(normalized);
   if (constraints.metricSizes.some((value) => !hasMetric(value))) return false;
 
   const hasInch = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:انش|inch|in)(?:\s|$)`, "i").test(normalized);
