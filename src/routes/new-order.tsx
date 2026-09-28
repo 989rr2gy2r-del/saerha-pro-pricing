@@ -217,14 +217,6 @@ async function prepareOcrImage(file: File): Promise<HTMLCanvasElement> {
 function parseLocalOcrText(text: string) {
   const units = "حبة|قطعة|علبة|كرتون|كرتونه|كرتون|متر|سم|مم|كجم|كغ|جم|غ|لتر|ل|مل|رول|لفة|باكيت|كيس|طقم|زوج|متر".split("|");
   const unitPattern = units.join("|");
-  const normalizeFallbackUnit = (value: string) => {
-    const unit = String(value ?? "").trim();
-    if (/^meters?$/i.test(unit) || /^m$/i.test(unit)) return "متر";
-    if (/^ml$/i.test(unit)) return "مل";
-    if (/^rolls?$/i.test(unit)) return "رول";
-    if (/^pcs?$/i.test(unit)) return "قطعة";
-    return normalizeUnitValue(unit);
-  };
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.replace(/[|¦]+/g, " ").replace(/\s+/g, " ").trim())
@@ -282,6 +274,14 @@ function parseLocalOcrText(text: string) {
 async function parseTextOrderFallback(text: string) {
   const units = "حبة|قطعة|قطع|علبة|كرتون|كرتونه|رول|لفة|باكيت|باك|متر|مترات|meter|meters|m|سم|cm|مم|mm|كجم|كغ|جم|غ|لتر|مل|ml|عبوة|طقم|كيس|صندوق|دزينة|زوج|pcs|pc|pieces|piece|roll|rolls|packet|packets|pack|packs|carton|cartons|box|boxes".split("|");
   const unitPattern = units.join("|");
+  const normalizeFallbackUnit = (value: string) => {
+    const unit = String(value ?? "").trim();
+    if (/^meters?$/i.test(unit) || /^m$/i.test(unit)) return "متر";
+    if (/^ml$/i.test(unit)) return "مل";
+    if (/^rolls?$/i.test(unit)) return "رول";
+    if (/^pcs?$/i.test(unit)) return "قطعة";
+    return normalizeUnitValue(unit);
+  };
   const toNumber = (value: string) => Number(String(value ?? "").replace(/[٠-٩]/g, (char) => String("٠١٢٣٤٥٦٧٨٩".indexOf(char))).replace(/,/g, "."));
   const lines = text.split(/\r?\n/).map((line) => line.replace(/[|¦]+/g, "\t").trim()).filter(Boolean);
   const items = lines.flatMap((line, index) => {
