@@ -21,7 +21,7 @@ const MARKET_SYNONYMS: Array<[RegExp, string]> = [
   [/\bpvc\b/gi, "بلاستيك"], [/\bcircular\b/gi, "دائري"],
   [/\bsolution\s+glue\b/gi, "لاصق"], [/\bglue\b/gi, "لاصق"],
   [/\bfour[-\s]?way\b/gi, "رباعي"], [/\bthree[-\s]?way\b/gi, "ثلاثي"], [/\btwo[-\s]?way\b/gi, "ثنائي"],
-  [/\bsingle[-\s]?pole\b/gi, "سنجل"], [/\bmcb\b/gi, "بريكر"], [/\brccb\b/gi, "بريكر"],
+  [/\bsingle[-\s]?pole\b/gi, "سنجل"], [/\bmcb\b/gi, "mcb بريكر"], [/\brccb\b/gi, "rccb"],
   [/\bpanel\b/gi, "لوحة"], [/\bsdb\b/gi, "لوحة"], [/\bboard\b/gi, "لوحة"],
   [/\belectrical\s+tape\b/gi, "تيب"], [/\btape\b/gi, "تيب"],
   [/\bsmall\s+electrical\s+connector\b/gi, "موصل"], [/\bconnector\b/gi, "موصل"],
@@ -95,6 +95,13 @@ function buildMarketQueryVariants(query: string): string[] {
   }
 
   return [...variants].filter(Boolean);
+}
+
+/** Return a deterministic Arabic market-search phrase for display/audit. */
+export function getMarketArabicTranslation(query: string): string {
+  const variants = buildMarketQueryVariants(query);
+  const arabic = variants.find((variant) => /[\u0600-\u06ff]/.test(variant) && !/\b(?:mcb|rccb)\b/i.test(variant));
+  return arabic ?? normalizeProductText(query);
 }
 
 const NUMBER_WORDS: Record<string, string> = {
