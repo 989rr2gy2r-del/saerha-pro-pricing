@@ -10,7 +10,7 @@ export type ParsedOrderItem = {
 };
 
 const ORDER_UNITS = [
-  "حبة","قطعة","قطع","علبة","كرتون","كرتونه","رول","لفة","باكيت","باك",
+  "حبة","قطعة","قطع","علبة","كرتون","كرتونه","رول","لفة","لفه","لف","باكيت","باك",
   "متر","مترات","meter","meters","m","سم","cm","مم","mm","كجم","كغ","جم","غ",
   "لتر","مل","ml","عبوة","طقم","كيس","صندوق","دزينة","درزن","dozen","dozens",
   "dz","dzn","زوج","pcs","pc","pieces","piece","roll","rolls","coil","coils",
@@ -43,7 +43,7 @@ export function normalizeOrderUnit(value: string): string {
     "حبة": "حبة", "قطعة": "حبة", "قطع": "حبة", "pc": "حبة", "pcs": "حبة", "piece": "حبة", "pieces": "حبة",
     "كرتون": "كرتون", "كرتونه": "كرتون", "carton": "كرتون", "cartons": "كرتون",
     "علبة": "علبة", "علب": "علبة",
-    "رول": "رول", "لفة": "رول", "roll": "رول", "rolls": "رول", "coil": "رول", "coils": "رول",
+    "رول": "رول", "لفة": "رول", "لفه": "رول", "لف": "رول", "roll": "رول", "rolls": "رول", "coil": "رول", "coils": "رول",
     "باكيت": "باكيت", "باك": "باكيت", "pkt": "باكيت", "pkts": "باكيت", "pack": "باكيت", "packs": "باكيت", "packet": "باكيت", "packets": "باكيت",
     "متر": "متر", "m": "متر", "meter": "متر", "meters": "متر",
     "سم": "سم", "cm": "سم", "مم": "مم", "mm": "مم",
@@ -111,11 +111,12 @@ export function parseTextOrderFallback(text: string): { items: ParsedOrderItem[]
   const unitPattern = ORDER_UNITS;
   const lines = text
     .split(/\r?\n/)
-    .map((line) => line.replace(/[|¦]+/g, "\t").trim())
+    .map((line) => line.trim())
     .filter(Boolean);
 
   const items = lines.flatMap((line, index) => {
     const cleaned = line
+      .replace(/[|¦]+/g, "\t")
       .replace(/^[-*•]+\s*/, "")
       .replace(/^\s*(?:م|رقم|no|item)\.?\s*/i, "")
       .trim();
