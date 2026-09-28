@@ -490,13 +490,13 @@ function stripLeadingOrderQuantity(value: string, catalogSkus?: Set<string>): st
   const text = String(value ?? "")
     .replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c)))
     .trim();
-  const match = text.match(/^(\d+(?:\.\d+)?)(?=\s|[^\d])/);
+  const match = text.match(/^(\d+(?:\.\d+)?)(?:[.)\-:]?)(?=\s|$)/);
   if (!match) return text;
   const token = match[1];
   // A one- or two-digit leading number in an order line is quantity, not SKU.
   // Short service SKUs must never hijack quantity parsing.
   if (token.length >= 3 && catalogSkus?.has(token)) return text;
-  return text.slice(token.length).trim();
+  return text.slice(match[0].length).trim();
 }
 
 function stripOrderPrefix(value: string, catalogSkus?: Set<string>): string {
@@ -2039,7 +2039,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
               : normalizeQuantity(item.quantity),
           confidence,
           product: selectedMatch?.product ?? null,
-          sourceSku: sourceSignals.sku || item.sourceSku || "",
+          sourceSku: selectedMatch?.product.sku || sourceSignals.sku || item.sourceSku || "",
           sourceUnitPrice: item.sourceUnitPrice ?? null,
           sourceLineTotal: item.sourceLineTotal ?? null,
           // A unit printed next to a quantity in the source row is stronger
