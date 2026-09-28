@@ -196,7 +196,6 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const image = typeof body?.image === "string" ? body.image : "";
     const textInput = typeof body?.text === "string" ? body.text.trim() : "";
-    const textSource = typeof body?.textSource === "string" ? body.textSource : "";
     const textSource = typeof body?.textSource === "string" ? body.textSource.trim().toLowerCase() : "";
     if (!image && !textInput) return json({ success: false, error: "أرسل صورة أو نصًا." }, 400);
 
