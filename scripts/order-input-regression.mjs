@@ -2,50 +2,24 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const source = fs.readFileSync(new URL("../src/lib/order/order-input.ts", import.meta.url), "utf8");
+const ts = await import("typescript");
 
-function extractExportedFunction(name) {
-  const start = source.indexOf(`export function ${name}`);
-  if (start < 0) throw new Error(`Function not found: ${name}`);
-  const brace = source.indexOf("{", start);
-  let depth = 0;
-  for (let i = brace; i < source.length; i += 1) {
-    if (source[i] === "{") depth += 1;
-    else if (source[i] === "}") {
-      depth -= 1;
-      if (depth === 0) return source.slice(start, i + 1).replace(/^export\s+/, "");
-    }
-  }
-  throw new Error(`Could not extract function: ${name}`);
-}
+const transpiled = ts.transpileModule(source, {
+  compilerOptions: {
+    module: ts.ModuleKind.ESNext,
+    target: ts.ScriptTarget.ES2020,
+  },
+}).outputText;
 
-function stripTypes(code) {
-  return code
-    .replace(/value:\s*number/g, "value")
-    .replace(/value:\s*string/g, "value")
-    .replace(/text:\s*string/g, "text")
-    .replace(/:\s*string\s*\|\s*null/g, "")
-    .replace(/:\s*string/g, "")
-    .replace(/:\s*number/g, "")
-    .replace(/:\s*ParsedOrderItem\[\]/g, "")
-    .replace(/:\s*\{[^{}]*\}/g, "");
-}
+const moduleUrl = "data:text/javascript;base64," + Buffer.from(transpiled, "utf8").toString("base64");
+const orderInput = await import(moduleUrl);
 
-const normalizeOrderUnit = new Function(
-  `${stripTypes(extractExportedFunction("normalizeOrderUnit"))}; return normalizeOrderUnit;`,
-)();
-const normalizeQuantity = new Function(
-  `${stripTypes(extractExportedFunction("normalizeQuantity"))}; return normalizeQuantity;`,
-)();
-const parseTextOrderFallback = new Function(
-  "normalizeOrderUnit",
-  "normalizeQuantity",
-  `${stripTypes(extractExportedFunction("parseTextOrderFallback"))}; return parseTextOrderFallback;`,
-)(normalizeOrderUnit, normalizeQuantity);
-const parseLocalOcrText = new Function(
-  "normalizeOrderUnit",
-  "normalizeQuantity",
-  `${stripTypes(extractExportedFunction("parseLocalOcrText"))}; return parseLocalOcrText;`,
-)(normalizeOrderUnit, normalizeQuantity);
+const {
+  normalizeOrderUnit,
+  normalizeQuantity,
+  parseTextOrderFallback,
+  parseLocalOcrText,
+} = orderInput;
 
 const whatsappOrder = `1. PVC Circular Socket Box – 15 pcs
 2. PVC Solution Glue – 500 ml
