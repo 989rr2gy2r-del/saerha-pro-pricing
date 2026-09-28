@@ -72,31 +72,38 @@ const MARKET_QUERY_EXPANSIONS: Array<{ pattern: RegExp; terms: string[] }> = [
   { pattern: /\bone.way\s+switch\b|\b1.way\s+switch\b/gi, terms: ["مفتاح أحادي", "سويتش مفرد"] },
   { pattern: /\bround.pin\s+power\s+socket\b/gi, terms: ["بريزة دائرية", "مقبس دائري"] },
   { pattern: /\bmulti\s+power\s+socket\b/gi, terms: ["بريزة متعددة", "مقبس متعدد باور"] },
-  { pattern: /\bpower\s+socket\b/gi, terms: ["بريزة كهربائية", "مقبس كهرباء"] },
+  // Do not let the generic expansion override more specific socket variants.
+  { pattern: /(?<!round.pin\s)(?<!multi\s)\bpower\s+socket\b/gi, terms: ["بريزة كهربائية", "مقبس كهرباء"] },
   { pattern: /\bcircular\s+socket\s+box\b/gi, terms: ["علبة مفتاح دائرية", "بوكس دائري"] },
   { pattern: /\bcircular\s+box\b/gi, terms: ["بوكس دائري بلاستيك", "علبة دائرية"] },
   { pattern: /\bsteel\s+switch\s+box\b|\bsteel\s+socket\s+box\b/gi, terms: ["علبة حديد مفتاح", "بوكس حديد كهربائي"] },
-  { pattern: /\bsocket\s+box\b/gi, terms: ["علبة مفتاح", "بوكس سويتش"] },
+  // Generic socket-box expansion must not erase circular/steel qualifiers.
+  { pattern: /(?<!circular\s)(?<!steel\s)\bsocket\s+box\b/gi, terms: ["علبة مفتاح", "بوكس سويتش"] },
   { pattern: /\bsdb\b|\bdistribution\s+board\b/gi, terms: ["لوحة توزيع", "لوح كهرباء"] },
   { pattern: /\bmcb\b|\bsingle.pole\s+mcb\b/gi, terms: ["بريكر مفرد", "قاطع حراري أحادي"] },
   { pattern: /\brccb\b/gi, terms: ["قاطع تفاضلي", "قاطع تسريب"] },
   { pattern: /\bdouble\s+elbow\b/gi, terms: ["كوع دبل", "كوع مزدوج"] },
   { pattern: /\bstreet\s+elbow\b/gi, terms: ["كوع ذكر وانثى", "كوع سن خارجي داخلي"] },
-  { pattern: /\belbows?\b/gi, terms: ["كوع", "أكواع", "زاوية", "كوع زاوية"] },
+  // Do not create a generic elbow variant from "double/street elbow".
+  { pattern: /(?<!double\s)(?<!street\s)\belbows?\b/gi, terms: ["كوع", "أكواع", "زاوية", "كوع زاوية"] },
   { pattern: /\bknee\b/gi, terms: ["كوع", "زاوية"] },
   { pattern: /\bpvc\s+pipe\b/gi, terms: ["ماسورة بلاستيك", "بايب pvc"] },
   { pattern: /\bpvc\s+band\b|\bpvc\s+clamp\b/gi, terms: ["كلبس بايب", "مشبك ماسورة"] },
   { pattern: /\bpvc\s+socket\b|\bchoket\b/gi, terms: ["شوكيه بلاستيك", "سوكت"] },
   { pattern: /\bpvc\s+(?:capling|coupling|coupler)\b|\b(?:capling|coupling|coupler)\b/gi, terms: ["سوكت", "وصلة ماسورة"] },
   { pattern: /\bdouble\s+(?:melbus|mlbwsh)\b/gi, terms: ["ملبوش دبل", "ملبوش مزدوج"] },
-  { pattern: /\b(?:melbus|mlbwsh)\b/gi, terms: ["ملبوش"] },
+  // Keep "double melbus" tied to the double variant; otherwise the generic
+  // expansion can create a higher-scoring single-melbus candidate.
+  { pattern: /(?<!double\s)(?<!دبل\s)(?<!مزدوج\s)\b(?:melbus|mlbwsh)\b/gi, terms: ["ملبوش"] },
   { pattern: /\b(?:gi|g\.i\.)\s+box\b/gi, terms: ["بوكس حديد", "بوكس GI"] },
   { pattern: /\b(?:adsany|adsani)\b/gi, terms: ["عدساني"] },
   { pattern: /\b(?:alfa)\b/gi, terms: ["الفا", "ألفا"] },
   { pattern: /\bpvc\s+glue\b|\bsolution\s+glue\b/gi, terms: ["غراء مواسير", "لاصق بلاستيك"] },
   { pattern: /\belectrical\s+tape\b/gi, terms: ["تيب كهربائي", "شريط عازل"] },
-  { pattern: /\bconnector\b/gi, terms: ["كنكتر كهربائي", "موصل سلك"] },
-  { pattern: /\bcable\b|\bwire\b/gi, terms: ["كابل كهربائي", "واير سلك"] },
+  { pattern: /(?<!small\s+electrical\s)\bconnector\b/gi, terms: ["كنكتر كهربائي", "موصل سلك"] },
+  // Keep "main/power cable" specificity intact; do not add a generic cable
+  // variant that can beat a more specific catalog candidate.
+  { pattern: /(?<!main\s+power\s)(?<!power\s)\bcable\b|\bwire\b/gi, terms: ["كابل كهربائي", "واير سلك"] },
 ];
 
 function buildMarketQueryVariants(query: string): string[] {
