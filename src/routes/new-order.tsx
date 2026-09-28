@@ -2067,6 +2067,29 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         };
       });
 
+      for (let index = 0; index < matchedItems.length; index += 1) {
+        const item = matchedItems[index];
+        if (item.product || !item.normalized_description_ar) continue;
+        const options = filterProductOptions(item.normalized_description_ar);
+        if (!options.length) continue;
+        const selected = productById.get(options[0].value);
+        if (!selected) continue;
+        matchedItems[index] = {
+          ...item,
+          product: selected,
+          quoteName: selected.name_ar,
+          sourceSku: selected.sku,
+          unit: normalizeUnitValue(selected.unit ?? "") || item.unit || "حبة",
+          priceAmount: null,
+          priceType: null,
+          priceLabel: "جارٍ جلب السعر من قاعدة الأسعار...",
+          accepted: true,
+          rejected: false,
+          status: "HIGH_CONFIDENCE",
+          matchReason: "تم الاختيار تلقائياً من قائمة المنتجات بناءً على العربية السوقية",
+        };
+      }
+
       setAnalysisError(fallbackNotice);
       setAnalysisResult({
         items: matchedItems,
