@@ -68,8 +68,8 @@ export function parseLocalOcrText(text: string): ParsedOrderItem[] {
     let quantity = 0;
     let unit = "";
 
-    const startMatch = line.match(new RegExp(\`^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(\${unitPattern})?\\s+(.+)$\`, "i"));
-    const endMatch = line.match(new RegExp(\`^(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(\${unitPattern})?$\`, "i"));
+    const startMatch = line.match(new RegExp(`^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?\\s+(.+)$`, "i"));
+    const endMatch = line.match(new RegExp(`^(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?$`, "i"));
 
     const tableUnitMatch = line.match(
       /(?:^|\s)(roll|rolls|rOLL|pkt|pkts|pack|packet|رول|لفة|لفه|لف|باكيت|باك|كرتون|حبة|قطعة|pcs?|pieces?)(?:\s+)([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)/i,
@@ -95,7 +95,7 @@ export function parseLocalOcrText(text: string): ParsedOrderItem[] {
     }
 
     return {
-      id: \`ocr-\${Date.now()}-\${index}\`,
+      id: `ocr-${Date.now()}-${index}`,
       description,
       normalized_description_ar: "",
       raw_text: line,
@@ -128,9 +128,9 @@ export function parseTextOrderFallback(text: string): { items: ParsedOrderItem[]
     let quantity = 0;
     let unit = "";
 
-    const quantityUnit = new RegExp(\`^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(\${unitPattern})?\\s*$\`, "i");
-    const trailingQuantity = new RegExp(\`^(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(\${unitPattern})?\\s*$\`, "i");
-    const leadingQuantity = new RegExp(\`^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s+(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(\${unitPattern})?\\s*$\`, "i");
+    const quantityUnit = new RegExp(`^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?\\s*$`, "i");
+    const trailingQuantity = new RegExp(`^(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?\\s*$`, "i");
+    const leadingQuantity = new RegExp(`^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s+(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?\\s*$`, "i");
 
     if (columns.length >= 2) {
       const last = columns[columns.length - 1] ?? "";
@@ -161,7 +161,7 @@ export function parseTextOrderFallback(text: string): { items: ParsedOrderItem[]
     if (!description || !Number.isFinite(quantity) || quantity <= 0) return [];
 
     return [{
-      id: \`text-fallback-\${Date.now()}-\${index}\`,
+      id: `text-fallback-${Date.now()}-${index}`,
       description,
       normalized_description_ar: "",
       quantity: normalizeQuantity(quantity),
