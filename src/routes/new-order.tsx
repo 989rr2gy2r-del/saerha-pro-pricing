@@ -1934,9 +1934,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           throw serverError;
         }
       }
-
         }
-      }
 
       const rawItems = Array.isArray(rawResult["items"])
         ? (rawResult["items"] as Record<string, unknown>[])
