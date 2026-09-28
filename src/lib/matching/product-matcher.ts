@@ -632,7 +632,7 @@ export function rankProductMatches<T>(
             }),
           )
         : 1;
-      return { token, character, identity, identityPrecision, variant };
+      return { token, character, rapid, identity, identityPrecision, variant };
     });
 
     const bestLexical = variantScores.reduce((best, current) => {
