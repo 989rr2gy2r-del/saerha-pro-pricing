@@ -55,6 +55,7 @@ type MatchStatus = "HIGH_CONFIDENCE" | "NEEDS_REVIEW" | "UNMATCHED";
 type ReviewItem = {
   id: string;
   description: string;
+  category_ar?: string;
   normalized_description_ar: string;
   quantity: number;
   unit: string;
@@ -2086,11 +2087,12 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         const productQuery = stripOrderPrefix(sourceText, catalogSkus);
         if (!productQuery) continue;
 
-        const marketTranslationAr = getMarketArabicTranslation(productQuery);
+        const category = item.category_ar?.trim() ?? "";
+        const searchQuery = [category, productQuery].filter(Boolean).join(" ");
         const fallbackMatch = findLocalProductMatch(
-          productQuery,
+          searchQuery,
           matchingProducts,
-          marketTranslationAr,
+          "",
           matchingAliases,
         );
 
