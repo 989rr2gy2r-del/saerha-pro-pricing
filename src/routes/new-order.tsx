@@ -2004,10 +2004,21 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         // never override the original customer wording during product matching,
         // otherwise the model can invent an attribute (e.g. "black tape") that
         // is not present in the order and force a wrong SKU.
-        const match = trustedSourceSku
-          ? findLocalProductMatch(trustedSourceSku, matchingProducts, "", matchingAliases) ??
-            findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases)
-          : findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases);
+        const directSkuProduct = trustedSourceSku
+          ? matchingProducts.find(
+              (product) => normalizeForMatch(product.sku) === normalizeForMatch(trustedSourceSku),
+            ) ?? null
+          : null;
+        const match = directSkuProduct
+          ? {
+              product: directSkuProduct,
+              score: 1,
+              status: "HIGH_CONFIDENCE" as const,
+              reason: "تمت المطابقة المباشرة برقم الصنف الموجود في الطلب",
+            }
+          : trustedSourceSku
+            ? findLocalProductMatch(productQuery, matchingProducts, marketTranslationAr, matchingAliases)
+            : findLocalProductMatch(productQuery, matchingProducts, marketTranslationAr, matchingAliases);
 
         // Only HIGH_CONFIDENCE matches may populate the product field.
         // NEEDS_REVIEW candidates remain unselected and can be chosen explicitly
@@ -2069,60 +2080,23 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       });
 
       for (const item of matchedItems) {
-        const arabicQuery = item.normalized_description_ar;
-        if (!arabicQuery || item.product) continue;
+        if (item.product) continue;
 
-        const queryTokens = arabicQuery
-          .split(" ")
-          .filter(Boolean)
-          .map((t) => t.toLowerCase().trim());
+        const sourceText = item.raw_text || item.description;
+        const productQuery = stripOrderPrefix(sourceText, catalogSkus);
+        if (!productQuery) continue;
 
-        const aliases = matchingAliases;
+        const marketTranslationAr = getMarketArabicTranslation(productQuery);
+        const fallbackMatch = findLocalProductMatch(
+          productQuery,
+          matchingProducts,
+          marketTranslationAr,
+          matchingAliases,
+        );
 
-        const candidates = matchingProducts.filter((p) => {
-          const fields = [
-            p.sku,
-            p.name_ar,
-            p.name_en,
-            p.short_name,
-            p.brand,
-            p.model,
-            p.size,
-            ...(aliases[p.id] ?? []),
-          ]
-            .filter(Boolean)
-            .map((v) => String(v).toLowerCase().trim());
-
-          const haystack = fields.join(" ");
-          const arabicVariants = arabicQuery
-            .split(" / ")
-            .map(v => v.trim())
-            .filter(Boolean);
-
-          return arabicVariants.some(variant => {
-            const variantTokens = variant
-              .split(" ")
-              .filter(t => t.length > 2);
-            if (!variantTokens.length) return false;
-            return variantTokens.every(token => haystack.includes(token));
-          });
-        });
-
-        const numbers = arabicQuery.match(/\d+/g) ?? [];
-
-        const filtered = candidates.filter(product => {
-          if (numbers.length === 0) return true;
-          const productText = [
-            product.name_ar, product.name_en,
-            product.size, product.model,
-            ...(matchingAliases[product.id] ?? [])
-          ].filter(Boolean).join(" ").toLowerCase();
-          
-          return numbers.every(num => productText.includes(num));
-        });
-
-        const finalCandidates = filtered.length > 0 ? filtered : candidates;
-        item.product = finalCandidates[0];
+        if (fallbackMatch) {
+          item.product = fallbackMatch.product;
+        }
       }
 
       setAnalysisError(fallbackNotice);
