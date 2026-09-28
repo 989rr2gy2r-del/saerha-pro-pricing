@@ -1075,6 +1075,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     const item = analysisResult?.items[index];
     if (!item) return;
 
+    console.log("arabic:", item.normalized_description_ar);
+
     const initialSearch = item.product
       ? ""
       : item.normalized_description_ar\n        || stripLeadingOrderQuantity(item.description || item.raw_text);
