@@ -273,13 +273,14 @@ function parseLocalOcrText(text: string) {
 }
 
 async function parseTextOrderFallback(text: string) {
-  const units = "حبة|قطعة|قطع|علبة|كرتون|كرتونه|رول|لفة|باكيت|باك|متر|مترات|meter|meters|m|سم|cm|مم|mm|كجم|كغ|جم|غ|لتر|مل|ml|عبوة|طقم|كيس|صندوق|دزينة|درزن|dozen|dozens|dz|dzn|زوج|pcs|pc|pieces|piece|roll|rolls|packet|packets|pack|packs|carton|cartons|box|boxes".split("|");
+  const units = "حبة|قطعة|قطع|علبة|كرتون|كرتونه|رول|لفة|باكيت|باك|متر|مترات|meter|meters|m|سم|cm|مم|mm|كجم|كغ|جم|غ|لتر|مل|ml|عبوة|طقم|كيس|صندوق|دزينة|درزن|dozen|dozens|dz|dzn|زوج|pcs|pc|pieces|piece|roll|rolls|coil|coils|packet|packets|pack|packs|carton|cartons|box|boxes".split("|");
   const unitPattern = units.join("|");
   const normalizeFallbackUnit = (value: string) => {
     const unit = String(value ?? "").trim();
     if (/^meters?$/i.test(unit) || /^m$/i.test(unit)) return "متر";
     if (/^ml$/i.test(unit)) return "مل";
     if (/^rolls?$/i.test(unit)) return "رول";
+    if (/^coils?$/i.test(unit)) return "رول";
     if (/^pcs?$/i.test(unit)) return "قطعة";
     if (/^dozens?$/i.test(unit) || /^(dz|dzn)$/i.test(unit)) return "دزينة";
     return normalizeUnitValue(unit);
@@ -460,11 +461,13 @@ function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
     [/(?:^|\s)(?:roll|rolls|رول|لفة|لفه|لف)(?:\s|$)/i, "رول"],
     [/(?:^|\s)(?:pkt|pkts|pack|packs|packet|packets|باكت|باكيت|باك)(?:\s|$)/i, "باكيت"],
     [/(?:^|\s)(?:carton|cartons|كرتون|كرتونه)(?:\s|$)/i, "كرتون"],
-    [/(?:^|\s)(?:pcs?|pieces?|piece|حبة|قطعة|قطع)(?:\s|$)/i, "حبة"],
-    [/(?:^|\s)(?:dozen|dozens|dz|dzn|دزينة|درزن)(?:\s|$)/i, "دزينة"],
+    [/(?:^|\s)(?:pcs?|pieces?|piece|حبة|قطعة|قطع)(?:\s|$)|(?<=\d)\s*(?:pcs?|pieces?|piece)(?=\s|$)/i, "حبة"],
+    [/(?:^|\s)(?:dozen|dozens|dz|dzn|دزينة|درزن)(?:\s|$)|(?<=\d)\s*(?:dozen|dozens|dz|dzn)(?=\s|$)/i, "دزينة"],
     // "box" is often part of the PRODUCT name (e.g. PVC Circular Socket Box),
     // so it must never be treated as an order unit here.
     [/(?:^|\s)(?:meter|meters|متر)(?:\s|$)/i, "متر"],
+    [/(?:^|\s)(?:ml|مل)(?:\s|$)|(?<=\d)\s*(?:ml|مل)(?=\s|$)/i, "مل"],
+    [/(?:^|\s)(?:coil|coils)(?:\s|$)|(?<=\d)\s*(?:coil|coils)(?=\s|$)/i, "رول"],
     [/(?:^|\s)(?:ربطة|ربطه)(?:\s|$)/i, "ربطة"],
     [/(?:^|\s)(?:كيس)(?:\s|$)/i, "كيس"],
   ];
