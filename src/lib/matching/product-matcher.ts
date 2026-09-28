@@ -8,6 +8,7 @@ export type MatchCandidate<T> = {
   signals: {
     exact: boolean;
     alias: boolean;
+    rapid: number;
     token: number;
     character: number;
     attributes: number;
@@ -315,8 +316,8 @@ function candidateMatchesConstraints(text: string, constraints: MatchConstraints
       case "mcb": return /\bبريكر\b|\bmcb\b|مفتاح حراري|مينيتشر/.test(normalized) && !/\brccb\b|قاطع تسريب|قاطع تفاضلي|حماية تسرب/.test(normalized);
       case "box": return /(?:^|\s)(?:بوكس|صندوق)(?:\s|$)/.test(normalized);
       case "pipe": return /(?:^|\s)بايب(?:\s|$)|\bpipe(?:s)?\b/.test(normalized);
-      case "cable": return /(?:^|\s)(?:كيبل|كابل)(?:\s|$)|\bcable(?:s)?\b/.test(normalized);
-      case "wire": return /(?:^|\s)واير(?:\s|$)|\bwire(?:s)?\b/.test(normalized);
+      case "cable": return /(?:^|\s)(?:كيبل|كابل|واير)(?:\s|$)|\b(?:cable|wire)(?:s)?\b/.test(normalized);
+      case "wire": return /(?:^|\s)(?:واير|كيبل|كابل)(?:\s|$)|\b(?:wire|cable)(?:s)?\b/.test(normalized);
       case "connector": return /(?:^|\s)كنكتر(?:\s|$)|\bconnector(?:s)?\b/.test(normalized);
       case "tape": return /(?:^|\s)تيب(?:\s|$)|\btape\b/.test(normalized);
       case "glue": return /(?:^|\s)(?:لاصق|غراء)(?:\s|$)|\bglue\b/.test(normalized);
@@ -592,7 +593,7 @@ export function rankProductMatches<T>(
         score: 0,
         status: "NEEDS_REVIEW" as const,
         reason: "تم استبعاد الصنف لأن مواصفة مطلوبة في الطلب لا تطابق بياناته",
-        signals: { exact: false, alias: false, token: 0, character: 0, attributes: 0, numeric: 0, identity: 0 },
+        signals: { exact: false, alias: false, rapid: 0, token: 0, character: 0, attributes: 0, numeric: 0, identity: 0 },
       };
     }
 
@@ -666,11 +667,13 @@ export function rankProductMatches<T>(
       (queryNumbers.length > 0 && numeric < 1) ||
       (queryFractions.length > 0 && fraction < 1);
 
+    // RapidFuzz is the primary fuzzy-retrieval signal. Identity and
+    // technical attributes refine it; they never override hard constraints.
     let score = exactNameOrAlias
       ? 1
-      : 0.36 * identity + 0.20 * identityPrecision + 0.20 * token + 0.10 * character + 0.14 * attributes;
+      : 0.50 * rapid + 0.20 * identity + 0.10 * identityPrecision + 0.10 * token + 0.10 * attributes;
 
-    if (identity >= 1 && identityPrecision >= 0.95 && attributes === 1) score += 0.12;
+    if (identity >= 1 && identityPrecision >= 0.95 && attributes === 1) score += 0.08;
     if (specificationConflict) score = Math.min(score, 0.72);
     score = Math.max(0, Math.min(1, score));
 
@@ -718,7 +721,7 @@ export function rankProductMatches<T>(
       score,
       status,
       reason,
-      signals: { exact, alias, token, character, attributes, numeric, identity },
+      signals: { exact, alias, rapid, token, character, attributes, numeric, identity },
     };
   });
 
