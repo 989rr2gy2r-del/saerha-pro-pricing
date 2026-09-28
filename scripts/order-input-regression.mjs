@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const source = fs.readFileSync(new URL("../src/routes/new-order.tsx", import.meta.url), "utf8");
+const source = fs.readFileSync(new URL("../src/lib/order/order-input.ts", import.meta.url), "utf8");
 
-function extractFunction(name) {
-  const start = source.indexOf(`function ${name}`);
+function extractExportedFunction(name) {
+  const start = source.indexOf(`export function ${name}`);
   if (start < 0) throw new Error(`Function not found: ${name}`);
   const brace = source.indexOf("{", start);
   let depth = 0;
@@ -12,7 +12,7 @@ function extractFunction(name) {
     if (source[i] === "{") depth += 1;
     else if (source[i] === "}") {
       depth -= 1;
-      if (depth === 0) return source.slice(start, i + 1);
+      if (depth === 0) return source.slice(start, i + 1).replace(/^export\s+/, "");
     }
   }
   throw new Error(`Could not extract function: ${name}`);
@@ -20,29 +20,32 @@ function extractFunction(name) {
 
 function stripTypes(code) {
   return code
-    .replace(/rawText:\s*string/g, "rawText")
-    .replace(/catalogSkus\?:\s*Set<string>/g, "catalogSkus")
-    .replace(/text:\s*string/g, "text")
-    .replace(/value:\s*string/g, "value")
     .replace(/value:\s*number/g, "value")
-    .replace(/: Array<\[RegExp, string\]>/g, "")
-    .replace(/:\s*number\s*\|\s*null/g, "");
+    .replace(/value:\s*string/g, "value")
+    .replace(/text:\s*string/g, "text")
+    .replace(/:\s*string\s*\|\s*null/g, "")
+    .replace(/:\s*string/g, "")
+    .replace(/:\s*number/g, "")
+    .replace(/:\s*ParsedOrderItem\[\]/g, "")
+    .replace(/:\s*\{[^{}]*\}/g, "");
 }
 
+const normalizeOrderUnit = new Function(
+  `${stripTypes(extractExportedFunction("normalizeOrderUnit"))}; return normalizeOrderUnit;`,
+)();
 const normalizeQuantity = new Function(
-  `${stripTypes(extractFunction("normalizeQuantity"))}; return normalizeQuantity;`,
-)();
-const normalizeUnitValue = new Function(
-  `${stripTypes(extractFunction("normalizeUnitValue"))}; return normalizeUnitValue;`,
-)();
-const extractOrderSignals = new Function(
-  `${stripTypes(extractFunction("extractOrderSignals"))}; return extractOrderSignals;`,
+  `${stripTypes(extractExportedFunction("normalizeQuantity"))}; return normalizeQuantity;`,
 )();
 const parseTextOrderFallback = new Function(
-  "normalizeUnitValue",
+  "normalizeOrderUnit",
   "normalizeQuantity",
-  `${stripTypes(extractFunction("parseTextOrderFallback"))}; return parseTextOrderFallback;`,
-)(normalizeUnitValue, normalizeQuantity);
+  `${stripTypes(extractExportedFunction("parseTextOrderFallback"))}; return parseTextOrderFallback;`,
+)(normalizeOrderUnit, normalizeQuantity);
+const parseLocalOcrText = new Function(
+  "normalizeOrderUnit",
+  "normalizeQuantity",
+  `${stripTypes(extractExportedFunction("parseLocalOcrText"))}; return parseLocalOcrText;`,
+)(normalizeOrderUnit, normalizeQuantity);
 
 const whatsappOrder = `1. PVC Circular Socket Box – 15 pcs
 2. PVC Solution Glue – 500 ml
@@ -73,11 +76,13 @@ const whatsappOrder = `1. PVC Circular Socket Box – 15 pcs
 const expectedQuantities = [15,500,5,3,12,4,3,7,1,12,30,30,2,2,1,1,1,1,1,15,10,16,20,15,1];
 const expectedUnits = ["حبة","مل","حبة","حبة","حبة","حبة","حبة","حبة","حبة","حبة","حبة","متر","رول","رول","رول","رول","رول","رول","رول","حبة","حبة","حبة","","حبة","حبة"];
 
-const parsed = await parseTextOrderFallback(whatsappOrder);
+const parsed = parseTextOrderFallback(whatsappOrder);
 assert.equal(parsed.items.length, 25, "WhatsApp order must preserve all 25 rows");
 assert.deepEqual(parsed.items.map((item) => item.quantity), expectedQuantities);
 assert.deepEqual(parsed.items.map((item) => item.unit), expectedUnits);
 assert.ok(parsed.items.every((item) => !/^\d+[.)\-:]/.test(item.description)), "line numbers must not leak into descriptions");
+assert.equal(parsed.items[0].raw_text, "1. PVC Circular Socket Box – 15 pcs");
+assert.equal(parsed.items[23].raw_text, "Pvc band 5/8inch 15 pcs");
 
 const handwrittenOcrLines = [
   ["PVC pipe Adsany - 20mm - 1 Roll", 1, "رول"],
@@ -87,13 +92,15 @@ const handwrittenOcrLines = [
   ["petan - 2", 2, ""],
 ];
 for (const [line, quantity, unit] of handwrittenOcrLines) {
-  const signal = extractOrderSignals(line, new Set());
-  assert.equal(signal.quantity, quantity, `quantity regression: ${line}`);
-  assert.equal(signal.unit, unit, `unit regression: ${line}`);
+  const items = parseLocalOcrText(line);
+  assert.equal(items.length, 1, `OCR parser must preserve line: ${line}`);
+  assert.equal(items[0].quantity, quantity, `quantity regression: ${line}`);
+  assert.equal(items[0].unit, unit, `unit regression: ${line}`);
+  assert.equal(items[0].raw_text, line);
 }
 
-assert.equal(normalizeUnitValue("coil"), "رول");
-assert.equal(normalizeUnitValue("dozen"), "دزينة");
+assert.equal(normalizeOrderUnit("coil"), "رول");
+assert.equal(normalizeOrderUnit("dozen"), "دزينة");
 
 console.log("order-input regression: PASS");
 console.log(`validated pasted rows: ${parsed.items.length}`);
