@@ -1719,10 +1719,41 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   };
 
   
+type PdfJsModule = {
+  getDocument: (options: { data: Uint8Array; disableWorker?: boolean }) => {
+    promise: Promise<{
+      numPages: number;
+      getPage: (pageNumber: number) => Promise<{
+        getTextContent: (options?: Record<string, unknown>) => Promise<{
+          items: Array<{ str?: string }>;
+        }>;
+        getViewport: (options: { scale: number }) => { width: number; height: number };
+        render: (options: { canvasContext: CanvasRenderingContext2D; viewport: unknown }) => { promise: Promise<void> };
+      }>;
+    }>;
+  };
+  GlobalWorkerOptions: { workerSrc: string };
+};
+
+let pdfJsLoader: Promise<PdfJsModule> | null = null;
+
+function loadPdfJs(): Promise<PdfJsModule> {
+  if (pdfJsLoader) return pdfJsLoader;
+  pdfJsLoader = import(
+    /* @vite-ignore */
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.3.289/pdf.min.mjs"
+  ) as Promise<PdfJsModule>;
+  return pdfJsLoader.then((pdfjs) => {
+    pdfjs.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.3.289/pdf.worker.min.mjs";
+    return pdfjs;
+  });
+}
+
 async function extractPdfText(file: File): Promise<{ text: string; pageCount: number }> {
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const pdfjs = await loadPdfJs();
   const data = new Uint8Array(await file.arrayBuffer());
-  const pdfDocument = await pdfjs.getDocument({ data, disableWorker: true }).promise;
+  const pdfDocument = await pdfjs.getDocument({ data, disableWorker: false }).promise;
   const pages: string[] = [];
 
   for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
@@ -1732,7 +1763,7 @@ async function extractPdfText(file: File): Promise<{ text: string; pageCount: nu
       disableCombineTextItems: false,
     });
     const pageText = content.items
-      .map((item) => ("str" in item ? item.str : ""))
+      .map((item) => item.str ?? "")
       .filter(Boolean)
       .join(" ")
       .replace(/\s+/g, " ")
@@ -1752,9 +1783,9 @@ async function readCanvasLocally(canvas: HTMLCanvasElement, onProgress?: (value:
 }
 
 async function readPdfLocally(file: File, onProgress?: (value: number) => void) {
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const pdfjs = await loadPdfJs();
   const data = new Uint8Array(await file.arrayBuffer());
-  const pdfDocument = await pdfjs.getDocument({ data, disableWorker: true }).promise;
+  const pdfDocument = await pdfjs.getDocument({ data, disableWorker: false }).promise;
   const chunks: string[] = [];
   const maxPagesForOcr = Math.min(pdfDocument.numPages, 8);
 
@@ -1778,6 +1809,7 @@ async function readPdfLocally(file: File, onProgress?: (value: number) => void) 
 
   return chunks.join("\n");
 }
+
 
 function workbookToPreservedText(workbook: XLSX.WorkBook): string {
   return workbook.SheetNames.map((sheetName) => {
