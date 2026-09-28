@@ -270,6 +270,7 @@ type MatchConstraints = {
   pairs: string[];
   gangs: string[];
   poles: string[];
+  qualifiers: string[];
   alternativeFractions: boolean;
   alternativeInches: boolean;
 };
@@ -329,13 +330,52 @@ function extractMatchConstraints(value: string): MatchConstraints {
   }
   if (!poles.length && (text.includes("سنجل") || text.includes("single"))) poles.push("1");
 
-  return { productClass, amps, colors, fractions, metricSizes, inchSizes, pairs, gangs, poles, alternativeFractions, alternativeInches };
+  const qualifiers: string[] = [];
+  const qualifierPatterns: Array<[RegExp, string]> = [
+    [/\balfa\b|الفا/gi, "الفا"],
+    [/\badsany\b|\badsani\b|عدساني/gi, "عدساني"],
+    [/\bsaudi\b|سعودي/gi, "سعودي"],
+    [/\bgulf\b|الخليج/gi, "الخليج"],
+    [/\bskimo\b|سكيمو/gi, "سكيمو"],
+    [/\bdagco\b|داجكو/gi, "داجكو"],
+    [/\bhyundai\b|هيواندي/gi, "هيواندي"],
+    [/\bhome\s*best\b|هوم\s*بست/gi, "هوم بست"],
+    [/\bpower\s*lux\b|باور\s*لوكس/gi, "باور لوكس"],
+    [/\bcrabtree\b|كرابتري/gi, "كرابتري"],
+    [/\bjasar\b|الجسار/gi, "الجسار"],
+    [/\bmagdonia\b|ماجدونيا/gi, "ماجدونيا"],
+    [/\bspanish\b|اسباني/gi, "اسباني"],
+    [/\bgerman\b|germany\b|الماني/gi, "الماني"],
+    [/\bkhrafy\b|خرافي/gi, "خرافي"],
+    [/\bkuwaiti\b|kwyty\b|كويتي/gi, "كويتي"],
+  ];
+  for (const [pattern, qualifier] of qualifierPatterns) {
+    pattern.lastIndex = 0;
+    if (pattern.test(text)) qualifiers.push(qualifier);
+    pattern.lastIndex = 0;
+  }
+
+  return {
+    productClass,
+    amps,
+    colors,
+    fractions,
+    metricSizes,
+    inchSizes,
+    pairs,
+    gangs,
+    poles,
+    qualifiers: [...new Set(qualifiers)],
+    alternativeFractions,
+    alternativeInches,
+  };
 }
 
 function candidateMatchesConstraints(text: string, constraints: MatchConstraints): boolean {
   if (!constraints.productClass && !constraints.amps.length && !constraints.colors.length &&
       !constraints.fractions.length && !constraints.metricSizes.length && !constraints.inchSizes.length &&
-      !constraints.pairs.length && !constraints.gangs.length && !constraints.poles.length) return true;
+      !constraints.pairs.length && !constraints.gangs.length && !constraints.poles.length &&
+      !constraints.qualifiers.length) return true;
 
   const normalized = normalizeProductText(text);
   const hasClass = (kind: MatchConstraints["productClass"]) => {
@@ -357,6 +397,10 @@ function candidateMatchesConstraints(text: string, constraints: MatchConstraints
   };
 
   if (constraints.productClass && !hasClass(constraints.productClass)) return false;
+
+  if (constraints.qualifiers.some((qualifier) => !normalized.includes(normalizeProductText(qualifier)))) {
+    return false;
+  }
 
   const hasAmp = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:امبير|a)(?:\s|$)`, "i").test(normalized);
   if (constraints.amps.some((value) => !hasAmp(value))) return false;
@@ -717,7 +761,8 @@ export function rankProductMatches<T>(
       queryConstraints.inchSizes.length +
       queryConstraints.pairs.length +
       queryConstraints.gangs.length +
-      queryConstraints.poles.length;
+      queryConstraints.poles.length +
+      queryConstraints.qualifiers.length;
 
     // When the catalog candidate satisfies the product class and every
     // explicit technical constraint, give that evidence meaningful weight.
