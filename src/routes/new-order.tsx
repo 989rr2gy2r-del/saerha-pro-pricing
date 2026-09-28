@@ -30,7 +30,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { createCustomer, fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
-import { normalizeProductText, rankProductMatches } from "@/lib/matching/product-matcher";
+import { getMarketArabicTranslation, normalizeProductText, rankProductMatches } from "@/lib/matching/product-matcher";
 
 type ProductRecord = {
   id: string;
@@ -1982,6 +1982,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           item.raw_text || item.description,
           catalogSkus,
         );
+        const marketTranslationAr = getMarketArabicTranslation(productQuery);
         // The AI-normalized description is display metadata only. It must
         // never override the original customer wording during product matching,
         // otherwise the model can invent an attribute (e.g. "black tape") that
@@ -2016,7 +2017,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           // If no match is confirmed, show the cleaned product query without the
           // leading quantity/unit; keep the untouched line in raw_text for audit.
           description: selectedMatch?.product.name_ar ?? productQuery,
-          normalized_description_ar: selectedMatch?.product.name_ar ?? productQuery,
+          normalized_description_ar: selectedMatch?.product.name_ar ?? marketTranslationAr,
           quoteName: selectedMatch?.product.name_ar ?? undefined,
           quantity:
             sourceSignals.quantity && sourceSignals.quantity > 0
@@ -2750,6 +2751,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                         <div className="flex items-start justify-between gap-3">
                                           <div className="min-w-0">
                                             <div className="flex items-center gap-2 font-bold text-foreground"><PenLine className="h-3.5 w-3.5 shrink-0 text-primary" />{displayName}</div>
+                                            <div className="mt-1 text-[10px] text-muted-foreground">الطلب: <span dir="ltr">{item.raw_text || item.description || "—"}</span></div>
+                                            <div className="mt-0.5 text-[10px] text-muted-foreground">العربية السوقية: {item.normalized_description_ar || "—"}</div>
                                             {item.product?.name_en && (
                                               <div className="mt-1 text-[10px] text-muted-foreground" dir="ltr">
                                                 {item.product.name_en}
@@ -2764,11 +2767,11 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
                                           {item.product ? (
                                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
                                               <DatabaseIcon className="h-3 w-3" />
-                                              بيانات الصنف من القاعدة
+                                              بيانات الصنف من القاعدة · {Math.round(item.confidence * 100)}%
                                             </span>
                                           ) : (
                                             <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                                              اضغط لاختيار الصنف
+                                              {item.status === "NEEDS_REVIEW" ? "يحتاج مراجعة · " + Math.round(item.confidence * 100) + "%" : "اضغط لاختيار الصنف"}
                                             </span>
                                           )}
                                         </div>
