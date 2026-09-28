@@ -678,15 +678,17 @@ function findLocalProductMatch(
   // almost equally plausible. This is critical for names such as "كوع 1.5".
   const margin = second ? best.score - second.score : 1;
   const ambiguous = margin < 0.10 && !best.signals.exact && !best.signals.alias;
-  const safeScore = ambiguous ? Math.min(best.score, 0.82) : best.score;
+
+  // A ranked candidate is not the same thing as a selected product. If the
+  // matcher cannot prove the winner, leave the product unset so the UI can
+  // present the catalog picker instead of silently choosing a variant.
+  if (ambiguous || best.status !== "HIGH_CONFIDENCE") return null;
 
   return {
     product: best.product,
-    score: safeScore,
-    status: ambiguous ? "NEEDS_REVIEW" : best.status,
-    reason: ambiguous
-      ? "يوجد أكثر من صنف قريب؛ يلزم اختيار المنتج الصحيح"
-      : best.reason,
+    score: best.score,
+    status: "HIGH_CONFIDENCE" as const,
+    reason: best.reason,
   };
 }
 
@@ -1989,12 +1991,10 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
             findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases)
           : findLocalProductMatch(productQuery, matchingProducts, "", matchingAliases);
 
-        // Restore the previous automatic catalog selection behavior:
-        // the matcher may return a strong candidate marked NEEDS_REVIEW when
-        // the catalog has similar names. It still came from Supabase, so show
-        // that catalog product instead of leaving the row empty.
-        // Exact/alias/high-confidence matches keep their normal confidence;
-        // weaker candidates remain visibly marked for review.
+        // Only HIGH_CONFIDENCE matches may populate the product field.
+        // NEEDS_REVIEW candidates remain unselected and can be chosen explicitly
+        // from the catalog picker; this prevents an arbitrary color/brand/SKU
+        // from becoming part of the quotation.
         const selectedMatch = match;
         // Extraction confidence and catalog-match confidence are separate
         // signals. An AI can be very confident about reading a line while still
