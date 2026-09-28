@@ -19,7 +19,7 @@ const ORDER_UNITS = [
 
 const LOCAL_OCR_UNITS = [
   "حبة","قطعة","علبة","كرتون","كرتونه","متر","سم","مم","كجم","كغ","جم","غ",
-  "لتر","ل","مل","رول","لفة","باكيت","كيس","طقم","زوج","دزينة","درزن",
+  "لتر","ل","مل","رول","لفة","لفه","لف","باكيت","كيس","طقم","زوج","دزينة","درزن",
   "dozen","dozens","dz","dzn","pcs","pc","pieces","piece",
 ].join("|");
 
@@ -72,10 +72,10 @@ export function parseLocalOcrText(text: string): ParsedOrderItem[] {
     const endMatch = line.match(new RegExp(\`^(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(\${unitPattern})?$\`, "i"));
 
     const tableUnitMatch = line.match(
-      /(?:^|\s)(roll|rolls|rOLL|pkt|pkts|pack|packet|رول|لفة|باكيت|باك|كرتون|حبة|قطعة|pcs?|pieces?)(?:\s+)([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)/i,
+      /(?:^|\s)(roll|rolls|rOLL|pkt|pkts|pack|packet|رول|لفة|لفه|لف|باكيت|باك|كرتون|حبة|قطعة|pcs?|pieces?)(?:\s+)([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)/i,
     );
     const numberBeforeUnit = line.match(
-      /([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\s+(roll|rolls|pkt|pkts|pack|packet|رول|لفة|باكيت|باك|كرتون|حبة|قطعة|pcs?|pieces?)(?:\s|$)/i,
+      /([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\s+(roll|rolls|pkt|pkts|pack|packet|رول|لفة|لفه|لف|باكيت|باك|كرتون|حبة|قطعة|pcs?|pieces?)(?:\s|$)/i,
     );
 
     if (tableUnitMatch) {
