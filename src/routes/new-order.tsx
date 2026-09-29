@@ -30,7 +30,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { createCustomer, fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
-import { findLocalProductMatch, getMarketArabicTranslation, normalizeProductText, rankProductMatches } from "@/lib/matching/product-matcher";
+import { findLocalProductMatch, getMarketArabicTranslation, normalizeProductText } from "@/lib/matching/product-matcher";
 import { normalizeQuantity, parseLocalOcrText, parseTextOrderFallback } from "@/lib/order/order-input";
 import { alignOrderItemToSourceLine, extractOrderLineSignals, parseOrderSourceLines } from "@/lib/order/order-line-parser";
 
