@@ -47,6 +47,7 @@ function normalize(value: unknown) {
       const quantity = Number(row.quantity);
       const confidence = Number(row.confidence);
       return {
+        source_line_index: index,
         description: typeof row.description === "string" ? row.description.trim() : "",
         category_ar:
           typeof row.category_ar === "string" ? row.category_ar.trim() : "",
@@ -131,6 +132,7 @@ async function callGemini(
                   items: {
                     type: "object",
                     properties: {
+                      source_line_index: { type: "integer", minimum: 0 },
                       description: { type: "string" },
                       category_ar: { type: "string" },
                       normalized_description_ar: { type: "string" },
@@ -140,7 +142,7 @@ async function callGemini(
                       confidence: { type: "number", minimum: 0, maximum: 1 },
                       notes: { type: "string" },
                     },
-                    required: ["description", "category_ar", "normalized_description_ar", "quantity", "unit", "raw_text", "confidence", "notes"],
+                    required: ["source_line_index", "description", "category_ar", "normalized_description_ar", "quantity", "unit", "raw_text", "confidence", "notes"],
                   },
                 },
                 notes: { type: "string" },
@@ -218,7 +220,7 @@ Deno.serve(async (req) => {
 1) raw_text: النص الخام المقروء من الصورة، محافظًا على ترتيب الكلمات والأرقام كما ظهرت قدر الإمكان. لا تعيد بناء السطر من الترجمة.
 2) description: الوصف المقروء بعد تصحيح أخطاء OCR الواضحة فقط، من دون اختراع اسم أو إضافة رقم.
 3) category_ar: نوع المنتج الفني كما هو مفهوم من النص فقط، بكلمة/عبارة قصيرة مثل: كوع، سوكت، بايب، نيبل، نبل، محبس، بوكس، كنكتر. إذا لم يكن النوع واضحًا اتركه فارغًا.
-4) normalized_description_ar: الاسم التجاري المفهوم بالعربية، لأن هذا الحقل سيُستخدم لمطابقة قاعدة المنتجات. لا تستخدمه لاستبدال raw_text.
+4) source_line_index: رقم ترتيب السطر الذي قرأته، يبدأ من 0، ويجب أن يكون فريدًا ومحافظًا على ترتيب المصدر.\n4) normalized_description_ar: الاسم التجاري المفهوم بالعربية، لأن هذا الحقل سيُستخدم لمطابقة قاعدة المنتجات. لا تستخدمه لاستبدال raw_text.
 5) quantity: الكمية الرقمية الموجودة في نفس السطر فقط.
 6) unit: الوحدة المرتبطة بالكمية في نفس السطر مثل حبة، قطعة، رول، كرتون، دزينة، متر.
 7) confidence: ثقتك في قراءة السطر من 0 إلى 1.
