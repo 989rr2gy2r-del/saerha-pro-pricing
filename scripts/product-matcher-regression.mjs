@@ -116,7 +116,24 @@ assert.equal(redMeter.product?.sku, "072512", "2.5mm red meter must resolve to t
 
 console.log("resolver safety regression: PASS");
 
-  console.log("product-matcher regression: PASS");
+  const duplicateProducts = [
+  ...products,
+  {
+    ...products.find((product) => product.sku === "0761"),
+    id: "0761-DUP",
+    sku: "0761-DUP",
+  },
+];
+const duplicateResult = findLocalProductMatch(
+  "واير الخليج احمر 6مل 4 متر",
+  duplicateProducts,
+  "",
+  {},
+);
+assert.equal(duplicateResult?.product, null, "duplicate exact catalog evidence must remain for review");
+assert.equal(duplicateResult?.status, "NEEDS_REVIEW", "duplicate exact catalog evidence must not auto-select");
+
+console.log("product-matcher regression: PASS");
   console.log("validated exact 6mm color matches: red/yellow/blue/black");
   console.log("validated technical conflicts: 6/10/16mm and 3/4-core");
 } finally {
