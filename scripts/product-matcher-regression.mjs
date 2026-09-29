@@ -17,7 +17,7 @@ const tempFile = path.join(new URL(".", import.meta.url).pathname, ".product-mat
 fs.writeFileSync(tempFile, transpiled, "utf8");
 try {
   const matcher = await import(pathToFileURL(tempFile).href + "?regression=1");
-  const { rankProductMatches, extractMatchConstraints } = matcher;
+  const { rankProductMatches, extractMatchConstraints, candidateMatchesConstraints } = matcher;
 
 const products = [
   ["0761", "واير الخليج احمر مقاس 6مل", "WAIR GULF RED SAIZ 6 ML"],
@@ -60,6 +60,8 @@ for (const [query, expectedSku] of [
   ["واير الخليج اسود 6مل", "0764"],
 ]) {
   const constraints = extractMatchConstraints(query);
+  const technicalText = "واير الخليج احمر مقاس 6مل";
+  console.log("constraint-check", query, candidateMatchesConstraints(technicalText, constraints));
   const candidates = match(query);
   console.log("constraint-debug", query, JSON.stringify(constraints));
   console.log("candidate-debug", query, candidates.map((candidate) => ({ sku: candidate.product.sku, score: candidate.score, status: candidate.status, reason: candidate.reason })));
