@@ -413,7 +413,7 @@ export function candidateMatchesConstraints(text: string, constraints: MatchCons
     return false;
   }
 
-  const hasAmp = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:امبير|a)(?:\s|$)`, "i").test(normalized);
+  const hasAmp = (value: string) => new RegExp(String.raw`(?:^|\s)${value}\s*(?:امبير|a)(?:\s|$)`, "i").test(normalized);
   if (constraints.amps.some((value) => !hasAmp(value))) return false;
 
   if (constraints.colors.some((color) => !normalized.includes(color))) return false;
@@ -426,10 +426,10 @@ export function candidateMatchesConstraints(text: string, constraints: MatchCons
   // Gulf electrical catalogs often write millimetres as "مل" (e.g. 1.5مل).
   // Accept it for technical cable/wire size matching without globally normalizing
   // "مل", which can mean millilitre in unrelated products.
-  const hasMetric = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:مم2|مم|ملم|مل|mm2|mm)(?:\s|$)`, "i").test(normalized);
+  const hasMetric = (value: string) => new RegExp(String.raw`(?:^|\s)${value}\s*(?:مم2|مم|ملم|مل|mm2|mm)(?:\s|$)`, "i").test(normalized);
   if (constraints.metricSizes.some((value) => !hasMetric(value))) return false;
 
-  const hasInch = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:انش|inch|in)(?:\s|$)`, "i").test(normalized);
+  const hasInch = (value: string) => new RegExp(String.raw`(?:^|\s)${value}\s*(?:انش|inch|in)(?:\s|$)`, "i").test(normalized);
   if (constraints.inchSizes.length) {
     const inchMatches = constraints.inchSizes.filter(hasInch);
     if (constraints.alternativeInches ? inchMatches.length === 0 : inchMatches.length < constraints.inchSizes.length) return false;
@@ -442,7 +442,7 @@ export function candidateMatchesConstraints(text: string, constraints: MatchCons
   })) return false;
 
   const hasGang = (value: string) =>
-    new RegExp(`(?:^|\s)${value}\s*(?:دقمة|gang)(?:\s|$)`, "i").test(normalized) ||
+    new RegExp(String.raw`(?:^|\s)${value}\s*(?:دقمة|gang)(?:\s|$)`, "i").test(normalized) ||
     (value === "4" && normalized.includes("رباعي")) ||
     (value === "3" && normalized.includes("ثلاثي")) ||
     (value === "2" && normalized.includes("ثنائي")) ||
