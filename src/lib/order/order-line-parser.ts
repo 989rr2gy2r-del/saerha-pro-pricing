@@ -88,7 +88,8 @@ type QuantityUnitMatch = {
 };
 
 function findExplicitCommercialPairs(line: string): QuantityUnitMatch[] {
-  // Keep character positions stable: spans are audit data and must point into the original line.\n  const normalized = toAsciiDigits(line);\n  const results: QuantityUnitMatch[] = [];
+  // Keep character positions stable: spans are audit data and must point into the original line.
+  const normalized = toAsciiDigits(line);\n  const results: QuantityUnitMatch[] = [];
   const unitPattern = COMMERCIAL_UNIT_PATTERN;
 
   const numberThenUnit = new RegExp(
