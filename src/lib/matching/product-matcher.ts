@@ -944,6 +944,7 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
         candidate.score >= best.score - 0.12,
     );
 
+  const queryConstraints = extractMatchConstraints(text);
   const hardConstraintCount =
     (queryConstraints.productClass ? 1 : 0) +
     queryConstraints.amps.length +
