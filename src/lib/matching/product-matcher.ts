@@ -382,7 +382,7 @@ export function extractMatchConstraints(value: string): MatchConstraints {
   };
 }
 
-function candidateMatchesConstraints(text: string, constraints: MatchConstraints): boolean {
+export function candidateMatchesConstraints(text: string, constraints: MatchConstraints): boolean {
   if (!constraints.productClass && !constraints.amps.length && !constraints.colors.length &&
       !constraints.fractions.length && !constraints.metricSizes.length && !constraints.inchSizes.length &&
       !constraints.pairs.length && !constraints.gangs.length && !constraints.poles.length &&
