@@ -602,7 +602,11 @@ function findLocalProductMatch(
   if (!best || best.score < 0.55) return null;
 
   const margin = second ? best.score - second.score : 1;
-  const ambiguous = margin < 0.10 && !best.signals.exact && !best.signals.alias;
+  const ambiguous =
+    margin < 0.10 &&
+    !best.signals.exact &&
+    !best.signals.alias &&
+    best.product.id !== second?.product?.id;
 
   const requestedUnit = normalizeCommercialMatchUnit(
     text.match(/(?:حبة|قطعة|قطع|كرتون|كرتونه|رول|لفة|لفه|لف|باكيت|باك|متر|عبوة|طقم|كيس|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|coils?|packets?|packs?|cartons?|boxes?|meters?|meter)$/i)?.[0] ?? "",
