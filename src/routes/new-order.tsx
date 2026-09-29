@@ -32,7 +32,7 @@ import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
 import { findLocalProductMatch, getMarketArabicTranslation, normalizeProductText } from "@/lib/matching/product-matcher";
 import { normalizeQuantity, parseLocalOcrText, parseTextOrderFallback } from "@/lib/order/order-input";
-import { alignOrderItemToSourceLine, extractOrderLineSignals, parseOrderSourceLines } from "@/lib/order/order-line-parser";
+import { extractOrderLineSignals, parseOrderSourceLines, reconcileOrderLineEvidence } from "@/lib/order/order-line-parser";
 
 type ProductRecord = {
   id: string;
@@ -84,12 +84,18 @@ type ReviewItem = {
   sourceUnitPrice?: number | null;
   sourceTrace?: {
     raw_line: string;
+    source_kind: "original_text" | "ai_ocr" | "local_ocr" | "unavailable";
+    source_index: number | null;
     alignment_score: number;
     quantity_raw: string;
     unit_raw: string;
     quantity_span: { start: number; end: number; raw: string } | null;
     unit_span: { start: number; end: number; raw: string } | null;
     sku: string;
+    ai_quantity: number | null;
+    ai_unit: string;
+    quantity_source: "source_text" | "unverified_ai" | "missing";
+    unit_source: "source_text" | "unverified_ai" | "missing";
     issues: string[];
   };
   sourceLineTotal?: number | null;
@@ -1901,73 +1907,98 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
 
       const catalogSkus = new Set(matchingProducts.map((product) => normalizeForMatch(product.sku)));
       const sourceLines = parseOrderSourceLines(text, catalogSkus);
-      const usedSourceIndices = new Set<number>();
+
+      // Never fuzzy-align one extracted item to a nearby source line. That can
+      // move a quantity/color from one repeated row to another. For text-like
+      // inputs the original line is authoritative; for images/handwriting the
+      // model's own raw OCR line is the source evidence, with local OCR only as
+      // an index-preserving fallback when counts are identical.
+      const sourceKind =
+        detectedSource === "text" || detectedSource === "pdf" || detectedSource === "excel"
+          ? "original_text" as const
+          : "ai_ocr" as const;
 
       const matchedItems: ReviewItem[] = normalizedItems.map((item, itemIndex) => {
-        const alignment = alignOrderItemToSourceLine(
-          item.raw_text || item.description,
-          itemIndex,
-          sourceLines,
-          usedSourceIndices,
-        );
-        if (alignment) usedSourceIndices.add(alignment.index);
+        let effectiveRawText = "";
+        let effectiveSourceKind: "original_text" | "ai_ocr" | "local_ocr" | "unavailable" = "unavailable";
+        let sourceIndex: number | null = null;
+        let sourceAlignmentScore = 0;
 
-        const effectiveRawText = alignment?.rawLine || item.raw_text || item.description;
-        const sourceSignals = extractOrderSignals(effectiveRawText, catalogSkus);
-        const productQuery = stripOrderPrefix(effectiveRawText, catalogSkus);
+        if (sourceKind === "original_text") {
+          const exactSource = sourceLines[itemIndex];
+          if (exactSource) {
+            effectiveRawText = exactSource.rawLine;
+            effectiveSourceKind = "original_text";
+            sourceIndex = exactSource.index;
+            sourceAlignmentScore = 1;
+          }
+        } else if (item.raw_text.trim()) {
+          effectiveRawText = item.raw_text.trim();
+          effectiveSourceKind = "ai_ocr";
+          sourceIndex = itemIndex;
+          sourceAlignmentScore = 1;
+        } else if (sourceLines.length === normalizedItems.length && sourceLines[itemIndex]) {
+          const fallbackSource = sourceLines[itemIndex];
+          effectiveRawText = fallbackSource.rawLine;
+          effectiveSourceKind = "local_ocr";
+          sourceIndex = fallbackSource.index;
+          sourceAlignmentScore = 0.75;
+        }
+
+        const evidence = reconcileOrderLineEvidence(
+          effectiveRawText,
+          item.quantity,
+          item.unit,
+          catalogSkus,
+        );
+        const sourceSignals = evidence.signals;
+        const productQuery = effectiveRawText ? stripOrderPrefix(effectiveRawText, catalogSkus) : "";
         const commercialUnit = sourceSignals.unit;
         const searchQuery = [productQuery, commercialUnit].filter(Boolean).join(" ").trim();
         const marketTranslationAr = getMarketArabicTranslation(searchQuery);
-        // The AI-normalized description is display metadata only. It must
-        // never override the original customer wording during product matching,
-        // otherwise the model can invent an attribute (e.g. "black tape") that
-        // is not present in the order and force a wrong SKU.
-        const match = findLocalProductMatch(
-          searchQuery,
-          matchingProducts,
-          marketTranslationAr,
-          matchingAliases,
-        );
+        const match = searchQuery
+          ? findLocalProductMatch(searchQuery, matchingProducts, marketTranslationAr, matchingAliases)
+          : null;
 
-        // Only HIGH_CONFIDENCE matches may populate the product field.
-        // NEEDS_REVIEW candidates remain unselected and can be chosen explicitly
-        // from the catalog picker; this prevents an arbitrary color/brand/SKU
-        // from becoming part of the quotation.
         const selectedMatch = match;
         const sourceQuantityKnown = sourceSignals.quantity != null && sourceSignals.quantity > 0;
         const sourceUnitKnown = Boolean(sourceSignals.unit);
+        const sourceEvidenceSafe =
+          effectiveSourceKind !== "unavailable" &&
+          sourceQuantityKnown &&
+          sourceUnitKnown &&
+          !evidence.issues.some((issue) => /لم يتم اعتمادها|لا تطابق|أكثر من زوج/.test(issue));
+
         const selectedProduct =
-          selectedMatch && sourceQuantityKnown && sourceUnitKnown
+          selectedMatch && sourceEvidenceSafe && selectedMatch.status === "HIGH_CONFIDENCE"
             ? selectedMatch.product
             : null;
         const confidence = selectedMatch
           ? Math.min(1, Math.max(0, selectedMatch.score))
           : 0;
-        const status: MatchStatus = selectedProduct && selectedMatch?.status === "HIGH_CONFIDENCE" && confidence >= 0.86
+        const status: MatchStatus = selectedProduct && confidence >= 0.86
           ? "HIGH_CONFIDENCE"
           : selectedMatch
             ? "NEEDS_REVIEW"
             : "UNMATCHED";
 
-
         const matchReason = !selectedMatch
-          ? "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة."
+          ? !effectiveRawText
+            ? "لا يوجد سطر مصدر قابل للتدقيق؛ لم يتم اختيار منتج أو كمية تلقائيًا."
+            : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة."
           : !sourceQuantityKnown
-            ? "تعذر إثبات كمية الطلب من السطر المصدر؛ لم تُستخدم كمية AI."
+            ? "تعذر إثبات كمية الطلب من نص السطر المصدر؛ لم تُستخدم كمية القراءة الذكية."
             : !sourceUnitKnown
-              ? "تعذر إثبات وحدة الطلب من السطر المصدر؛ لم يتم اعتماد المطابقة تلقائيًا."
-              : selectedMatch.status === "HIGH_CONFIDENCE" && selectedProduct
-                ? "مطابقة آمنة: خصائص السطر المصدر تطابق سجلًا حقيقيًا في قاعدة المنتجات."
-                : selectedMatch.reason;
+              ? "تعذر إثبات وحدة الطلب من نص السطر المصدر؛ لم تُستخدم وحدة القراءة الذكية."
+              : !sourceEvidenceSafe
+                ? "يوجد تعارض بين القراءة الذكية ودليل السطر المصدر؛ تُرك البند للمراجعة."
+                : selectedMatch.status === "HIGH_CONFIDENCE" && selectedProduct
+                  ? "مطابقة آمنة: خصائص السطر المصدر تطابق سجلًا حقيقيًا في قاعدة المنتجات."
+                  : selectedMatch.reason;
 
         return {
           ...item,
-          // Once a catalog product is matched, the displayed name comes from
-          // the database — never from an AI-invented product name.
-          // The product column is a catalog field, not the original order line.
-          // If no match is confirmed, show the cleaned product query without the
-          // leading quantity/unit; keep the untouched line in raw_text for audit.
-          description: selectedProduct?.name_ar ?? productQuery,
+          description: selectedProduct?.name_ar ?? (productQuery || item.description || item.raw_text),
           normalized_description_ar: marketTranslationAr,
           quoteName: selectedProduct?.name_ar ?? undefined,
           quantity: sourceSignals.quantity != null ? normalizeQuantity(sourceSignals.quantity) : 0,
@@ -1978,31 +2009,34 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           sourceSku: sourceSignals.sku,
           sourceTrace: {
             raw_line: effectiveRawText,
-            alignment_score: alignment?.score ?? 0,
-            quantity_raw: sourceSignals.trace.quantityRaw,
-            unit_raw: sourceSignals.trace.unitRaw,
-            quantity_span: sourceSignals.trace.quantitySpan,
-            unit_span: sourceSignals.trace.unitSpan,
-            sku: sourceSignals.trace.sku,
-            issues: sourceSignals.trace.issues,
+            source_kind: effectiveSourceKind,
+            source_index: sourceIndex,
+            alignment_score: sourceAlignmentScore,
+            quantity_raw: sourceSignals.quantityRaw,
+            unit_raw: sourceSignals.unitRaw,
+            quantity_span: sourceSignals.quantitySpan,
+            unit_span: sourceSignals.unitSpan,
+            sku: sourceSignals.sku,
+            ai_quantity: Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : null,
+            ai_unit: String(item.unit ?? ""),
+            quantity_source: evidence.quantitySource,
+            unit_source: evidence.unitSource,
+            issues: evidence.issues,
           },
           sourceUnitPrice: item.sourceUnitPrice ?? null,
           sourceLineTotal: item.sourceLineTotal ?? null,
           matchCandidates: selectedMatch?.candidates,
-          // A unit printed next to a quantity in the source row is stronger
-          // than a generic model guess.
           unit: sourceSignals.unit || "",
           matchReason,
           status,
           rejected: false,
-          accepted: Boolean(selectedMatch && status === "HIGH_CONFIDENCE"),
+          accepted: Boolean(selectedProduct && status === "HIGH_CONFIDENCE"),
           priceAmount: null,
           priceType: null,
           priceLabel: "جاري جلب السعر...",
         };
       });
-
-      setAnalysisError(fallbackNotice);
+Notice);
       setAnalysisResult({
         items: matchedItems,
         notes: String(rawResult["notes"] ?? "").trim(),
