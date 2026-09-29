@@ -282,7 +282,7 @@ const NUMBER_WORD_TO_DIGIT: Record<string, string> = {
   سبع: "7", سبعة: "7", سبعه: "7", ثمان: "8", ثمانية: "8", ثمانيه: "8",
 };
 
-function extractMatchConstraints(value: string): MatchConstraints {
+export function extractMatchConstraints(value: string): MatchConstraints {
   const raw = normalizeProductText(value);
   const text = raw
     .replace(/(?:^|\s)(?:four|4)\s*(?:way|gang)\b/gi, "4 دقمة")
