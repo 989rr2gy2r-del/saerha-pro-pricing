@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit --strict false --strictNullChecks true --exactOptionalPropertyTypes false --noImplicitAny false --noUncheckedIndexedAccess false --noPropertyAccessFromIndexSignature false",
     "test:order-input": "node scripts/order-input-regression.mjs",
     "test:product-matcher": "node scripts/product-matcher-regression.mjs",
-    "test": "node scripts/order-input-regression.mjs && node scripts/product-matcher-regression.mjs"
+    "test": "node scripts/order-input-regression.mjs && node scripts/order-line-parser-regression.mjs && node scripts/product-matcher-regression.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"
