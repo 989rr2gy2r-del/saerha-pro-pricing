@@ -251,6 +251,49 @@ export function extractOrderLineSignals(
   };
 }
 
+
+function normalizedIdentityTokens(value: string): string[] {
+  return [...new Set(
+    normalizeLine(value)
+      .toLowerCase()
+      .replace(/[^a-z0-9\u0600-\u06ff./]+/gi, " ")
+      .split(/\s+/)
+      .filter((token) => token.length >= 2 && !/^\d+(?:\.\d+)?$/.test(token)),
+  )];
+}
+
+function sourceLineSimilarity(itemText: string, sourceText: string): number {
+  const itemTokens = normalizedIdentityTokens(itemText);
+  const sourceTokens = new Set(normalizedIdentityTokens(sourceText));
+  if (!itemTokens.length || !sourceTokens.size) return 0;
+  const hits = itemTokens.filter((token) => sourceTokens.has(token)).length;
+  return hits / itemTokens.length;
+}
+
+export function alignOrderItemToSourceLine(
+  itemText: string,
+  itemIndex: number,
+  sourceLines: Array<{ rawLine: string; signals: OrderLineSignals; index: number }>,
+  usedSourceIndices: Set<number>,
+): { rawLine: string; signals: OrderLineSignals; index: number; score: number } | null {
+  let best: { rawLine: string; signals: OrderLineSignals; index: number; score: number } | null = null;
+  for (const source of sourceLines) {
+    if (usedSourceIndices.has(source.index)) continue;
+    const similarity = sourceLineSimilarity(itemText, source.rawLine);
+    const skuBoost =
+      source.signals.sku && normalizeLine(itemText).includes(source.signals.sku)
+        ? 0.65
+        : 0;
+    const positionDistance = Math.abs(source.index - itemIndex);
+    const positionBoost = positionDistance === 0 ? 0.15 : Math.max(0, 0.08 - positionDistance * 0.01);
+    const score = Math.min(1, similarity * 0.75 + skuBoost + positionBoost);
+    if (!best || score > best.score) {
+      best = { ...source, score };
+    }
+  }
+  return best && best.score >= 0.28 ? best : null;
+}
+
 export function parseOrderSourceLines(
   sourceText: string,
   catalogSkus?: Set<string>,
