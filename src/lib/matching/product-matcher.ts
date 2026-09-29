@@ -865,6 +865,16 @@ function candidateHasSpecificColor(product: MatchableProductRecord): boolean {
   );
 }
 
+function stripCommercialOrderTail(value: string): string {
+  return String(value ?? "")
+    .trim()
+    .replace(
+      /(?:^|\\s)\\d+(?:[.,]\\d+)?\\s*(?:حبة|قطعة|قطع|كرتون|كرتونه|رول|لفة|لفه|لف|باكيت|باك|متر|عبوة|علبة|طقم|كيس|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|coils?|packets?|packs?|cartons?|boxes?|meters?|meter)\\s*$/i,
+      "",
+    )
+    .trim();
+}
+
 export function findLocalProductMatch<T extends MatchableProductRecord>(
   text: string,
   products: T[],
@@ -873,7 +883,12 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
     | Array<{ product_id: string; alias: string; normalized_alias?: string | null }>
     | Record<string, string[]> = [],
 ) {
-  const queries = [text, normalizedArabic].filter(Boolean);
+  const requestedUnit = normalizeCommercialMatchUnit(
+    text.match(/(?:حبة|قطعة|قطع|كرتون|كرتونه|رول|لفة|لفه|لف|باكيت|باك|متر|عبوة|طقم|كيس|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|coils?|packets?|packs?|cartons?|boxes?|meters?|meter)$/i)?.[0] ?? "",
+  );
+  const queries = [text, normalizedArabic]
+    .map(stripCommercialOrderTail)
+    .filter(Boolean);
   const aliasRows = Array.isArray(aliases)
     ? aliases
     : Object.entries(aliases).flatMap(([product_id, values]) =>
@@ -892,9 +907,6 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
   }
 
   const sorted = [...byProduct.values()].sort((a, b) => b.score - a.score);
-  const requestedUnit = normalizeCommercialMatchUnit(
-    text.match(/(?:حبة|قطعة|قطع|كرتون|كرتونه|رول|لفة|لفه|لف|باكيت|باك|متر|عبوة|طقم|كيس|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|coils?|packets?|packs?|cartons?|boxes?|meters?|meter)$/i)?.[0] ?? "",
-  );
   const unitCompatible = requestedUnit
     ? sorted.filter((candidate) => normalizeCommercialMatchUnit(candidate.product.unit ?? "") === requestedUnit)
     : sorted;
