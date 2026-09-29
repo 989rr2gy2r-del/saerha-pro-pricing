@@ -53,16 +53,16 @@ function match(query) {
   return rankProductMatches(query, products, aliases, (product) => product.id, 8);
 }
 
-for (const [query, expectedSku] of [
-  ["واير الخليج احمر 6مل", "0761"],
-  ["واير الخليج اصفر 6مل", "0762"],
-  ["واير الخليج ازرق 6مل", "0763"],
-  ["واير الخليج اسود 6مل", "0764"],
+for (const [query, expectedSku, expectedColor] of [
+  ["واير الخليج احمر 6مل", "0761", "احمر"],
+  ["واير الخليج اصفر 6مل", "0762", "اصفر"],
+  ["واير الخليج ازرق 6مل", "0763", "ازرق"],
+  ["واير الخليج اسود 6مل", "0764", "اسود"],
 ]) {
   const constraints = extractMatchConstraints(query);
-  assert.deepEqual(constraints.colors, ["احمر"], query + " must extract red");
+  assert.deepEqual(constraints.colors, [expectedColor], query + " must extract its color");
   assert.deepEqual(constraints.metricSizes, ["6"], query + " must extract 6mm");
-  assert.equal(candidateMatchesConstraints("واير الخليج احمر مقاس 6مل", constraints), true, query + " must pass its technical constraints");
+  assert.equal(candidateMatchesConstraints("واير الخليج " + expectedColor + " مقاس 6مل", constraints), true, query + " must pass its technical constraints");
   const candidates = match(query);
   assert.equal(candidates.length, 1, query + " must have one technical candidate");
   assert.equal(candidates[0].product.sku, expectedSku, query + " must resolve to the exact color/size SKU");
