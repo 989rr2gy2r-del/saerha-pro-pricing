@@ -32,7 +32,7 @@ import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
 import { findLocalProductMatch, getMarketArabicTranslation, normalizeProductText } from "@/lib/matching/product-matcher";
 import { normalizeQuantity, parseLocalOcrText, parseTextOrderFallback } from "@/lib/order/order-input";
-import { extractOrderLineSignals, parseOrderSourceLines, reconcileOrderLineEvidence } from "@/lib/order/order-line-parser";
+import { parseOrderSourceLines, reconcileOrderLineEvidence } from "@/lib/order/order-line-parser";
 
 type ProductRecord = {
   id: string;
@@ -1907,6 +1907,9 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
 
       const catalogSkus = new Set(matchingProducts.map((product) => normalizeForMatch(product.sku)));
       const sourceLines = parseOrderSourceLines(text, catalogSkus);
+      const sourceDataLines = sourceLines.filter(
+        (row) => !/^(?:الصنف|الكمية|الطلبية|البيان|item|product|quantity)\b/i.test(row.rawLine),
+      );
 
       // Never fuzzy-align one extracted item to a nearby source line. That can
       // move a quantity/color from one repeated row to another. For text-like
@@ -1925,12 +1928,17 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         let sourceAlignmentScore = 0;
 
         if (sourceKind === "original_text") {
-          const exactSource = sourceLines[itemIndex];
-          if (exactSource) {
-            effectiveRawText = exactSource.rawLine;
+          const normalizedAiRaw = normalizeForMatch(item.raw_text || "");
+          const exactSource = normalizedAiRaw
+            ? sourceDataLines.find((row) => normalizeForMatch(row.rawLine) === normalizedAiRaw)
+            : null;
+          const indexedSource = sourceDataLines[itemIndex];
+          const chosenSource = exactSource ?? indexedSource;
+          if (chosenSource) {
+            effectiveRawText = chosenSource.rawLine;
             effectiveSourceKind = "original_text";
-            sourceIndex = exactSource.index;
-            sourceAlignmentScore = 1;
+            sourceIndex = chosenSource.index;
+            sourceAlignmentScore = exactSource ? 1 : 0.95;
           }
         } else if (item.raw_text.trim()) {
           effectiveRawText = item.raw_text.trim();
