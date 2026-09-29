@@ -16,7 +16,7 @@ const tempFile = path.join(new URL(".", import.meta.url).pathname, ".order-line-
 fs.writeFileSync(tempFile, transpiled, "utf8");
 
 try {
-  const { extractOrderLineSignals } = await import(pathToFileURL(tempFile).href + "?regression=1");
+  const { extractOrderLineSignals, reconcileOrderLineEvidence } = await import(pathToFileURL(tempFile).href + "?regression=1");
   const catalogSkus = new Set(["1200", "2200", "3222", "3202", "0765", "07251"]);
 
   const cases = [
@@ -36,6 +36,25 @@ try {
     assert.equal(signals.unit, unit, "unit: " + line);
     assert.equal(signals.sku, sku, "sku: " + line);
   }
+
+  const reconciled = reconcileOrderLineEvidence(
+    "واير الخليج احمر 2.5مل 4 رول",
+    7,
+    "رول",
+    catalogSkus,
+  );
+  assert.equal(reconciled.quantity, 4, "source line quantity must beat AI quantity");
+  assert.equal(reconciled.unit, "رول", "source line unit must beat AI unit");
+  assert.equal(reconciled.quantitySource, "source_text");
+  assert.ok(reconciled.issues.some((issue) => issue.includes("لا تطابق")), "quantity conflict must be audited");
+
+  const spanLine = "واير الخليج احمر 2.5مل 4 رول";
+  const spanSignals = extractOrderLineSignals(spanLine, catalogSkus);
+  assert.equal(spanSignals.quantitySpan?.raw, "4");
+  assert.equal(spanSignals.unitSpan?.raw, "رول");
+
+  const ambiguousCommercial = extractOrderLineSignals("صنف 2 رول 3 متر", catalogSkus);
+  assert.equal(ambiguousCommercial.quantity, null, "multiple commercial quantity pairs must not be guessed");
 
   console.log("order-line parser regression: PASS");
   console.log("validated commercial-vs-technical quantity separation and source SKU detection");
