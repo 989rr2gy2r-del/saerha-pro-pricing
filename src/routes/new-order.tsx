@@ -1950,6 +1950,16 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             : "UNMATCHED";
 
 
+        const matchReason = !selectedMatch
+          ? "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة."
+          : !sourceQuantityKnown
+            ? "تعذر إثبات كمية الطلب من السطر المصدر؛ لم تُستخدم كمية AI."
+            : !sourceUnitKnown
+              ? "تعذر إثبات وحدة الطلب من السطر المصدر؛ لم يتم اعتماد المطابقة تلقائيًا."
+              : selectedMatch.status === "HIGH_CONFIDENCE" && selectedProduct
+                ? "مطابقة آمنة: خصائص السطر المصدر تطابق سجلًا حقيقيًا في قاعدة المنتجات."
+                : selectedMatch.reason;
+
         return {
           ...item,
           // Once a catalog product is matched, the displayed name comes from
@@ -1982,14 +1992,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           // A unit printed next to a quantity in the source row is stronger
           // than a generic model guess.
           unit: sourceSignals.unit || "",
-          matchReason: selectedMatch
-            ? !sourceQuantityKnown
-              ? "تعذر إثبات كمية الطلب من السطر المصدر؛ لم تُستخدم كمية AI."
-              : !sourceUnitKnown
-                ? "تعذر إثبات وحدة الطلب من السطر المصدر؛ لم يتم اعتماد المطابقة تلقائيًا."
-                : selectedMatch.status === "HIGH_CONFIDENCE" && selectedProduct
-                  ? "مطابقة آمنة: خصائص السطر المصدر تطابق سجلًا حقيقيًا في قاعدة المنتجات."
-                  : selectedMatch.reason,
+          matchReason,
           status,
           rejected: false,
           accepted: Boolean(selectedMatch && status === "HIGH_CONFIDENCE"),
