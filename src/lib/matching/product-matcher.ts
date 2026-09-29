@@ -315,10 +315,10 @@ function extractMatchConstraints(value: string): MatchConstraints {
     colorAliases.filter(([needle]) => textTokens.has(needle)).map(([, canonical]) => canonical),
   )];
   const fractions = [...text.matchAll(/\b(\d+\/\d+)\b/g)].map((m) => m[1]);
-  const metricSizes = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:مم2|مم|ملم|mm2|mm)\b/gi)].map((m) => m[1]);
+  const metricSizes = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:مم2|مم|ملم|mm2|mm)(?:\s|$|[^\p{L}\p{N}])/giu)].map((m) => m[1]);
   const wireLike = /(?:^|\s)(?:واير|كيبل|كابل|سلك|wire|cable)(?:\s|$)/i.test(text);
   const marketWireMetricSizes = wireLike
-    ? [...text.matchAll(/(\d+(?:\.\d+)?)\s*مل\b/gi)].map((m) => m[1])
+    ? [...text.matchAll(/(\d+(?:\.\d+)?)\s*مل(?:\s|$|[^\p{L}\p{N}])/giu)].map((m) => m[1])
     : [];
   const inchSizes = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:انش|inch|in)\b/gi)].map((m) => m[1]);
   const pairs = [...text.matchAll(/(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/gi)].map((m) => `${m[1]}x${m[2]}`);
