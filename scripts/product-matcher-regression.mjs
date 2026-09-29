@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const source = fs.readFileSync(new URL("../src/lib/matching/product-matcher.ts", import.meta.url), "utf8");
 const ts = await import("typescript");
@@ -11,9 +14,11 @@ const transpiled = ts.transpileModule(source, {
   },
 }).outputText;
 
-const moduleUrl = "data:text/javascript;base64," + Buffer.from(transpiled, "utf8").toString("base64");
-const matcher = await import(moduleUrl);
-const { rankProductMatches } = matcher;
+const tempFile = path.join(os.tmpdir(), "saerha-product-matcher-regression.mjs");
+fs.writeFileSync(tempFile, transpiled, "utf8");
+try {
+  const matcher = await import(pathToFileURL(tempFile).href + "?regression=1");
+  const { rankProductMatches } = matcher;
 
 const products = [
   ["0761", "واير الخليج احمر مقاس 6مل", "WAIR GULF RED SAIZ 6 ML"],
@@ -65,6 +70,9 @@ assert.equal(match("واير الخليج احمر 6مل").some((candidate) => c
 assert.equal(match("واير الخليج 3كور 6مل").some((candidate) => candidate.product.sku === "07446"), false, "3-core must reject 4-core");
 assert.equal(match("واير الخليج 4كور 6مل").some((candidate) => candidate.product.sku === "0736"), false, "4-core must reject 3-core");
 
-console.log("product-matcher regression: PASS");
-console.log("validated exact 6mm color matches: red/yellow/blue/black");
-console.log("validated technical conflicts: 6/10/16mm and 3/4-core");
+  console.log("product-matcher regression: PASS");
+  console.log("validated exact 6mm color matches: red/yellow/blue/black");
+  console.log("validated technical conflicts: 6/10/16mm and 3/4-core");
+} finally {
+  fs.rmSync(tempFile, { force: true });
+}
