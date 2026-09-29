@@ -2098,7 +2098,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                 ? "تعذر إثبات وحدة الطلب من السطر المصدر؛ لم يتم اعتماد المطابقة تلقائيًا."
                 : selectedMatch.status === "HIGH_CONFIDENCE" && selectedProduct
                   ? "مطابقة آمنة: خصائص السطر المصدر تطابق سجلًا حقيقيًا في قاعدة المنتجات."
-                  : selectedMatch.reason
+                  : selectedMatch.reason,
           status,
           rejected: false,
           accepted: Boolean(selectedMatch && status === "HIGH_CONFIDENCE"),
