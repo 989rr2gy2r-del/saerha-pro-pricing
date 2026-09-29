@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -14,7 +13,7 @@ const transpiled = ts.transpileModule(source, {
   },
 }).outputText;
 
-const tempFile = path.join(os.tmpdir(), "saerha-product-matcher-regression.mjs");
+const tempFile = path.join(new URL(".", import.meta.url).pathname, ".product-matcher-regression.generated.mjs");
 fs.writeFileSync(tempFile, transpiled, "utf8");
 try {
   const matcher = await import(pathToFileURL(tempFile).href + "?regression=1");
