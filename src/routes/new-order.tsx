@@ -2876,7 +2876,6 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                             <div className="flex items-center gap-2 font-bold text-foreground"><PenLine className="h-3.5 w-3.5 shrink-0 text-primary" />{displayName}</div>
                                             <div className="mt-1 text-[10px] text-muted-foreground">الطلب: <span dir="ltr">{item.raw_text || item.description || "—"}</span></div>
                                             <div className="mt-0.5 text-[10px] text-muted-foreground">العربية السوقية: {item.normalized_description_ar || "—"}</div>
-                                            <div className="mt-0.5 text-[9px] text-gray-400">تشخيص normalized_description_ar: {item.normalized_description_ar || "(فارغة)"}</div>
                                             {item.product?.name_en && (
                                               <div className="mt-1 text-[10px] text-muted-foreground" dir="ltr">
                                                 {item.product.name_en}
@@ -2902,16 +2901,19 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                       </button>
 
                                       {!item.product && item.matchCandidates && item.matchCandidates.length > 0 && (
-                                        <div className="mt-2 rounded-lg border bg-background p-2">
-                                          <p className="mb-2 text-[10px] font-extrabold text-muted-foreground">
-                                            أفضل الخيارات الموجودة في قاعدة البيانات:
-                                          </p>
+                                        <div className="absolute right-0 top-[calc(100%+6px)] z-[110] w-full min-w-[300px] max-w-[420px] rounded-xl border bg-background p-2 shadow-xl">
+                                          <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                                            <p className="text-[10px] font-extrabold text-muted-foreground">
+                                              أفضل الخيارات من قاعدة البيانات
+                                            </p>
+                                            <span className="text-[9px] text-muted-foreground">اختر الصنف الصحيح</span>
+                                          </div>
                                           <div className="space-y-1">
                                             {item.matchCandidates.slice(0, 3).map((candidate) => (
                                               <button
                                                 key={candidate.id}
                                                 type="button"
-                                                className="grid w-full grid-cols-[72px_1fr] gap-2 rounded-md border px-2 py-2 text-right hover:bg-muted"
+                                                className="grid w-full grid-cols-[72px_1fr] items-center gap-2 rounded-lg border bg-background px-2.5 py-2 text-right transition hover:border-primary/40 hover:bg-muted"
                                                 onClick={() => {
                                                   handleProductSelect(index, candidate.id);
                                                   handleCloseProductPicker();
@@ -2919,7 +2921,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                                 }}
                                               >
                                                 <span className="font-mono text-[10px] font-black text-primary">{candidate.sku}</span>
-                                                <span className="min-w-0 text-[10px] font-bold">{candidate.name_ar}</span>
+                                                <span className="min-w-0 truncate text-[10px] font-bold">{candidate.name_ar}</span>
                                               </button>
                                             ))}
                                           </div>
