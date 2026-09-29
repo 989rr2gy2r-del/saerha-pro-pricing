@@ -125,7 +125,7 @@ console.log("resolver safety regression: PASS");
   },
 ];
 const duplicateResult = findLocalProductMatch(
-  "واير الخليج احمر 6مل 4 متر",
+  "واير الخليج احمر مقاس 6مل متر",
   duplicateProducts,
   "",
   {},
