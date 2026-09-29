@@ -1845,7 +1845,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           : serverMessage
             ? `تعذر تشغيل القراءة الذكية: ${serverMessage} — جارٍ تشغيل القراءة الاحتياطية.`
             : "تعذر تشغيل القراءة الذكية؛ جارٍ تشغيل القراءة الاحتياطية.";
-        setAnalysisError(fallbacksetAnalysisError(fallbackNotice);
+        setAnalysisError(fallbackNotice);
         setProgress(30);
         if (image && /^data:image\//i.test(image)) {
           const local = await readImageLocally(first, setProgress);
@@ -2095,7 +2095,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           priceLabel: "جاري جلب السعر...",
         };
       });
-Notice);
+      setAnalysisError(fallbackNotice);
       setAnalysisResult({
         items: matchedItems,
         notes: String(rawResult["notes"] ?? "").trim(),
