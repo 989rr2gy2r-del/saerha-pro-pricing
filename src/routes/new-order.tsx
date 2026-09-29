@@ -62,6 +62,8 @@ type ReviewItem = {
   unit: string;
   raw_text: string;
   confidence: number;
+  extractionConfidence?: number;
+  matchScore?: number;
   notes?: string;
   product: ProductRecord | null;
   matchReason: string;
@@ -775,7 +777,12 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         const haystack = fields.join(" ");
         if (!haystack) return null;
 
-        const matches = queryTokens.every((token) => haystack.includes(token));
+        const matches = queryTokens.every((token) => {
+          if (/^\d+(?:\.\d+)?$/.test(token)) {
+            return fields.some((field) => field.split(/\s+/).includes(token));
+          }
+          return haystack.includes(token);
+        });
         if (!matches) return null;
 
         const exactField = fields.some((field) => field === normalizedQuery);
@@ -1251,6 +1258,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         accepted: Boolean(selected),
         rejected: false,
         status: nextStatus,
+        matchScore: selected ? 1 : null,
         matchReason: selected ? "تم اختيار المنتج من قاعدة البيانات" : "لم يتم اختيار منتج",
         notes: [item.notes, unitNote].filter(Boolean).join(" "),
       };
@@ -2045,6 +2053,11 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           const value = Number(item["confidence"] ?? 0.5);
           return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5;
         })(),
+        extractionConfidence: (() => {
+          const value = Number(item["confidence"] ?? 0.5);
+          return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5;
+        })(),
+        matchScore: null,
         notes: String(item["notes"] ?? "").trim(),
       }));
 
@@ -2146,6 +2159,8 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
               ? normalizeQuantity(sourceSignals.quantity)
               : normalizeQuantity(item.quantity),
           confidence,
+          extractionConfidence: item.extractionConfidence ?? item.confidence,
+          matchScore: selectedMatch?.score ?? null,
           product: selectedProduct,
           sourceSku: selectedProduct?.sku || sourceSignals.sku || item.sourceSku || "",
           sourceUnitPrice: item.sourceUnitPrice ?? null,
@@ -2484,11 +2499,16 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           line_total: getLineDiscountDetails(line).lineTotal,
           extra: {
             confidence: line.confidence,
+            extraction_confidence: line.extractionConfidence ?? null,
+            match_score: line.matchScore ?? line.confidence ?? null,
             match_status: line.status,
+            match_reason: line.matchReason || null,
+            selected_product_id: line.product.id,
             accepted: line.accepted,
             source_sku: line.sourceSku || null,
             source_unit_price: line.sourceUnitPrice ?? null,
             source_line_total: line.sourceLineTotal ?? null,
+            match_candidates: line.matchCandidates ?? [],
           },
         }));
 
