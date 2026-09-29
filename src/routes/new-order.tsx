@@ -32,6 +32,7 @@ import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
 import { getMarketArabicTranslation, normalizeProductText, rankProductMatches } from "@/lib/matching/product-matcher";
 import { normalizeQuantity, parseLocalOcrText, parseTextOrderFallback } from "@/lib/order/order-input";
+import { alignOrderItemToSourceLine, extractOrderLineSignals, parseOrderSourceLines } from "@/lib/order/order-line-parser";
 
 type ProductRecord = {
   id: string;
@@ -306,89 +307,8 @@ function normalizeForMatch(value: string): string {
 }
 
 function extractOrderSignals(rawText: string, catalogSkus?: Set<string>) {
-  const asciiText = String(rawText ?? "")
-    .replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c)))
-    .replace(/,/g, ".")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  // In customer orders the first number is the quantity, even when it is
-  // glued to the product name ("3بوكس", "3دي بي"). The only exception is
-  // an actual catalog SKU placed at the beginning of the line.
-  // A numbered WhatsApp/Excel list such as "2. PVC capling ... 100 pcs"
-  // starts with a line number, not the requested quantity. The punctuation
-  // is therefore significant: "2." is never a quantity here.
-  const leadingQuantityMatch = asciiText.match(/^(\d+(?:\.\d+)?)(?=\s|$)/);
-  const leadingToken = leadingQuantityMatch?.[1] ?? "";
-  // In order text, a leading 1/2/3/5/6 is overwhelmingly a quantity.
-  // Some catalog service items happen to have one-digit SKUs (1, 2, 3, 5, 6),
-  // so treating every leading catalog number as an SKU turns quantities into
-  // products such as "اجور توصيل" and "سبع سنابل". Only treat a leading token
-  // as an SKU here when it has the normal multi-digit catalog shape.
-  const leadingIsSku = Boolean(
-    leadingToken.length >= 3 && leadingToken && catalogSkus?.has(leadingToken),
-  );
-  const leadingQuantity =
-    leadingQuantityMatch && !leadingIsSku ? Number(leadingToken) : null;
-
-  let sku = "";
-  const numericTokens = asciiText.match(/\b\d{3,8}\b/g) ?? [];
-  if (catalogSkus) sku = numericTokens.find((token) => catalogSkus.has(token)) ?? "";
-  if (!sku && leadingIsSku) sku = leadingToken;
-
-  const unitMatches: Array<[RegExp, string]> = [
-    [/(?:^|\s)(?:roll|rolls|رول|لفة|لفه|لف)(?:\s|$)/i, "رول"],
-    [/(?:^|\s)(?:pkt|pkts|pack|packs|packet|packets|باكت|باكيت|باك)(?:\s|$)/i, "باكيت"],
-    [/(?:^|\s)(?:carton|cartons|كرتون|كرتونه)(?:\s|$)/i, "كرتون"],
-    [/(?:^|\s)(?:pcs?|pieces?|piece|حبة|قطعة|قطع)(?:\s|$)|(?<=\d)\s*(?:pcs?|pieces?|piece)(?=\s|$)/i, "حبة"],
-    [/(?:^|\s)(?:dozen|dozens|dz|dzn|دزينة|درزن)(?:\s|$)|(?<=\d)\s*(?:dozen|dozens|dz|dzn)(?=\s|$)/i, "دزينة"],
-    // "box" is often part of the PRODUCT name (e.g. PVC Circular Socket Box),
-    // so it must never be treated as an order unit here.
-    [/(?:^|\s)(?:meter|meters|متر)(?:\s|$)/i, "متر"],
-    [/(?:^|\s)(?:ml|مل)(?:\s|$)|(?<=\d)\s*(?:ml|مل)(?=\s|$)/i, "مل"],
-    [/(?:^|\s)(?:coil|coils)(?:\s|$)|(?<=\d)\s*(?:coil|coils)(?=\s|$)/i, "رول"],
-    [/(?:^|\s)(?:ربطة|ربطه)(?:\s|$)/i, "ربطة"],
-    [/(?:^|\s)(?:كيس)(?:\s|$)/i, "كيس"],
-  ];
-
-  let unit = "";
-  let quantity: number | null = null;
-
-  for (const [pattern, normalizedUnit] of unitMatches) {
-    const match = asciiText.match(pattern);
-    if (!match) continue;
-    unit = normalizedUnit;
-    const startIndex = match.index ?? 0;
-    const before = asciiText.slice(0, startIndex).match(/(\d+(?:\.\d+)?)\s*$/);
-    const after = asciiText.slice(startIndex + match[0].length).match(/^\s*(\d+(?:\.\d+)?)/);
-    const candidate = after?.[1] ?? before?.[1] ?? "";
-    const parsed = Number(candidate);
-
-    // A number attached to an explicit order unit is stronger than a leading
-    // list number. This fixes "2. PVC capling ... 100 pcs" where 2 is the
-    // WhatsApp line number and 100 is the requested quantity.
-    if (candidate && Number.isFinite(parsed) && parsed > 0) {
-      quantity = parsed;
-    }
-    break;
-  }
-
-  // Some orders put the quantity at the end without a unit, e.g.
-  // "PVC pipe 5/8 inch or 3/4 inch - 20". Only accept a bare trailing number
-  // when it is separated from the product text by a dash/colon.
-  if (quantity == null) {
-    const trailingQuantity = asciiText.match(/[\-–—:]\s*(\d+(?:\.\d+)?)\s*$/);
-    if (trailingQuantity) {
-      const parsed = Number(trailingQuantity[1]);
-      if (Number.isFinite(parsed) && parsed > 0) quantity = parsed;
-    }
-  }
-
-  if (quantity == null && leadingQuantity != null) {
-    quantity = leadingQuantity;
-  }
-
-  return { sku, unit, quantity };
+  const trace = extractOrderLineSignals(rawText, catalogSkus);
+  return { sku: trace.sku, unit: trace.unit, quantity: trace.quantity, trace };
 }
 function stripLeadingOrderQuantity(value: string, catalogSkus?: Set<string>): string {
   const text = String(value ?? "")
@@ -2078,71 +1998,56 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         throw new Error("تعذر تحميل قاعدة المنتجات من Supabase؛ لا يمكن إجراء المطابقة بأمان.");
       }
 
-      // Build the normalized SKU index once, not once per extracted row.
-      // Rebuilding it inside the map caused a full 4.5k-product scan for every
-      // line in the order.
       const catalogSkus = new Set(matchingProducts.map((product) => normalizeForMatch(product.sku)));
-      const matchedItems: ReviewItem[] = normalizedItems.map((item) => {
-        // Catalog matching must be driven by what was actually read,
-        // not by an AI-generated/translated product name.
-        const sourceSignals = extractOrderSignals(item.raw_text, catalogSkus);
-        // Never trust the AI-extracted SKU as a product identity.
-        // Only a SKU physically present in the original order line can be used
-        // as a hard identity signal. This prevents a model hallucination such
-        // as "7555" from forcing the generic "Electrical Tape" into "تيب اسود".
-        const trustedSourceSku = sourceSignals.sku;
-        // Product identity must come from the original order line.
-        // Never use an AI-normalized description as the search source: if OCR/model
-        // misreads "4 لفه واير 6 ملي" as "هوز ميزان 6 ملي", matching that description
-        // can silently select the wrong catalog item.
-        const productQuery = stripOrderPrefix(
+      const sourceLines = parseOrderSourceLines(text, catalogSkus);
+      const usedSourceIndices = new Set<number>();
+
+      const matchedItems: ReviewItem[] = normalizedItems.map((item, itemIndex) => {
+        const alignment = alignOrderItemToSourceLine(
           item.raw_text || item.description,
-          catalogSkus,
+          itemIndex,
+          sourceLines,
+          usedSourceIndices,
         );
-        const category = item.category_ar?.trim() ?? "";
-        const commercialUnit = /^(حبة|قطعة|قطع|كرتون|علبة|رول|لفة|لفه|باكيت|باك|متر|عبوة|طقم|كيس|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|coils?|packets?|packs?|cartons?|boxes?|meters?|meter)$/i.test(sourceSignals.unit)
-          ? sourceSignals.unit
-          : "";
-        const searchQuery = [category, productQuery, commercialUnit].filter(Boolean).join(" ").trim();
+        if (alignment) usedSourceIndices.add(alignment.index);
+
+        const effectiveRawText = alignment?.rawLine || item.raw_text || item.description;
+        const sourceSignals = extractOrderSignals(effectiveRawText, catalogSkus);
+        const productQuery = stripOrderPrefix(effectiveRawText, catalogSkus);
+        const commercialUnit = sourceSignals.unit;
+        const searchQuery = [productQuery, commercialUnit].filter(Boolean).join(" ").trim();
         const marketTranslationAr = getMarketArabicTranslation(searchQuery);
         // The AI-normalized description is display metadata only. It must
         // never override the original customer wording during product matching,
         // otherwise the model can invent an attribute (e.g. "black tape") that
         // is not present in the order and force a wrong SKU.
-        const directSkuProduct = trustedSourceSku
-          ? matchingProducts.find(
-              (product) => normalizeForMatch(product.sku) === normalizeForMatch(trustedSourceSku),
-            ) ?? null
-          : null;
-        const match = directSkuProduct
-          ? {
-              product: directSkuProduct,
-              score: 1,
-              status: "HIGH_CONFIDENCE" as const,
-              reason: "تمت المطابقة المباشرة برقم الصنف الموجود في الطلب",
-              candidates: [],
-            }
-          : trustedSourceSku
-            ? findLocalProductMatch(searchQuery, matchingProducts, marketTranslationAr, matchingAliases)
-            : findLocalProductMatch(searchQuery, matchingProducts, marketTranslationAr, matchingAliases);
+        const match = findLocalProductMatch(
+          searchQuery,
+          matchingProducts,
+          marketTranslationAr,
+          matchingAliases,
+        );
 
         // Only HIGH_CONFIDENCE matches may populate the product field.
         // NEEDS_REVIEW candidates remain unselected and can be chosen explicitly
         // from the catalog picker; this prevents an arbitrary color/brand/SKU
         // from becoming part of the quotation.
         const selectedMatch = match;
-        const selectedProduct = selectedMatch?.product ?? null;
-        // Extraction confidence and catalog-match confidence are separate
-        // signals. An AI can be very confident about reading a line while still
-        // being wrong about which SKU it belongs to.
+        const sourceQuantityKnown = sourceSignals.quantity != null && sourceSignals.quantity > 0;
+        const sourceUnitKnown = Boolean(sourceSignals.unit);
+        const selectedProduct =
+          selectedMatch && sourceQuantityKnown && sourceUnitKnown
+            ? selectedMatch.product
+            : null;
         const confidence = selectedMatch
           ? Math.min(1, Math.max(0, selectedMatch.score))
           : 0;
-        const status: MatchStatus = selectedMatch
-          ? selectedMatch.status === "HIGH_CONFIDENCE" && selectedProduct && confidence >= 0.86
-            ? "HIGH_CONFIDENCE"
-            : "NEEDS_REVIEW"
-          : "UNMATCHED";
+        const status: MatchStatus = selectedProduct && selectedMatch?.status === "HIGH_CONFIDENCE" && confidence >= 0.86
+          ? "HIGH_CONFIDENCE"
+          : selectedMatch
+            ? "NEEDS_REVIEW"
+            : "UNMATCHED";
+
 
         return {
           ...item,
@@ -2154,32 +2059,36 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           description: selectedProduct?.name_ar ?? productQuery,
           normalized_description_ar: marketTranslationAr,
           quoteName: selectedProduct?.name_ar ?? undefined,
-          quantity:
-            sourceSignals.quantity && sourceSignals.quantity > 0
-              ? normalizeQuantity(sourceSignals.quantity)
-              : normalizeQuantity(item.quantity),
+          quantity: sourceSignals.quantity != null ? normalizeQuantity(sourceSignals.quantity) : 0,
           confidence,
           extractionConfidence: item.extractionConfidence ?? item.confidence,
           matchScore: selectedMatch?.score ?? null,
           product: selectedProduct,
-          sourceSku: selectedProduct?.sku || sourceSignals.sku || item.sourceSku || "",
+          sourceSku: sourceSignals.sku,
+          sourceTrace: {
+            raw_line: effectiveRawText,
+            alignment_score: alignment?.score ?? 0,
+            quantity_raw: sourceSignals.trace.quantityRaw,
+            unit_raw: sourceSignals.trace.unitRaw,
+            quantity_span: sourceSignals.trace.quantitySpan,
+            unit_span: sourceSignals.trace.unitSpan,
+            sku: sourceSignals.trace.sku,
+            issues: sourceSignals.trace.issues,
+          },
           sourceUnitPrice: item.sourceUnitPrice ?? null,
           sourceLineTotal: item.sourceLineTotal ?? null,
           matchCandidates: selectedMatch?.candidates,
           // A unit printed next to a quantity in the source row is stronger
           // than a generic model guess.
-          unit:
-            sourceSignals.unit ||
-            normalizeUnitValue(item.unit ?? "") ||
-            normalizeUnitValue(selectedProduct?.unit ?? "") ||
-            "حبة",
+          unit: sourceSignals.unit || "",
           matchReason: selectedMatch
-            ? sourceSignals.sku && selectedProduct
-              ? "تمت المطابقة برقم الصنف الموجود في الطلب ثم اختيار المنتج من قاعدة البيانات"
-              : selectedMatch.status === "HIGH_CONFIDENCE" && selectedProduct
-                ? "تمت المطابقة مع قاعدة المنتجات — الاسم والبيانات من Supabase"
-                : selectedMatch.reason
-            : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة",
+            ? !sourceQuantityKnown
+              ? "تعذر إثبات كمية الطلب من السطر المصدر؛ لم تُستخدم كمية AI."
+              : !sourceUnitKnown
+                ? "تعذر إثبات وحدة الطلب من السطر المصدر؛ لم يتم اعتماد المطابقة تلقائيًا."
+                : selectedMatch.status === "HIGH_CONFIDENCE" && selectedProduct
+                  ? "مطابقة آمنة: خصائص السطر المصدر تطابق سجلًا حقيقيًا في قاعدة المنتجات."
+                  : selectedMatch.reason
           status,
           rejected: false,
           accepted: Boolean(selectedMatch && status === "HIGH_CONFIDENCE"),
@@ -2217,7 +2126,12 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     }
 
     const validItems = analysisResult.items.filter(
-      (item) => !item.rejected && item.product && item.quantity > 0,
+      (item) =>
+        !item.rejected &&
+        item.product &&
+        item.quantity > 0 &&
+        item.status === "HIGH_CONFIDENCE" &&
+        item.accepted,
     );
     if (!validItems.length) {
       setAnalysisError("لا توجد عناصر مؤكدة ومطابقة لإنشاء عرض السعر بعد المراجعة.");
@@ -2509,6 +2423,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             source_unit_price: line.sourceUnitPrice ?? null,
             source_line_total: line.sourceLineTotal ?? null,
             match_candidates: line.matchCandidates ?? [],
+            source_trace: line.sourceTrace ?? null,
           },
         }));
 
@@ -2910,11 +2825,13 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                           {item.product ? (
                                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
                                               <DatabaseIcon className="h-3 w-3" />
-                                              بيانات الصنف من القاعدة · {Math.round(item.confidence * 100)}%
+                                              بيانات الصنف من القاعدة · مطابقة {Math.round((item.matchScore ?? item.confidence) * 100)}% · قراءة {Math.round((item.extractionConfidence ?? 0) * 100)}%
                                             </span>
                                           ) : (
                                             <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                                              {item.status === "NEEDS_REVIEW" ? "يحتاج مراجعة · " + Math.round(item.confidence * 100) + "%" : "اضغط لاختيار الصنف"}
+                                              {item.status === "NEEDS_REVIEW"
+                                                ? "يحتاج مراجعة · مطابقة " + Math.round((item.matchScore ?? item.confidence) * 100) + "% · قراءة " + Math.round((item.extractionConfidence ?? 0) * 100) + "%"
+                                                : "اضغط لاختيار الصنف"}
                                             </span>
                                           )}
                                         </div>
