@@ -827,3 +827,122 @@ export function rankProductMatches<T>(
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
+
+
+export type MatchableProductRecord = {
+  id: string;
+  sku: string;
+  name_ar: string;
+  name_en?: string | null;
+  unit?: string | null;
+  color?: string | null;
+};
+
+function normalizeCommercialMatchUnit(value: string): string {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (/^(?:حبة|قطعة|قطع|pcs?|pieces?|piece)$/.test(raw)) return "piece";
+  if (/^(?:رول|لفة|لفه|لف|rolls?|coils?)$/.test(raw)) return "roll";
+  if (/^(?:متر|meters?|meter|m)$/.test(raw)) return "meter";
+  if (/^(?:كرتون|كرتونه|cartons?|carton|box|boxes)$/.test(raw)) return "carton";
+  if (/^(?:علبة|عبوة)$/.test(raw)) return "container";
+  if (/^(?:طقم)$/.test(raw)) return "set";
+  if (/^(?:باكيت|باك|packs?|packets?)$/.test(raw)) return "pack";
+  return raw;
+}
+
+function hasExplicitColor(text: string): boolean {
+  return /(احمر|اسود|ابيض|اخضر|ازرق|اصفر|بني|رمادي|ذهبي|silver|red|black|white|green|blue|yellow|brown|grey|gray|gold)/i.test(
+    normalizeProductText(text),
+  );
+}
+
+function candidateHasSpecificColor(product: MatchableProductRecord): boolean {
+  return Boolean(
+    product.color?.trim() ||
+      /(احمر|اسود|ابيض|اخضر|ازرق|اصفر|بني|رمادي|ذهبي|فضي|red|black|white|green|blue|yellow|brown|grey|gray|gold|silver)/i.test(
+        normalizeProductText(product.name_ar + " " + (product.name_en ?? "")),
+      ),
+  );
+}
+
+export function findLocalProductMatch<T extends MatchableProductRecord>(
+  text: string,
+  products: T[],
+  normalizedArabic = "",
+  aliases: Array<{ product_id: string; alias: string; normalized_alias?: string | null }> = [],
+) {
+  const queries = [text, normalizedArabic].filter(Boolean);
+  if (!queries.length) return null;
+
+  const ranked = queries.flatMap((query) =>
+    rankProductMatches(query, products, aliases, (product) => product.id, 8),
+  );
+
+  const byProduct = new Map<string, (typeof ranked)[number]>();
+  for (const candidate of ranked) {
+    const previous = byProduct.get(candidate.productId);
+    if (!previous || candidate.score > previous.score) byProduct.set(candidate.productId, candidate);
+  }
+
+  const sorted = [...byProduct.values()].sort((a, b) => b.score - a.score);
+  const requestedUnit = normalizeCommercialMatchUnit(
+    text.match(/(?:حبة|قطعة|قطع|كرتون|كرتونه|رول|لفة|لفه|لف|باكيت|باك|متر|عبوة|طقم|كيس|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|coils?|packets?|packs?|cartons?|boxes?|meters?|meter)$/i)?.[0] ?? "",
+  );
+  const unitCompatible = requestedUnit
+    ? sorted.filter((candidate) => normalizeCommercialMatchUnit(candidate.product.unit ?? "") === requestedUnit)
+    : sorted;
+  const considered = unitCompatible.length ? unitCompatible : sorted;
+  const best = considered[0];
+  const second = considered[1];
+
+  if (!best || best.score < 0.55) return null;
+
+  const margin = second ? best.score - second.score : 1;
+  const ambiguous =
+    margin < 0.10 &&
+    !best.signals.exact &&
+    !best.signals.alias &&
+    best.product.id !== second?.product?.id;
+
+  const bestUnit = normalizeCommercialMatchUnit(best.product.unit ?? "");
+  const unitMismatch = Boolean(requestedUnit && bestUnit && requestedUnit !== bestUnit);
+
+  const colorVariantAmbiguous =
+    !hasExplicitColor(text) &&
+    candidateHasSpecificColor(best.product) &&
+    considered.some(
+      (candidate) =>
+        !candidateHasSpecificColor(candidate.product) &&
+        candidate.score >= best.score - 0.12,
+    );
+
+  const autoAccept =
+    best.status === "HIGH_CONFIDENCE" &&
+    !ambiguous &&
+    !unitMismatch &&
+    !colorVariantAmbiguous;
+
+  const candidates = considered.slice(0, 5).map((candidate) => ({
+    id: candidate.product.id,
+    sku: candidate.product.sku,
+    name_ar: candidate.product.name_ar,
+    score: candidate.score,
+    reason: candidate.reason,
+  }));
+
+  return {
+    product: autoAccept ? best.product : null,
+    score: best.score,
+    status: autoAccept ? ("HIGH_CONFIDENCE" as const) : ("NEEDS_REVIEW" as const),
+    reason: autoAccept
+      ? best.reason
+      : unitMismatch
+        ? "مرشح قوي لكن وحدة الطلب لا تطابق وحدة بيع المنتج في القاعدة"
+        : colorVariantAmbiguous
+          ? "الطلب لم يحدد اللون والمرشح مرتبط بلون محدد"
+          : ambiguous
+            ? "أكثر من صنف في القاعدة متقارب؛ يلزم اختيار المستخدم"
+            : "المرشح لم يتجاوز شروط المطابقة الآمنة",
+    candidates,
+  };
+}
