@@ -30,7 +30,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { createCustomer, fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
-import { findLocalProductMatch, getMarketArabicTranslation, normalizeProductText } from "@/lib/matching/product-matcher";
+import { extractMatchConstraints, findLocalProductMatch, getMarketArabicTranslation, normalizeProductText } from "@/lib/matching/product-matcher";
 import { normalizeQuantity, parseLocalOcrText, parseTextOrderFallback } from "@/lib/order/order-input";
 import { parseOrderSourceLines, reconcileOrderLineEvidence } from "@/lib/order/order-line-parser";
 
@@ -1967,7 +1967,50 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           item.unit,
           catalogSkus,
         );
-        const sourceSignals = evidence.signals;
+        const evidenceIssues = [...evidence.issues];
+
+        // For images/handwriting, corroborate the model's raw OCR line with the
+        // independent local OCR at the same row when the row counts agree.
+        // Only explicit hard-attribute conflicts are flagged; a missing OCR
+        // attribute is not treated as a contradiction.
+        if (
+          sourceKind !== "original_text" &&
+          effectiveSourceKind === "ai_ocr" &&
+          sourceLines.length === normalizedItems.length &&
+          sourceLines[itemIndex]
+        ) {
+          const peerRaw = sourceLines[itemIndex].rawLine;
+          const aiHard = extractMatchConstraints(effectiveRawText);
+          const ocrHard = extractMatchConstraints(peerRaw);
+          const sameSet = (a: string[], b: string[]) =>
+            a.length === b.length && a.every((value) => b.includes(value));
+          if (aiHard.colors.length && ocrHard.colors.length && !sameSet(aiHard.colors, ocrHard.colors)) {
+            evidenceIssues.push("تعارض لون بين قراءتي الصورة؛ لم يتم اعتماد اللون تلقائيًا.");
+          }
+          if (aiHard.metricSizes.length && ocrHard.metricSizes.length && !sameSet(aiHard.metricSizes, ocrHard.metricSizes)) {
+            evidenceIssues.push("تعارض مقاس بين قراءتي الصورة؛ لم يتم اعتماد المقاس تلقائيًا.");
+          }
+          if (aiHard.cores.length && ocrHard.cores.length && !sameSet(aiHard.cores, ocrHard.cores)) {
+            evidenceIssues.push("تعارض عدد القلوب بين قراءتي الصورة؛ لم يتم اعتماد المطابقة تلقائيًا.");
+          }
+          const peerSignals = reconcileOrderLineEvidence(peerRaw, null, null, catalogSkus).signals;
+          if (
+            evidence.quantity != null &&
+            peerSignals.quantity != null &&
+            evidence.quantity !== peerSignals.quantity
+          ) {
+            evidenceIssues.push("تعارض كمية بين قراءتي المصدر؛ لم يتم اعتماد البند تلقائيًا.");
+          }
+          if (
+            evidence.unit &&
+            peerSignals.unit &&
+            evidence.unit !== peerSignals.unit
+          ) {
+            evidenceIssues.push("تعارض وحدة بين قراءتي المصدر؛ لم يتم اعتماد البند تلقائيًا.");
+          }
+        }
+
+        const sourceSignals = { ...evidence.signals, issues: evidenceIssues };
         const productQuery = effectiveRawText ? stripOrderPrefix(effectiveRawText, catalogSkus) : "";
         const commercialUnit = sourceSignals.unit;
         const searchQuery = [productQuery, commercialUnit].filter(Boolean).join(" ").trim();
@@ -1983,7 +2026,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           effectiveSourceKind !== "unavailable" &&
           sourceQuantityKnown &&
           sourceUnitKnown &&
-          !evidence.issues.some((issue) => /لم يتم اعتمادها|لا تطابق|أكثر من زوج/.test(issue));
+          !evidenceIssues.some((issue) => /لم يتم اعتمادها|لا تطابق|أكثر من زوج|تعارض/.test(issue));
 
         const selectedProduct =
           selectedMatch && sourceEvidenceSafe && selectedMatch.status === "HIGH_CONFIDENCE"
@@ -2037,7 +2080,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             ai_unit: String(item.unit ?? ""),
             quantity_source: evidence.quantitySource,
             unit_source: evidence.unitSource,
-            issues: evidence.issues,
+            issues: evidenceIssues,
           },
           sourceUnitPrice: item.sourceUnitPrice ?? null,
           sourceLineTotal: item.sourceLineTotal ?? null,
