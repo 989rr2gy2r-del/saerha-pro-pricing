@@ -298,7 +298,7 @@ export function extractMatchConstraints(value: string): MatchConstraints {
     /(?:^|\s)(?:بوكس|صندوق)(?:\s|$)/.test(text) ? "box" :
     /(?:^|\s)بايب(?:\s|$)|\bpipe(?:s)?\b/.test(text) ? "pipe" :
     /(?:^|\s)(?:كيبل|كابل)(?:\s|$)|\bcable(?:s)?\b/.test(text) ? "cable" :
-    /(?:^|\s)واير(?:\s|$)|\bwire(?:s)?\b/.test(text) ? "wire" :
+    /(?:^|\s)(?:واير|سلك)(?:\s|$)|\bwire(?:s)?\b/.test(text) ? "wire" :
     /(?:^|\s)كنكتر(?:\s|$)|\bconnector(?:s)?\b/.test(text) ? "connector" :
     /(?:^|\s)تيب(?:\s|$)|\btape\b/.test(text) ? "tape" :
     /(?:^|\s)(?:لاصق|غراء)(?:\s|$)|\bglue\b/.test(text) ? "glue" :
@@ -791,7 +791,7 @@ export function rankProductMatches<T>(
     if (!exactNameOrAlias && constraintSignals > 0 && attributes === 1) {
       const classMatched = queryConstraints.productClass !== null;
       if (classMatched) score = Math.min(1, score + 0.12);
-      if (queryConstraints.amps.length || queryConstraints.gangs.length || queryConstraints.poles.length) {
+      if (queryConstraints.amps.length || queryConstraints.gangs.length || queryConstraints.poles.length || queryConstraints.cores.length) {
         score = Math.min(1, score + 0.08);
       }
     }
