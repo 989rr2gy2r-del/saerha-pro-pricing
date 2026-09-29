@@ -30,7 +30,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { createCustomer, fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
-import { getMarketArabicTranslation, normalizeProductText, rankProductMatches } from "@/lib/matching/product-matcher";
+import { findLocalProductMatch, getMarketArabicTranslation, normalizeProductText, rankProductMatches } from "@/lib/matching/product-matcher";
 import { normalizeQuantity, parseLocalOcrText, parseTextOrderFallback } from "@/lib/order/order-input";
 import { alignOrderItemToSourceLine, extractOrderLineSignals, parseOrderSourceLines } from "@/lib/order/order-line-parser";
 
@@ -479,115 +479,6 @@ function prepareProductForMatch(
   };
   preparedProductCache.set(product, prepared);
   return prepared;
-}
-
-function normalizeCommercialMatchUnit(value: string): string {
-  const raw = String(value ?? "").trim().toLowerCase();
-  if (/^(?:حبة|قطعة|قطع|pcs?|pieces?|piece)$/.test(raw)) return "piece";
-  if (/^(?:رول|لفة|لفه|لف|rolls?|coils?)$/.test(raw)) return "roll";
-  if (/^(?:متر|meters?|meter|m)$/.test(raw)) return "meter";
-  if (/^(?:كرتون|كرتونه|cartons?|carton|box|boxes)$/.test(raw)) return "carton";
-  if (/^(?:علبة|عبوة)$/.test(raw)) return "container";
-  if (/^(?:طقم)$/.test(raw)) return "set";
-  if (/^(?:باكيت|باك|packs?|packets?)$/.test(raw)) return "pack";
-  return raw;
-}
-
-function hasExplicitColor(text: string): boolean {
-  return /(احمر|اسود|ابيض|اخضر|ازرق|اصفر|بني|رمادي|ذهبي|silver|red|black|white|green|blue|yellow|brown|grey|gray|gold)/i.test(
-    normalizeForMatch(text),
-  );
-}
-
-function candidateHasSpecificColor(product: ProductRecord): boolean {
-  return Boolean(
-    product.color?.trim() ||
-      /(احمر|اسود|ابيض|اخضر|ازرق|اصفر|بني|رمادي|ذهبي|فضي|red|black|white|green|blue|yellow|brown|grey|gray|gold|silver)/i.test(
-        normalizeForMatch(product.name_ar + " " + (product.name_en ?? "")),
-      ),
-  );
-}
-
-function findLocalProductMatch(
-  text: string,
-  products: ProductRecord[],
-  normalizedArabic = "",
-  aliases: Record<string, string[]> = {},
-) {
-  const queries = [text, normalizedArabic].filter(Boolean);
-  if (!queries.length) return null;
-
-  const aliasRows = prepareAliasRows(aliases);
-  const ranked = queries.flatMap((query) =>
-    rankProductMatches(query, products, aliasRows, (product) => product.id, 8),
-  );
-
-  const byProduct = new Map<string, (typeof ranked)[number]>();
-  for (const candidate of ranked) {
-    const previous = byProduct.get(candidate.productId);
-    if (!previous || candidate.score > previous.score) byProduct.set(candidate.productId, candidate);
-  }
-
-  const sorted = [...byProduct.values()].sort((a, b) => b.score - a.score);
-  const best = sorted[0];
-  const second = sorted[1];
-  if (!best || best.score < 0.55) return null;
-
-  const margin = second ? best.score - second.score : 1;
-  const ambiguous =
-    margin < 0.10 &&
-    !best.signals.exact &&
-    !best.signals.alias &&
-    best.product.id !== second?.product?.id;
-
-  const requestedUnit = normalizeCommercialMatchUnit(
-    text.match(/(?:حبة|قطعة|قطع|كرتون|كرتونه|رول|لفة|لفه|لف|باكيت|باك|متر|عبوة|طقم|كيس|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|coils?|packets?|packs?|cartons?|boxes?|meters?|meter)$/i)?.[0] ?? "",
-  );
-  const bestUnit = normalizeCommercialMatchUnit(best.product.unit ?? "");
-  const unitMismatch = Boolean(requestedUnit && bestUnit && requestedUnit !== bestUnit);
-  console.log("margin:", margin, "ambiguous:", ambiguous, "best:", best?.product?.id, "second:", second?.product?.id, "unitMismatch:", unitMismatch);
-
-  // If the order does not state a color, a color-specific catalog variant is
-  // not allowed to become an automatic selection when a generic peer is also
-  // plausible. This prevents "Electrical Tape" from silently becoming "black".
-  const colorVariantAmbiguous =
-    !hasExplicitColor(text) &&
-    candidateHasSpecificColor(best.product) &&
-    sorted.some(
-      (candidate) =>
-        !candidateHasSpecificColor(candidate.product) &&
-        candidate.score >= best.score - 0.12,
-    );
-
-  const autoAccept =
-    best.status === "HIGH_CONFIDENCE" &&
-    !ambiguous &&
-    !unitMismatch &&
-    !colorVariantAmbiguous;
-
-  const candidates = sorted.slice(0, 5).map((candidate) => ({
-    id: candidate.product.id,
-    sku: candidate.product.sku,
-    name_ar: candidate.product.name_ar,
-    score: candidate.score,
-    reason: candidate.reason,
-  }));
-
-  return {
-    product: autoAccept ? best.product : null,
-    score: best.score,
-    status: autoAccept ? ("HIGH_CONFIDENCE" as const) : ("NEEDS_REVIEW" as const),
-    reason: autoAccept
-      ? best.reason
-      : unitMismatch
-        ? "مرشح قوي لكن وحدة الطلب لا تطابق وحدة بيع المنتج في القاعدة"
-        : colorVariantAmbiguous
-          ? "الطلب لم يحدد اللون والمرشح مرتبط بلون محدد"
-          : ambiguous
-            ? "أكثر من صنف في القاعدة متقارب؛ يلزم اختيار المستخدم"
-            : "المرشح لم يتجاوز شروط المطابقة الآمنة",
-    candidates,
-  };
 }
 
 export const Route = createFileRoute("/new-order")({
