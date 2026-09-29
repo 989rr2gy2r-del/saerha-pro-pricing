@@ -88,8 +88,7 @@ type QuantityUnitMatch = {
 };
 
 function findExplicitCommercialPairs(line: string): QuantityUnitMatch[] {
-  const normalized = normalizeLine(line);
-  const results: QuantityUnitMatch[] = [];
+  // Keep character positions stable: spans are audit data and must point into the original line.\n  const normalized = toAsciiDigits(line);\n  const results: QuantityUnitMatch[] = [];
   const unitPattern = COMMERCIAL_UNIT_PATTERN;
 
   const numberThenUnit = new RegExp(
@@ -172,8 +171,8 @@ export function extractOrderLineSignals(
   // Explicit commercial quantity+unit is authoritative. Technical units such as
   // mm/mm²/cm/ml are deliberately excluded from COMMERCIAL_UNITS, so 6مل on a
   // wire is never mistaken for quantity 6 and unit ml.
-  const explicit = pairs.length ? pairs[pairs.length - 1] : null;
-  if (explicit) {
+  if (pairs.length === 1) {
+    const explicit = pairs[0];
     return {
       quantity: explicit.quantity,
       unit: explicit.unit,
@@ -185,6 +184,21 @@ export function extractOrderLineSignals(
       skuSpan,
       confidence: 1,
       issues,
+    };
+  }
+
+  if (pairs.length > 1) {
+    return {
+      quantity: null,
+      unit: "",
+      quantityRaw: "",
+      unitRaw: "",
+      quantitySpan: null,
+      unitSpan: null,
+      sku,
+      skuSpan,
+      confidence: 0,
+      issues: ["وجدت أكثر من زوج كمية/وحدة تجارية في السطر؛ لم أختر أحدها تلقائيًا."],
     };
   }
 
@@ -295,6 +309,54 @@ export function alignOrderItemToSourceLine(
     }
   }
   return best && best.score >= 0.28 ? best : null;
+}
+
+export type ReconciledOrderLine = {
+  signals: OrderLineSignals;
+  quantity: number | null;
+  unit: string;
+  quantitySource: "source_text" | "unverified_ai" | "missing";
+  unitSource: "source_text" | "unverified_ai" | "missing";
+  issues: string[];
+};
+
+/**
+ * Reconcile model-extracted quantity/unit against the source-line text.
+ * Source evidence always wins; AI-only quantity/unit is never silently promoted.
+ */
+export function reconcileOrderLineEvidence(
+  rawLine: string,
+  aiQuantity: number | null | undefined,
+  aiUnit: string | null | undefined,
+  catalogSkus?: Set<string>,
+): ReconciledOrderLine {
+  const signals = extractOrderLineSignals(rawLine, catalogSkus);
+  const issues = [...signals.issues];
+  const parsedAiQuantity = Number(aiQuantity);
+  const hasAiQuantity = Number.isFinite(parsedAiQuantity) && parsedAiQuantity > 0;
+  const aiCanonicalUnit = canonicalUnit(String(aiUnit ?? ""));
+
+  if (signals.quantity != null && hasAiQuantity && signals.quantity !== parsedAiQuantity) {
+    issues.push("كمية القراءة الذكية لا تطابق الكمية المثبتة في نص السطر المصدر؛ تم تجاهل كمية القراءة الذكية.");
+  }
+  if (signals.unit && aiCanonicalUnit && signals.unit !== aiCanonicalUnit) {
+    issues.push("وحدة القراءة الذكية لا تطابق وحدة السطر المصدر؛ تم تجاهل وحدة القراءة الذكية.");
+  }
+  if (signals.quantity == null && hasAiQuantity) {
+    issues.push("القراءة الذكية أعطت كمية بلا دليل نصي تجاري في السطر المصدر؛ لم يتم اعتمادها.");
+  }
+  if (!signals.unit && aiCanonicalUnit) {
+    issues.push("القراءة الذكية أعطت وحدة بلا زوج كمية/وحدة مثبت في السطر المصدر؛ لم يتم اعتمادها.");
+  }
+
+  return {
+    signals: { ...signals, issues },
+    quantity: signals.quantity,
+    unit: signals.unit,
+    quantitySource: signals.quantity != null ? "source_text" : "missing",
+    unitSource: signals.unit ? "source_text" : "missing",
+    issues,
+  };
 }
 
 export function parseOrderSourceLines(
