@@ -45,7 +45,7 @@ const products = [
   model: null,
   size: null,
   color: null,
-  unit: "متر",
+  unit: sku === "07251" ? "لف" : "متر",
   description: null,
 }));
 
