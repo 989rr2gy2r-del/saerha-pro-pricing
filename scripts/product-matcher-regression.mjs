@@ -97,6 +97,23 @@ const resolvedGreenMeter = findLocalProductMatch(
 assert.equal(resolvedGreenMeter.product?.sku, "0765", "6mm green meter request must resolve to the exact SKU");
 assert.equal(resolvedGreenMeter.status, "HIGH_CONFIDENCE", "exact technical match with matching unit must auto-confirm");
 
+
+const redRoll = findLocalProductMatch(
+  "واير الخليج احمر 2.5مل 4 رول",
+  resolverProducts,
+  "",
+  {},
+);
+assert.equal(redRoll.product?.sku, "07251", "2.5mm red roll must prefer the roll SKU over the meter variant");
+
+const redMeter = findLocalProductMatch(
+  "واير الخليج احمر 2.5مل 4 متر",
+  resolverProducts,
+  "",
+  {},
+);
+assert.equal(redMeter.product?.sku, "072512", "2.5mm red meter must resolve to the meter SKU");
+
 console.log("resolver safety regression: PASS");
 
   console.log("product-matcher regression: PASS");
