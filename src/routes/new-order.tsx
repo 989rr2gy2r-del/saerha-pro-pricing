@@ -82,6 +82,16 @@ type ReviewItem = {
   quoteName?: string;
   sourceSku?: string;
   sourceUnitPrice?: number | null;
+  sourceTrace?: {
+    raw_line: string;
+    alignment_score: number;
+    quantity_raw: string;
+    unit_raw: string;
+    quantity_span: { start: number; end: number; raw: string } | null;
+    unit_span: { start: number; end: number; raw: string } | null;
+    sku: string;
+    issues: string[];
+  };
   sourceLineTotal?: number | null;
   matchCandidates?: Array<{ id: string; sku: string; name_ar: string; score: number; reason: string }>;
 };
