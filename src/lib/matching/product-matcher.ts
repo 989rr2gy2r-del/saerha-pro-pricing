@@ -869,13 +869,20 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
   text: string,
   products: T[],
   normalizedArabic = "",
-  aliases: Array<{ product_id: string; alias: string; normalized_alias?: string | null }> = [],
+  aliases:
+    | Array<{ product_id: string; alias: string; normalized_alias?: string | null }>
+    | Record<string, string[]> = [],
 ) {
   const queries = [text, normalizedArabic].filter(Boolean);
+  const aliasRows = Array.isArray(aliases)
+    ? aliases
+    : Object.entries(aliases).flatMap(([product_id, values]) =>
+        values.map((alias) => ({ product_id, alias })),
+      );
   if (!queries.length) return null;
 
   const ranked = queries.flatMap((query) =>
-    rankProductMatches(query, products, aliases, (product) => product.id, 8),
+    rankProductMatches(query, products, aliasRows, (product) => product.id, 8),
   );
 
   const byProduct = new Map<string, (typeof ranked)[number]>();
