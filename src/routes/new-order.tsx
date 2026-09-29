@@ -63,7 +63,7 @@ type ReviewItem = {
   raw_text: string;
   confidence: number;
   extractionConfidence?: number;
-  matchScore?: number;
+  matchScore?: number | null;
   notes?: string;
   product: ProductRecord | null;
   matchReason: string;
@@ -2503,7 +2503,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             match_score: line.matchScore ?? line.confidence ?? null,
             match_status: line.status,
             match_reason: line.matchReason || null,
-            selected_product_id: line.product.id,
+            selected_product_id: line.product!.id,
             accepted: line.accepted,
             source_sku: line.sourceSku || null,
             source_unit_price: line.sourceUnitPrice ?? null,
