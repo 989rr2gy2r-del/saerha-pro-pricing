@@ -29,6 +29,8 @@ const products = [
   ["07161", "واير الخليج احمر مقاس 16مل", "WAIR GULF RED SAIZ 16 ML"],
   ["0736", "واير الخليج 3كور 6مل", "WAIR GULF 3 COR 6 ML"],
   ["07446", "واير الخليج 4كور 6مل", "WAIR GULF 4 COR 6 ML"],
+  ["07251", "واير الخليج احمر مقاس 2.5مل", "WAIR GULF RED SAIZ 2.5 ML"],
+  ["072512", "واير الخليج احمر مقاس 2.5مل متر", "WAIR GULF RED SAIZ 2.5 ML METER"],
 ].map(([sku, name_ar, name_en]) => ({
   id: sku,
   sku,
