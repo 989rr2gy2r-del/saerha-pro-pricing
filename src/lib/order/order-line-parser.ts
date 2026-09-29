@@ -127,7 +127,7 @@ function findExplicitCommercialPairs(line: string): QuantityUnitMatch[] {
     const quantityRaw = match[2] ?? "";
     // Invoice prices commonly appear immediately after a unit (e.g. ROLL 2 12.600).
     // A three-decimal numeric token in that position is a price, not order quantity.
-    if (/^\\d+\\.\\d{3}$/.test(quantityRaw)) continue;
+    if (/^\d+\.\d{3}$/.test(quantityRaw)) continue;
     const quantity = parseNumber(quantityRaw);
     const matchStart = match.index ?? 0;
     if (quantity == null) continue;
