@@ -869,7 +869,7 @@ function stripCommercialOrderTail(value: string): string {
   return String(value ?? "")
     .trim()
     .replace(
-      /(?:^|\\s)\\d+(?:[.,]\\d+)?\\s*(?:حبة|قطعة|قطع|كرتون|كرتونه|رول|لفة|لفه|لف|باكيت|باك|متر|عبوة|علبة|طقم|كيس|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|coils?|packets?|packs?|cartons?|boxes?|meters?|meter)\\s*$/i,
+      /(?:^|\s)\d+(?:[.,]\d+)?\s*(?:حبة|قطعة|قطع|كرتون|كرتونه|رول|لفة|لفه|لف|باكيت|باك|متر|عبوة|علبة|طقم|كيس|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|coils?|packets?|packs?|cartons?|boxes?|meters?|meter)\s*$/i,
       "",
     )
     .trim();
