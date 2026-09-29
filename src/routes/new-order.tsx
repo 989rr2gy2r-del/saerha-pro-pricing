@@ -1921,6 +1921,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           ? "original_text" as const
           : "ai_ocr" as const;
 
+      const usedOriginalSourceIndices = new Set<number>();
       const matchedItems: ReviewItem[] = normalizedItems.map((item, itemIndex) => {
         let effectiveRawText = "";
         let effectiveSourceKind: "original_text" | "ai_ocr" | "local_ocr" | "unavailable" = "unavailable";
@@ -1930,11 +1931,18 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         if (sourceKind === "original_text") {
           const normalizedAiRaw = normalizeForMatch(item.raw_text || "");
           const exactSource = normalizedAiRaw
-            ? sourceDataLines.find((row) => normalizeForMatch(row.rawLine) === normalizedAiRaw)
+            ? sourceDataLines.find(
+                (row) =>
+                  !usedOriginalSourceIndices.has(row.index) &&
+                  normalizeForMatch(row.rawLine) === normalizedAiRaw,
+              )
             : null;
           const indexedSource = sourceDataLines[itemIndex];
-          const chosenSource = exactSource ?? indexedSource;
+          const chosenSource =
+            exactSource ??
+            (indexedSource && !usedOriginalSourceIndices.has(indexedSource.index) ? indexedSource : null);
           if (chosenSource) {
+            usedOriginalSourceIndices.add(chosenSource.index);
             effectiveRawText = chosenSource.rawLine;
             effectiveSourceKind = "original_text";
             sourceIndex = chosenSource.index;
