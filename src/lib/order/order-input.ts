@@ -52,6 +52,7 @@ export function normalizeOrderUnit(value: string): string {
     "لتر": "لتر", "l": "لتر", "liter": "لتر", "litre": "لتر",
     "مل": "مل", "ml": "مل",
     "عبوة": "عبوة", "طقم": "طقم", "كيس": "كيس", "صندوق": "صندوق",
+    "دزينة": "دزينة", "درزن": "دزينة", "dozen": "دزينة", "dozens": "دزينة", "dz": "دزينة", "dzn": "دزينة",
   };
   return aliases[key] ?? raw;
 }
