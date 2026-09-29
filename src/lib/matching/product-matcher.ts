@@ -917,11 +917,20 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
   if (!best || best.score < 0.55) return null;
 
   const margin = second ? best.score - second.score : 1;
+  const competingExactEvidence = Boolean(
+    second &&
+      best.product.id !== second.product.id &&
+      (best.signals.exact || best.signals.alias) &&
+      (second.signals.exact || second.signals.alias) &&
+      Math.abs(best.score - second.score) < 0.001,
+  );
   const ambiguous =
-    margin < 0.10 &&
-    !best.signals.exact &&
-    !best.signals.alias &&
-    best.product.id !== second?.product?.id;
+    competingExactEvidence ||
+    (Boolean(second) &&
+      margin < 0.10 &&
+      !best.signals.exact &&
+      !best.signals.alias &&
+      best.product.id !== second?.product?.id);
 
   const bestUnit = normalizeCommercialMatchUnit(best.product.unit ?? "");
   const unitMismatch = Boolean(requestedUnit && bestUnit && requestedUnit !== bestUnit);
