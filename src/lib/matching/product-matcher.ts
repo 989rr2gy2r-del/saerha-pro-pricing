@@ -14,6 +14,7 @@ export type MatchCandidate<T> = {
     attributes: number;
     numeric: number;
     identity: number;
+    cores: number;
   };
 };
 
@@ -270,6 +271,7 @@ type MatchConstraints = {
   pairs: string[];
   gangs: string[];
   poles: string[];
+  cores: string[];
   qualifiers: string[];
   alternativeFractions: boolean;
   alternativeInches: boolean;
@@ -323,7 +325,8 @@ export function extractMatchConstraints(value: string): MatchConstraints {
   const inchSizes = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:انش|inch|in)\b/gi)].map((m) => m[1]);
   const pairs = [...text.matchAll(/(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/gi)].map((m) => `${m[1]}x${m[2]}`);
   const gangs = [...text.matchAll(/(\d+)\s*(?:دقمة|gang)\b/gi)].map((m) => m[1]);
-  const poles = [...text.matchAll(/(\d+)\s*(?:قطب|pole)\b/gi)].map((m) => m[1]);
+  const poles = [...text.matchAll(/(\d+)\s*(?:قطب|pole)(?:\s|$|[^\p{L}\p{N}])/giu)].map((m) => m[1]);
+  const cores = [...text.matchAll(/(\d+)\s*(?:كور|core|cores)(?:\s|$|[^\p{L}\p{N}])/giu)].map((m) => m[1]);
   const alternativeFractions = /(?:\b(?:or|او)\b)/i.test(text) && fractions.length > 1;
   const alternativeInches = /(?:\b(?:or|او)\b)/i.test(text) && inchSizes.length > 1;
 
@@ -331,6 +334,7 @@ export function extractMatchConstraints(value: string): MatchConstraints {
     if (text.includes(word)) {
       if (text.includes("دقمة") && !gangs.length) gangs.push(digit);
       if (text.includes("قطب") && !poles.length) poles.push(digit);
+      if (text.includes("كور") && !cores.length) cores.push(digit);
     }
   }
   if (!gangs.length) {
@@ -376,6 +380,7 @@ export function extractMatchConstraints(value: string): MatchConstraints {
     pairs,
     gangs,
     poles,
+    cores: [...new Set(cores)],
     qualifiers: [...new Set(qualifiers)],
     alternativeFractions,
     alternativeInches,
@@ -386,7 +391,7 @@ export function candidateMatchesConstraints(text: string, constraints: MatchCons
   if (!constraints.productClass && !constraints.amps.length && !constraints.colors.length &&
       !constraints.fractions.length && !constraints.metricSizes.length && !constraints.inchSizes.length &&
       !constraints.pairs.length && !constraints.gangs.length && !constraints.poles.length &&
-      !constraints.qualifiers.length) return true;
+      !constraints.cores.length && !constraints.qualifiers.length) return true;
 
   const normalized = normalizeProductText(text);
   const hasClass = (kind: MatchConstraints["productClass"]) => {
@@ -453,6 +458,10 @@ export function candidateMatchesConstraints(text: string, constraints: MatchCons
     new RegExp("(?:^|\\s)" + value + "\\s*(?:قطب|pole)(?:\\s|$)", "i").test(normalized) ||
     (value === "1" && /(?:^|\s)(?:سنجل|single)(?:\s|$)/i.test(normalized));
   if (constraints.poles.some((value) => !hasPole(value))) return false;
+
+  const hasCore = (value: string) =>
+    new RegExp(String.raw`(?:^|\s)${value}\s*(?:كور|core|cores)(?:\s|$)`, "i").test(normalized);
+  if (constraints.cores.some((value) => !hasCore(value))) return false;
 
   return true;
 }
@@ -679,7 +688,7 @@ export function rankProductMatches<T>(
         score: 0,
         status: "NEEDS_REVIEW" as const,
         reason: "تم استبعاد الصنف لأن مواصفة مطلوبة في الطلب لا تطابق بياناته",
-        signals: { exact: false, alias: false, rapid: 0, token: 0, character: 0, attributes: 0, numeric: 0, identity: 0 },
+        signals: { exact: false, alias: false, rapid: 0, token: 0, character: 0, attributes: 0, numeric: 0, identity: 0, cores: 0 },
       };
     }
 
@@ -773,6 +782,7 @@ export function rankProductMatches<T>(
       queryConstraints.pairs.length +
       queryConstraints.gangs.length +
       queryConstraints.poles.length +
+      queryConstraints.cores.length +
       queryConstraints.qualifiers.length;
 
     // When the catalog candidate satisfies the product class and every
@@ -808,7 +818,7 @@ export function rankProductMatches<T>(
       score,
       status,
       reason,
-      signals: { exact, alias, rapid, token, character, attributes, numeric, identity },
+      signals: { exact, alias, rapid, token, character, attributes, numeric, identity, cores: queryConstraints.cores.length ? 1 : 0 },
     };
   });
 
