@@ -17,7 +17,7 @@ const tempFile = path.join(new URL(".", import.meta.url).pathname, ".product-mat
 fs.writeFileSync(tempFile, transpiled, "utf8");
 try {
   const matcher = await import(pathToFileURL(tempFile).href + "?regression=1");
-  const { rankProductMatches, extractMatchConstraints, candidateMatchesConstraints } = matcher;
+  const { rankProductMatches, extractMatchConstraints, candidateMatchesConstraints, findLocalProductMatch } = matcher;
 
 const products = [
   ["0761", "واير الخليج احمر مقاس 6مل", "WAIR GULF RED SAIZ 6 ML"],
@@ -72,6 +72,32 @@ assert.equal(match("واير الخليج احمر 6مل").some((candidate) => c
 assert.equal(match("واير الخليج احمر 6مل").some((candidate) => candidate.product.sku === "07161"), false, "6mm red must reject 16mm red");
 assert.equal(match("واير الخليج 3كور 6مل").some((candidate) => candidate.product.sku === "07446"), false, "3-core must reject 4-core");
 assert.equal(match("واير الخليج 4كور 6مل").some((candidate) => candidate.product.sku === "0736"), false, "4-core must reject 3-core");
+
+
+const resolverProducts = products.map((product) => ({
+  ...product,
+  id: product.sku,
+}));
+
+const resolvedGreenRoll = findLocalProductMatch(
+  "9 0765 واير الخليج اخضر مقاس 6مل 4 ROLL",
+  resolverProducts,
+  "",
+  {},
+);
+assert.equal(resolvedGreenRoll.product, null, "6mm wire requested as roll must not auto-select a meter-base product");
+assert.equal(resolvedGreenRoll.status, "NEEDS_REVIEW", "commercial unit mismatch must force review");
+
+const resolvedGreenMeter = findLocalProductMatch(
+  "0765 واير الخليج اخضر مقاس 6مل 4 متر",
+  resolverProducts,
+  "",
+  {},
+);
+assert.equal(resolvedGreenMeter.product?.sku, "0765", "6mm green meter request must resolve to the exact SKU");
+assert.equal(resolvedGreenMeter.status, "HIGH_CONFIDENCE", "exact technical match with matching unit must auto-confirm");
+
+console.log("resolver safety regression: PASS");
 
   console.log("product-matcher regression: PASS");
   console.log("validated exact 6mm color matches: red/yellow/blue/black");
