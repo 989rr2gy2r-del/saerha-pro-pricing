@@ -613,6 +613,7 @@ function findLocalProductMatch(
   );
   const bestUnit = normalizeCommercialMatchUnit(best.product.unit ?? "");
   const unitMismatch = Boolean(requestedUnit && bestUnit && requestedUnit !== bestUnit);
+  console.log("margin:", margin, "ambiguous:", ambiguous, "best:", best?.product?.id, "second:", second?.product?.id, "unitMismatch:", unitMismatch);
 
   // If the order does not state a color, a color-specific catalog variant is
   // not allowed to become an automatic selection when a generic peer is also
