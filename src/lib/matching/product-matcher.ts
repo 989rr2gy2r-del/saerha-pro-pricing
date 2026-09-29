@@ -935,11 +935,26 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
         candidate.score >= best.score - 0.12,
     );
 
+  const hardConstraintCount =
+    (queryConstraints.productClass ? 1 : 0) +
+    queryConstraints.amps.length +
+    queryConstraints.colors.length +
+    queryConstraints.fractions.length +
+    queryConstraints.metricSizes.length +
+    queryConstraints.inchSizes.length +
+    queryConstraints.pairs.length +
+    queryConstraints.gangs.length +
+    queryConstraints.poles.length +
+    queryConstraints.cores.length +
+    queryConstraints.qualifiers.length;
+  const hasHardConstraints = hardConstraintCount > 0;
+  const exactCatalogEvidence = best.signals.exact || best.signals.alias;
+  const uniqueTechnicalMatch = hasHardConstraints && considered.length === 1;
   const autoAccept =
-    best.status === "HIGH_CONFIDENCE" &&
     !ambiguous &&
     !unitMismatch &&
-    !colorVariantAmbiguous;
+    !colorVariantAmbiguous &&
+    (exactCatalogEvidence || uniqueTechnicalMatch);
 
   const candidates = considered.slice(0, 5).map((candidate) => ({
     id: candidate.product.id,
