@@ -306,9 +306,20 @@ function extractMatchConstraints(value: string): MatchConstraints {
     null;
 
   const amps = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:امبير|a)\b/gi)].map((m) => m[1]);
-  const colors = ["احمر", "اسود", "اخضر", "ابيض", "ازرق"].filter((c) => text.includes(c));
+  const colorAliases: Array<[string, string]> = [
+    ["احمر", "احمر"], ["اسود", "اسود"], ["اخضر", "اخضر"], ["ابيض", "ابيض"], ["ازرق", "ازرق"], ["اصفر", "اصفر"],
+    ["red", "احمر"], ["black", "اسود"], ["green", "اخضر"], ["white", "ابيض"], ["blue", "ازرق"], ["yellow", "اصفر"],
+  ];
+  const textTokens = new Set(text.split(" ").filter(Boolean));
+  const colors = [...new Set(
+    colorAliases.filter(([needle]) => textTokens.has(needle)).map(([, canonical]) => canonical),
+  )];
   const fractions = [...text.matchAll(/\b(\d+\/\d+)\b/g)].map((m) => m[1]);
-  const metricSizes = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:مم2|مم|mm2|mm)\b/gi)].map((m) => m[1]);
+  const metricSizes = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:مم2|مم|ملم|mm2|mm)\b/gi)].map((m) => m[1]);
+  const wireLike = /(?:^|\s)(?:واير|كيبل|كابل|سلك|wire|cable)(?:\s|$)/i.test(text);
+  const marketWireMetricSizes = wireLike
+    ? [...text.matchAll(/(\d+(?:\.\d+)?)\s*مل\b/gi)].map((m) => m[1])
+    : [];
   const inchSizes = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:انش|inch|in)\b/gi)].map((m) => m[1]);
   const pairs = [...text.matchAll(/(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/gi)].map((m) => `${m[1]}x${m[2]}`);
   const gangs = [...text.matchAll(/(\d+)\s*(?:دقمة|gang)\b/gi)].map((m) => m[1]);
@@ -360,7 +371,7 @@ function extractMatchConstraints(value: string): MatchConstraints {
     amps,
     colors,
     fractions,
-    metricSizes,
+    metricSizes: [...new Set([...metricSizes, ...marketWireMetricSizes])],
     inchSizes,
     pairs,
     gangs,
@@ -385,7 +396,7 @@ function candidateMatchesConstraints(text: string, constraints: MatchConstraints
       case "box": return /(?:^|\s)(?:بوكس|صندوق)(?:\s|$)/.test(normalized);
       case "pipe": return /(?:^|\s)بايب(?:\s|$)|\bpipe(?:s)?\b/.test(normalized);
       case "cable": return /(?:^|\s)(?:كيبل|كابل|واير)(?:\s|$)|\b(?:cable|wire)(?:s)?\b/.test(normalized);
-      case "wire": return /(?:^|\s)(?:واير|كيبل|كابل)(?:\s|$)|\b(?:wire|cable)(?:s)?\b/.test(normalized);
+      case "wire": return /(?:^|\s)(?:واير|كيبل|كابل|سلك)(?:\s|$)|\b(?:wire|cable)(?:s)?\b/.test(normalized);
       case "connector": return /(?:^|\s)كنكتر(?:\s|$)|\bconnector(?:s)?\b/.test(normalized);
       case "tape": return /(?:^|\s)تيب(?:\s|$)|\btape\b/.test(normalized);
       case "glue": return /(?:^|\s)(?:لاصق|غراء)(?:\s|$)|\bglue\b/.test(normalized);
@@ -415,7 +426,7 @@ function candidateMatchesConstraints(text: string, constraints: MatchConstraints
   // Gulf electrical catalogs often write millimetres as "مل" (e.g. 1.5مل).
   // Accept it for technical cable/wire size matching without globally normalizing
   // "مل", which can mean millilitre in unrelated products.
-  const hasMetric = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:مم2|مم|مل|mm2|mm)(?:\s|$)`, "i").test(normalized);
+  const hasMetric = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:مم2|مم|ملم|مل|mm2|mm)(?:\s|$)`, "i").test(normalized);
   if (constraints.metricSizes.some((value) => !hasMetric(value))) return false;
 
   const hasInch = (value: string) => new RegExp(`(?:^|\s)${value}\s*(?:انش|inch|in)(?:\s|$)`, "i").test(normalized);
