@@ -62,6 +62,14 @@ for (const [query, expectedSku] of [
   const constraints = extractMatchConstraints(query);
   const technicalText = "واير الخليج احمر مقاس 6مل";
   console.log("constraint-check", query, candidateMatchesConstraints(technicalText, constraints));
+  for (const key of ["productClass", "colors", "metricSizes", "qualifiers"]) {
+    const only = {
+      productClass: null, amps: [], colors: [], fractions: [], metricSizes: [], inchSizes: [],
+      pairs: [], gangs: [], poles: [], qualifiers: [], alternativeFractions: false, alternativeInches: false,
+      [key]: constraints[key],
+    };
+    console.log("constraint-part", key, candidateMatchesConstraints(technicalText, only));
+  }
   const candidates = match(query);
   console.log("constraint-debug", query, JSON.stringify(constraints));
   console.log("candidate-debug", query, candidates.map((candidate) => ({ sku: candidate.product.sku, score: candidate.score, status: candidate.status, reason: candidate.reason })));
