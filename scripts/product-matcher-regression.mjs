@@ -17,7 +17,7 @@ const tempFile = path.join(new URL(".", import.meta.url).pathname, ".product-mat
 fs.writeFileSync(tempFile, transpiled, "utf8");
 try {
   const matcher = await import(pathToFileURL(tempFile).href + "?regression=1");
-  const { rankProductMatches, extractMatchConstraints, candidateMatchesConstraints, findLocalProductMatch, findProductBySku, findProductByNormalizedName, resolveProductByNormalizedNameCandidates, resolveProductBySkuCandidates } = matcher;
+  const { rankProductMatches, extractMatchConstraints, candidateMatchesConstraints, findLocalProductMatch, findProductBySku, findProductByNormalizedName, resolveProductByNormalizedNameCandidates, resolveProductBySkuCandidates, findUniqueTechnicalProduct } = matcher;
 
 const products = [
   ["0761", "واير الخليج احمر مقاس 6مل", "WAIR GULF RED SAIZ 6 ML"],
@@ -27,11 +27,13 @@ const products = [
   ["0765", "واير الخليج اخضر مقاس 6مل", "WAIR GULF GREEN SAIZ 6 ML"],
   ["07101", "واير الخليج احمر مقاس 10مل", "WAIR GULF RED SAIZ 10 ML"],
   ["07161", "واير الخليج احمر مقاس 16مل", "WAIR GULF RED SAIZ 16 ML"],
+  ["07155", "واير الخليج اخضر مقاس 1.5مل", "WAIR GULF GREEN SAIZ 1.5 ML"],
   ["0736", "واير الخليج 3كور 6مل", "WAIR GULF 3 COR 6 ML"],
   ["07446", "واير الخليج 4كور 6مل", "WAIR GULF 4 COR 6 ML"],
   ["07251", "واير الخليج احمر مقاس 2.5مل", "WAIR GULF RED SAIZ 2.5 ML"],
   ["072512", "واير الخليج احمر مقاس 2.5مل متر", "WAIR GULF RED SAIZ 2.5 ML METER"],
   ["22080", "طلقات ديكور", "DECOR SHOTS"],
+  ["22099", "مسمار طلقات ديكور", "SCREW TLQAT DYKWR"],
 ].map(([sku, name_ar, name_en]) => ({
   id: sku,
   sku,
@@ -50,6 +52,14 @@ const products = [
   description: null,
 }));
 
+assert.equal(findProductByNormalizedName("مسمار طلقات", products)?.sku, "22099", "a specific catalog-name prefix must resolve when it maps to one product");
+assert.equal(
+  findUniqueTechnicalProduct("واير سلك كهرباء اخضر 1.5 مم",
+    products,
+  )?.sku,
+  "07155",
+  "unique color/size wire constraints must resolve the single catalog product",
+);
 assert.equal(findProductByNormalizedName("طلقات ديكور", products)?.sku, "22080", "exact normalized Arabic name must resolve the catalog product");
 assert.equal(
   findProductByNormalizedName("16 0 طلقات ديكور 2 7 1750 ميد", products)?.sku,
