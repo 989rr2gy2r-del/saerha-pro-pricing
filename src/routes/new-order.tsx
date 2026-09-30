@@ -30,7 +30,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { createCustomer, fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
-import { extractMatchConstraints, findLocalProductMatch, findProductBySku, getMarketArabicTranslation, normalizeProductText } from "@/lib/matching/product-matcher";
+import { extractMatchConstraints, findLocalProductMatch, getMarketArabicTranslation, normalizeProductText, resolveProductBySkuCandidates } from "@/lib/matching/product-matcher";
 import { normalizeQuantity, parseLocalOcrText, parseTextOrderFallback } from "@/lib/order/order-input";
 import { extractOrderLineSignals, parseOrderSourceLines, reconcileOrderLineEvidence } from "@/lib/order/order-line-parser";
 
@@ -2052,12 +2052,27 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         // Exact SKU match always resolves to the real catalog row. This bypasses
         // fuzzy ranking when the customer/OCR already supplied a catalog code,
         // preventing a valid coded item from becoming "needs review".
+        const skuResolution = resolveProductBySkuCandidates(
+          [
+            item.sourceSku,
+            rawItemSignals.sku,
+            sourceSignals.sku,
+            currentSourceSignals.sku,
+          ],
+          matchingProducts,
+        );
+        const exactSkuProduct = skuResolution.product;
         const identitySku =
-          sourceSignals.sku ||
-          rawItemSignals.sku ||
-          skuHint;
-        const exactSkuProduct = findProductBySku(identitySku, matchingProducts);
-        const match = exactSkuProduct
+          skuResolution.sku ||
+          String(item.sourceSku ?? rawItemSignals.sku ?? sourceSignals.sku ?? "").trim();
+
+        if (skuResolution.conflict) {
+          evidenceIssues.push(
+            `تعارض أكواد المصدر: ${skuResolution.candidates.join(" / ")}؛ لم يتم اختيار منتج تلقائيًا.`,
+          );
+        }
+
+        const match = exactSkuProduct && !skuResolution.conflict
           ? {
               product: exactSkuProduct,
               score: 1,
@@ -2087,6 +2102,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         const selectedProduct =
           selectedMatch &&
           selectedMatch.status === "HIGH_CONFIDENCE" &&
+          !skuResolution.conflict &&
           (Boolean(exactSkuProduct) || sourceEvidenceSafe)
             ? selectedMatch.product
             : null;
@@ -2125,7 +2141,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           extractionConfidence: item.extractionConfidence ?? item.confidence,
           matchScore: selectedMatch?.score ?? null,
           product: selectedProduct,
-          sourceSku: identitySku,
+          sourceSku: identitySku || String(item.sourceSku ?? "").trim(),
           sourceTrace: {
             raw_line: effectiveRawText,
             source_kind: effectiveSourceKind,
