@@ -97,7 +97,7 @@ async function sleep(ms: number) {
 }
 
 function isRetryableGeminiError(message: string) {
-  return /HTTP (408|429|500|502|503|504)|UNAVAILABLE|RESOURCE_EXHAUSTED|deadline|aborted|signal has been aborted/i.test(message);
+  return /HTTP (408|429|5\d{2})|UNAVAILABLE|RESOURCE_EXHAUSTED|deadline|aborted|signal has been aborted|INVALID_JSON|EMPTY_ITEMS/i.test(message);
 }
 
 async function callGemini(
@@ -165,7 +165,13 @@ async function callGemini(
           },
         }),
       },
-    );
+    ).catch((error) => {
+      if (error instanceof TypeError) {
+        const message = error instanceof Error ? error.message : "unknown";
+        throw new Error(`Gemini ${model} FETCH_NETWORK_ERROR: ${message}`);
+      }
+      throw error;
+    });
 
     const responseText = await response.text();
     if (!response.ok) {
@@ -173,7 +179,30 @@ async function callGemini(
       throw new Error(`Gemini ${model} HTTP ${response.status}: ${detail}`);
     }
 
-    return normalize(extractText(JSON.parse(responseText)));
+    let payload: unknown;
+    try {
+      payload = JSON.parse(responseText);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown";
+      throw new Error(`Gemini ${model} INVALID_JSON: ${message}`);
+    }
+
+    let result: ReturnType<typeof normalize>;
+    try {
+      result = normalize(extractText(payload));
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        const message = error instanceof Error ? error.message : "unknown";
+        throw new Error(`Gemini ${model} INVALID_JSON: ${message}`);
+      }
+      throw error;
+    }
+
+    if (result.items.length === 0) {
+      throw new Error(`Gemini ${model} EMPTY_ITEMS: normalized items list is empty`);
+    }
+
+    return result;
   } finally {
     clearTimeout(timer);
   }
@@ -361,14 +390,15 @@ ${textInput
         });
         console.warn("Gemini " + model.id + " failed", message);
 
-        const isNetworkError = error instanceof TypeError;
+        const isNetworkError = message.includes(`Gemini ${model.id} FETCH_NETWORK_ERROR:`);
         const isTimeout =
           (typeof DOMException !== "undefined" &&
             error instanceof DOMException &&
             (error.name === "AbortError" || error.name === "TimeoutError")) ||
           /HTTP 408|ETIMEDOUT|ECONNRESET|timed out|timeout/i.test(message);
+        const isRetryableError = isRetryableGeminiError(message);
 
-        if (!isNetworkError && !isTimeout) break;
+        if (!isNetworkError && !isTimeout && !isRetryableError) break;
       }
     }
     return json({
