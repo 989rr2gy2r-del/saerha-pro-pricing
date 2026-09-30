@@ -57,10 +57,10 @@ export function normalizeOrderUnit(value: string): string {
   return aliases[key] ?? raw;
 }
 
-const ORDER_FOOTER_MARKER = /(?:^|[\\s\\d'":;,.|_-])(?:subtotal|sub\\s*total|discount|total|vat|الإجمالي|الاجمالي|المجموع|الخصم|الصافي|الضريبة|المجموع\\s*الفرعي)(?=\\b|\\s|[:：]|$)/iu;
+const ORDER_FOOTER_MARKER = /(?:^|[\s\d'":;,.|_-])(?:subtotal|sub\s*total|discount|total|vat|الإجمالي|الاجمالي|المجموع|الخصم|الصافي|الضريبة|المجموع\s*الفرعي)(?=\b|\s|[:：]|$)/iu;
 
 export function isOrderFooterNoise(line: string): boolean {
-  const value = String(line ?? "").replace(/[|¦]+/g, " ").replace(/\\s+/g, " ").trim();
+  const value = String(line ?? "").replace(/[|¦]+/g, " ").replace(/\s+/g, " ").trim();
   return Boolean(value) && ORDER_FOOTER_MARKER.test(value);
 }
 
