@@ -108,6 +108,9 @@ async function callGemini(
   base64Data: string,
   prompt: string,
 ) {
+  const startedAt = Date.now();
+  let upstreamStatus: number | null = null;
+  let normalizeMs: number | null = null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -175,6 +178,7 @@ async function callGemini(
 
     const responseText = await response.text();
     if (!response.ok) {
+      upstreamStatus = response.status;
       const detail = responseText.slice(0, 500).replace(/\s+/g, " ");
       throw new Error(`Gemini ${model} HTTP ${response.status}: ${detail}`);
     }
@@ -189,7 +193,9 @@ async function callGemini(
 
     let result: ReturnType<typeof normalize>;
     try {
+      const normalizeStartedAt = Date.now();
       result = normalize(extractText(payload));
+      normalizeMs = Date.now() - normalizeStartedAt;
     } catch (error) {
       if (error instanceof SyntaxError) {
         const message = error instanceof Error ? error.message : "unknown";
@@ -203,11 +209,39 @@ async function callGemini(
     }
 
     return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown";
+    const errorType =
+      message.includes(`Gemini ${model} FETCH_NETWORK_ERROR:`) || error instanceof TypeError
+        ? "network"
+        : /HTTP \d{3}/i.test(message)
+          ? "http"
+          : (typeof DOMException !== "undefined" &&
+              error instanceof DOMException &&
+              (error.name === "AbortError" || error.name === "TimeoutError")) ||
+            /ETIMEDOUT|timed out|timeout/i.test(message)
+            ? "timeout"
+            : /INVALID_JSON|JSON/i.test(message)
+              ? "parse"
+              : /EMPTY_ITEMS/i.test(message)
+                ? "empty"
+                : null;
+    console.warn(JSON.stringify({
+      event: "gemini_attempt",
+      model,
+      durationMs: Date.now() - startedAt,
+      upstreamStatus,
+      errorType,
+      errorMessage: errorType ? message.slice(0, 300) : null,
+      normalizeMs,
+    }));
+    throw error;
   } finally {
     clearTimeout(timer);
   }
 }
 Deno.serve(async (req) => {
+  const functionStartedAt = Date.now();
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ success: false, error: "Method not allowed" }, 405);
 
@@ -415,5 +449,10 @@ ${textInput
   } catch (error) {
     console.error("analyze-order", error);
     return json({ success: false, error: "حدث خطأ أثناء قراءة الطلبية." }, 500);
+  } finally {
+    console.warn(JSON.stringify({
+      event: "analyze_order_timing",
+      totalDurationMs: Date.now() - functionStartedAt,
+    }));
   }
 });
