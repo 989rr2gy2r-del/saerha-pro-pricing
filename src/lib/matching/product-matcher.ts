@@ -347,8 +347,7 @@ export function extractMatchConstraints(value: string): MatchConstraints {
 
   const qualifiers: string[] = [];
   const qualifierPatterns: Array<[RegExp, string]> = [
-    [/\balfa\b|الفا/gi, "الفا"],
-    [/\badsany\b|\badsani\b|عدساني/gi, "عدساني"],
+    [/\balfa\b|الفا/gi, "الفا"],    [/\badsany\b|\badsani\b|عدساني/gi, "عدساني"],
     [/\bsaudi\b|سعودي/gi, "سعودي"],
     [/\bgulf\b|الخليج/gi, "الخليج"],
     [/\bskimo\b|سكيمو/gi, "سكيمو"],
@@ -588,6 +587,28 @@ type PreparedProduct<T> = {
 const preparedProductsCache = new WeakMap<object, PreparedProduct<unknown>>();
 const aliasesByArrayCache = new WeakMap<object, Map<string, string[]>>();
 
+type ProductTokenIndex<T> = { byToken: Map<string, T[]> };
+const productTokenIndexCache = new WeakMap<object, ProductTokenIndex<unknown>>();
+function getProductTokenIndex<T>(products: T[], aliasesByProduct: Map<string, string[]>, getId: (product: T) => string): ProductTokenIndex<T> {
+  const cached = productTokenIndexCache.get(products as object) as ProductTokenIndex<T> | undefined;
+  if (cached) return cached;
+  const byToken = new Map<string, T[]>();
+  for (const product of products) {
+    const prepared = prepareProduct(product, getId);
+    const aliases = aliasesByProduct.get(prepared.id) ?? [];
+    const tokens = new Set<string>();
+    for (const field of prepared.fields) for (const token of field.tokens) tokens.add(token);
+    for (const alias of aliases) for (const token of prepareText(alias).tokens) tokens.add(token);
+    for (const token of tokens) {
+      const list = byToken.get(token);
+      if (list) list.push(product); else byToken.set(token, [product]);
+    }
+  }
+  const index = { byToken };
+  productTokenIndexCache.set(products as object, index as ProductTokenIndex<unknown>);
+  return index;
+}
+
 function prepareProduct<T>(
   product: T,
   getId: (product: T) => string,
@@ -674,8 +695,17 @@ export function rankProductMatches<T>(
   const queryConstraints = extractMatchConstraints(query);
   const preparedVariants = queryVariants.map((variant) => prepareText(variant));
   const aliasesByProduct = prepareAliases(aliases);
+  const tokenIndex = getProductTokenIndex(products, aliasesByProduct, getId);
+  const candidateProductsById = new Map<string, T>();
+  for (const variant of preparedVariants) {
+    const tokens = variant.identity.length ? variant.identity : variant.tokens;
+    for (const token of tokens) {
+      for (const product of tokenIndex.byToken.get(token) ?? []) candidateProductsById.set(getId(product), product);
+    }
+  }
+  const candidateProducts = candidateProductsById.size ? [...candidateProductsById.values()] : products;
 
-  const ranked = products.map((product) => {
+  const ranked = candidateProducts.map((product) => {
     const preparedProduct = prepareProduct(product, getId);
     const productAliases = (aliasesByProduct.get(preparedProduct.id) ?? []).map(prepareText);
     const searchable = [...preparedProduct.fields, ...productAliases];
@@ -697,8 +727,7 @@ export function rankProductMatches<T>(
 
     const variantScores = preparedVariants.map((variant) => {
       const token = Math.max(
-        0,
-        ...searchable.map((field) => preparedSoftTokenScore(variant.tokens, field.tokens)),
+        0,        ...searchable.map((field) => preparedSoftTokenScore(variant.tokens, field.tokens)),
       );
       const candidateIdentityQuick = Math.max(
         0,
@@ -838,6 +867,28 @@ export type MatchableProductRecord = {
   color?: string | null;
 };
 
+type ProductLookupIndex<T extends MatchableProductRecord> = { bySku: Map<string, T>; byName: Map<string, T[]> };
+const productLookupIndexCache = new WeakMap<object, ProductLookupIndex<MatchableProductRecord>>();
+function getProductLookupIndex<T extends MatchableProductRecord>(products: T[]): ProductLookupIndex<T> {
+  const cached = productLookupIndexCache.get(products as object) as ProductLookupIndex<T> | undefined;
+  if (cached) return cached;
+  const bySku = new Map<string, T>();
+  const byName = new Map<string, T[]>();
+  for (const product of products) {
+    const sku = normalizeProductText(String(product.sku ?? "")).replace(/\s+/g, "");
+    if (sku && !bySku.has(sku)) bySku.set(sku, product);
+    for (const name of [String(product.name_ar ?? ""), String((product as MatchableProductRecord & { short_name?: string | null }).short_name ?? "")]) {
+      const normalized = normalizeProductText(name);
+      if (!normalized) continue;
+      const list = byName.get(normalized);
+      if (list) list.push(product); else byName.set(normalized, [product]);
+    }
+  }
+  const index = { bySku, byName };
+  productLookupIndexCache.set(products as object, index as ProductLookupIndex<MatchableProductRecord>);
+  return index;
+}
+
 function normalizeCommercialMatchUnit(value: string): string {
   const raw = String(value ?? "").trim().toLowerCase();
   if (/^(?:حبة|قطعة|قطع|pcs?|pieces?|piece)$/.test(raw)) return "piece";
@@ -913,28 +964,22 @@ export function findProductByNormalizedName<T extends MatchableProductRecord>(
   const target = normalizeProductText(String(text ?? ""));
   if (!target) return null;
 
-  const matches = products.filter((product) => {
-    const names = [
-      String(product.name_ar ?? ""),
-      String((product as MatchableProductRecord & { short_name?: string | null }).short_name ?? ""),
-    ]
-      .map((value) => normalizeProductText(value))
-      .filter(Boolean);
-
-    const rawTarget = String(text ?? "").trim();
-    return names.some((name, nameIndex) => {
-      const rawName = String(
-        nameIndex === 0
-          ? product.name_ar ?? ""
-          : (product as MatchableProductRecord & { short_name?: string | null }).short_name ?? "",
-      ).trim();
-      if (rawTarget && rawName && rawTarget === rawName) return true;
-      if (name === target || target.includes(name) || name.includes(target)) return true;
-      const nameTokens = uniqueTokens(name).filter((token) => !NON_IDENTITY_TOKENS.has(token));
+  const index = getProductLookupIndex(products);
+  const rawTarget = String(text ?? "").trim();
+  const exact = index.byName.get(target) ?? [];
+  const exactRaw = products.filter((product) => [
+    String(product.name_ar ?? "").trim(),
+    String((product as MatchableProductRecord & { short_name?: string | null }).short_name ?? "").trim(),
+  ].includes(rawTarget));
+  const exactMatches = [...new Map([...exact, ...exactRaw].map((product) => [product.id, product])).values()];
+  const matches = exactMatches.length ? exactMatches : [...index.byName.entries()]
+    .filter(([name]) => target.includes(name) || name.includes(target))
+    .flatMap(([, values]) => values)
+    .filter((product) => {
+      const nameTokens = uniqueTokens(product.name_ar).filter((token) => !NON_IDENTITY_TOKENS.has(token));
       const targetTokens = new Set(uniqueTokens(target).filter((token) => !NON_IDENTITY_TOKENS.has(token)));
       return nameTokens.length >= 2 && nameTokens.every((token) => targetTokens.has(token));
     });
-  });
 
   const uniqueProducts = [...new Map(matches.map((product) => [product.id, product])).values()];
   return uniqueProducts.length === 1 ? uniqueProducts[0] : null;
@@ -966,10 +1011,8 @@ export function findProductBySku<T extends MatchableProductRecord>(
 ): T | null {
   const target = normalizeProductText(String(sku ?? "")).replace(/\s+/g, "");
   if (!target) return null;
-  return products.find((product) => {
-    const candidate = normalizeProductText(String(product.sku ?? "")).replace(/\s+/g, "");
-    return candidate === target;
-  }) ?? null;
+  const index = getProductLookupIndex(products);
+  return index.bySku.get(target) ?? null;
 }
 
 /**
@@ -1047,8 +1090,7 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
       technicalProduct &&
       (!requestedUnit ||
         normalizeCommercialMatchUnit(technicalProduct.unit ?? "") === requestedUnit)
-    ) {
-      return {
+    ) {      return {
         product: technicalProduct,
         score: 1,
         status: "HIGH_CONFIDENCE" as const,
@@ -1143,7 +1185,9 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
   }));
 
   return {
-    product: autoAccept ? best.product : null,
+    // Keep the best real catalog product attached even when it still needs review.
+    // Status controls auto-acceptance; hiding the product made strong candidates disappear.
+    product: best.product,
     score: best.score,
     status: autoAccept ? ("HIGH_CONFIDENCE" as const) : ("NEEDS_REVIEW" as const),
     reason: autoAccept
