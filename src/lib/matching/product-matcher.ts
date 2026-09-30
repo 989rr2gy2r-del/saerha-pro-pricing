@@ -1043,7 +1043,11 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
 
   for (const query of queries) {
     const technicalProduct = findUniqueTechnicalProduct(query, products);
-    if (technicalProduct) {
+    if (
+      technicalProduct &&
+      (!requestedUnit ||
+        normalizeCommercialMatchUnit(technicalProduct.unit ?? "") === requestedUnit)
+    ) {
       return {
         product: technicalProduct,
         score: 1,
