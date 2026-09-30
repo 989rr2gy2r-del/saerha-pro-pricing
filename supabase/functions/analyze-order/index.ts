@@ -42,7 +42,7 @@ function normalize(value: unknown) {
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const items = Array.isArray(source.items) ? source.items : [];
   return {
-    items: items.map((item) => {
+    items: items.map((item, index) => {
       const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
       const quantity = Number(row.quantity);
       const confidence = Number(row.confidence);
@@ -258,6 +258,14 @@ Deno.serve(async (req) => {
 - إذا كان في السطر "Elbow" أو "Double Elbow" أو "Street Elbow" فـ category_ar يجب أن يكون "كوع" أو "كوع دبل" أو "كوع ذكر وانثى" على الترتيب، مع بقاء المصطلح الأصلي في raw_text وdescription.
 - description يجب أن يعكس النص المقروء بعد تصحيح OCR واضح فقط. إذا كانت الكلمة مثل "petan" أو "melbus" غير مؤكدة، لا تستبدلها بكلمة أخرى.
 - normalized_description_ar لا يجوز أن يكون نسخة عربية مخترعة من نص غير مفهوم. املأه فقط عندما يكون معنى الصنف واضحًا من النص والمقاس والسياق. مثال: "PVC capling - 20mm" => "وصلة PVC - 20 ملم". أما "petan - 2" إذا لم يتضح المقصود => normalized_description_ar="" وnotes="الكلمة غير واضحة".
+
+تعليمات تصفية إضافية (طبقة تصحيح) — لا تُعدّل المنطق الأساسي:
+1. تصفية الضوضاء (Non-Items): يُمنع تمامًا اعتبار الكلمات التالية أصنافًا أو محاولة مطابقتها في قاعدة البيانات: Total, Subtotal, Discount, VAT, الاجمالي, الإجمالي, المجموع, الخصم, الصافي, الضريبة. توقف عن استخراج الأصناف عند الوصول إلى هذه الكلمات في نهاية الفاتورة.
+2. تطبيع النص العربي (Arabic Normalization): عند فهم اسم الصنف، أزل التشكيل، وحرف التطويل "ـ"، والمسافات الزائدة. لا تغيّر الأحرف أو الكلمات الأخرى.
+3. دقة المطابقة (Strict Matching): لا تخمّن SKU أو اسم صنف أو منتج. إذا لم يكن الاسم واضحًا، اترك normalized_description_ar فارغًا أو اترك السطر للمراجعة.
+4. عدم المساس بالقديم: الكمية والوحدة والسعر وباقي بيانات السطر تُقرأ كما هي؛ هذه التعليمات تخص تصفية أسطر الإجمالي/الخصم/الضريبة وتطبيع الاسم فقط.
+5. إذا كان اسم عربي واضح مثل "طلقات ديكور" ظاهرًا في السطر، حافظ عليه في description وnormalized_description_ar حتى لو كان OCR المساعد قد أخطأ في حرف، ولا تستبدل الاسم برقم أو رقم مالي من السطر.
+
 - ممنوع تحويل أي كلمة غير مفهومة إلى كلمة عربية لمجرد أنها تشبهها صوتيًا. وممنوع إضافة "مسمار" أو "كام" أو أي اسم منتج غير موجود في النص.
 - في مواد الـPVC والكهرباء، حافظ على مفردات السوق كما هي حتى لو كانت مكتوبة بتهجئة غير قياسية: مثل "capling/coupling" و"melbus/mlbwsh" و"GI box" و"Adsany/Adsani" و"Alfa". إذا كانت الكلمة ظاهرة في الصورة، اكتبها في raw_text كما قرأتها، ويمكن أن تضع مقابلاً عربيًا واضحًا في normalized_description_ar دون حذف الكلمة الأصلية.
 - كلمات مثل "melbus" لا يجوز تحويلها إلى أرقام أو وصف مختلف. إذا ظهر "double melbus" فاحتفظ بصفة double/dبل، وإذا ظهر "capling" فاحتفظ بلفظ capling/coupling.
