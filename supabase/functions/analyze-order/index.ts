@@ -8,10 +8,10 @@ const corsHeaders = {
 };
 
 const MODELS = [
-  // Fast path: document/order extraction should use the low-latency model first.
-  { id: "gemini-3.5-flash-lite", timeoutMs: 7000, thinkingLevel: "minimal" },
-  // Quality fallback: use the stronger Flash model only when the fast path fails.
-  { id: "gemini-3.8-flash", timeoutMs: 11000, thinkingLevel: "low" },
+  // Keep the cascade inside Supabase Edge's request budget.
+  // 3.8 Flash is the current production Flash model; 3.5 Flash-Lite is the fast fallback.
+  { id: "gemini-3.8-flash", timeoutMs: 14000 },
+  { id: "gemini-3.5-flash-lite", timeoutMs: 8500 },
 ];
 
 const MAX_IMAGE_BASE64 = 12_000_000;
@@ -104,7 +104,6 @@ async function callGemini(
   apiKey: string,
   model: string,
   timeoutMs: number,
-  modelThinkingLevel: "minimal" | "low",
   mimeType: string,
   base64Data: string,
   prompt: string,
@@ -161,7 +160,7 @@ async function callGemini(
               },
               required: ["items", "notes"],
             },
-            thinkingConfig: { thinkingLevel: modelThinkingLevel },
+            thinkingConfig: { thinkingLevel: "low" },
             maxOutputTokens: 2048,
           },
         }),
@@ -345,7 +344,6 @@ ${textInput
           apiKey,
           model.id,
           model.timeoutMs,
-          model.thinkingLevel,
           mimeType,
           base64Data,
           modelPrompt,
