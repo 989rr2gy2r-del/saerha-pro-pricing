@@ -62,7 +62,8 @@ export function parseLocalOcrText(text: string): ParsedOrderItem[] {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.replace(/[|¦]+/g, " ").replace(/\s+/g, " ").trim())
-    .filter((line) => line.length >= 2);
+    .filter((line) => line.length >= 2)
+    .filter((line) => !/^(?:subtotal|sub\s*total|discount|total|الإجمالي|المجموع|الخصم|المجموع\s*الفرعي|subtotal\s*:|discount\s*:|total\s*:)/iu.test(line));
 
   return lines.map((line, index) => {
     let description = line;
