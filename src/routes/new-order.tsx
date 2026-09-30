@@ -2160,19 +2160,16 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           sourceUnitKnown &&
           !evidenceIssues.some((issue) => /لم يتم اعتمادها|لا تطابق|أكثر من زوج|تعارض/.test(issue));
 
-        const selectedProduct =
-          selectedMatch &&
-          selectedMatch.status === "HIGH_CONFIDENCE" &&
-          !skuResolution.conflict &&
-          (Boolean(exactSkuProduct) || sourceEvidenceSafe)
-            ? selectedMatch.product
-            : null;
+        // Keep the catalog product visible whenever the local matcher found a real
+        // Supabase product. Confidence/evidence still controls the review status,
+        // but NEEDS_REVIEW must not erase the matched catalog product.
+        const selectedProduct = selectedMatch?.product ?? null;
         const confidence = selectedMatch
           ? Math.min(1, Math.max(0, selectedMatch.score))
           : 0;
         const status: MatchStatus = selectedProduct && confidence >= 0.86
           ? "HIGH_CONFIDENCE"
-          : selectedMatch
+          : selectedProduct
             ? "NEEDS_REVIEW"
             : "UNMATCHED";
 
