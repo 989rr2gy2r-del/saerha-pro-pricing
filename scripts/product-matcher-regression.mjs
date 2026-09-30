@@ -17,7 +17,7 @@ const tempFile = path.join(new URL(".", import.meta.url).pathname, ".product-mat
 fs.writeFileSync(tempFile, transpiled, "utf8");
 try {
   const matcher = await import(pathToFileURL(tempFile).href + "?regression=1");
-  const { rankProductMatches, extractMatchConstraints, candidateMatchesConstraints, findLocalProductMatch, findProductBySku, resolveProductBySkuCandidates } = matcher;
+  const { rankProductMatches, extractMatchConstraints, candidateMatchesConstraints, findLocalProductMatch, findProductBySku, findProductByNormalizedName, resolveProductByNormalizedNameCandidates, resolveProductBySkuCandidates } = matcher;
 
 const products = [
   ["0761", "واير الخليج احمر مقاس 6مل", "WAIR GULF RED SAIZ 6 ML"],
@@ -31,6 +31,7 @@ const products = [
   ["07446", "واير الخليج 4كور 6مل", "WAIR GULF 4 COR 6 ML"],
   ["07251", "واير الخليج احمر مقاس 2.5مل", "WAIR GULF RED SAIZ 2.5 ML"],
   ["072512", "واير الخليج احمر مقاس 2.5مل متر", "WAIR GULF RED SAIZ 2.5 ML METER"],
+  ["22080", "طلقات ديكور", "DECOR SHOTS"],
 ].map(([sku, name_ar, name_en]) => ({
   id: sku,
   sku,
@@ -48,6 +49,19 @@ const products = [
   unit: sku === "07251" ? "لف" : "متر",
   description: null,
 }));
+
+assert.equal(findProductByNormalizedName("طلقات ديكور", products)?.sku, "22080", "exact normalized Arabic name must resolve the catalog product");
+assert.equal(
+  findProductByNormalizedName("16 0 طلقات ديكور 2 7 1750 ميد", products)?.sku,
+  "22080",
+  "exact catalog name embedded in noisy OCR must resolve without fuzzy guessing",
+);
+const nameResolution = resolveProductByNormalizedNameCandidates(
+  ["طقات ديكور", "طلقات ديكور"],
+  products,
+);
+assert.equal(nameResolution.product?.sku, "22080", "one exact normalized name candidate must resolve");
+assert.equal(nameResolution.conflict, false, "same normalized name candidate must not conflict");
 
 assert.equal(findProductBySku("0765", products)?.sku, "0765", "exact SKU resolver must return the catalog product");\nconst skuResolution = resolveProductBySkuCandidates(["", " 0765 ", "0765"], products);
 assert.equal(skuResolution.product?.sku, "0765", "resolver must use any valid SKU candidate");
