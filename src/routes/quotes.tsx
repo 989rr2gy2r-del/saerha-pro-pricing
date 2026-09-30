@@ -84,7 +84,7 @@ const getCustomerList = (customers?: QuoteCustomerValue) => {
 const getCustomerName = (customers?: QuoteCustomerValue) =>
   getCustomerList(customers)[0]?.name?.trim() || "عميل";
 
-function Quotes() {
+// CI verification for quote export flow.\nfunction Quotes() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [open, setOpen] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
