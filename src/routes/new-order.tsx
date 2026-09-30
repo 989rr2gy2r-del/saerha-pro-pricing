@@ -31,7 +31,7 @@ import { createCustomer, fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
 import { extractMatchConstraints, findLocalProductMatch, getMarketArabicTranslation, normalizeProductText, resolveProductByNormalizedNameCandidates, resolveProductBySkuCandidates } from "@/lib/matching/product-matcher";
-import { isOrderFooterNoise, normalizeQuantity, parseLocalOcrText, parseTextOrderFallback } from "@/lib/order/order-input";
+import { isOrderFooterNoise, normalizeQuantity, parseLocalOcrText, parseTextOrderFallback, stopAtOrderFooter } from "@/lib/order/order-input";
 import { extractOrderLineSignals, parseOrderSourceLines, reconcileOrderLineEvidence } from "@/lib/order/order-line-parser";
 
 type ProductRecord = {
@@ -1863,16 +1863,17 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
       const rawItems = Array.isArray(rawResult["items"])
         ? (rawResult["items"] as Record<string, unknown>[])
         : [];
-      const itemRows = rawItems.filter((item) => {
-        const text = String(
-          item["raw_text"] ??
-            item["description"] ??
-            item["normalized_description_ar"] ??
-            item["arabic_name"] ??
-            "",
-        ).trim();
-        return !isOrderFooterNoise(text);
-      });
+      const itemRows = stopAtOrderFooter(
+        rawItems,
+        (item) =>
+          String(
+            item["raw_text"] ??
+              item["description"] ??
+              item["normalized_description_ar"] ??
+              item["arabic_name"] ??
+              "",
+          ).trim(),
+      );
       const normalizedItems = itemRows.map((item, index: number) => ({
         id: `${Date.now()}-${index}`,
         description: String(item["description"] ?? item["raw_text"] ?? "").trim(),
@@ -1917,11 +1918,12 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
 
       const catalogSkus = new Set(matchingProducts.map((product) => normalizeForMatch(product.sku)));
       const sourceLines = parseOrderSourceLines(text, catalogSkus);
-      const sourceDataLines = sourceLines
-        .filter(
+      const sourceDataLines = stopAtOrderFooter(
+        sourceLines.filter(
           (row) => !/^(?:الصنف|الكمية|الطلبية|البيان|item|product|quantity)\b/i.test(row.rawLine),
-        )
-        .filter((row) => !isOrderFooterNoise(row.rawLine));
+        ),
+        (row) => row.rawLine,
+      );
 
       // Never fuzzy-align one extracted item to a nearby source line. That can
       // move a quantity/color from one repeated row to another. For text-like
