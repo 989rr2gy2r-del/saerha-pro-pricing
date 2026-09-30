@@ -111,6 +111,8 @@ async function callGemini(
   const startedAt = Date.now();
   let upstreamStatus: number | null = null;
   let normalizeMs: number | null = null;
+  let attemptErrorType: "network" | "http" | "timeout" | "parse" | "empty" | "none" = "none";
+  let attemptErrorMessage: string | null = null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -211,8 +213,8 @@ async function callGemini(
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown";
-    const errorType =
-      message.includes(`Gemini ${model} FETCH_NETWORK_ERROR:`) || error instanceof TypeError
+    attemptErrorType =
+      message.includes(`Gemini ${model} FETCH_NETWORK_ERROR:`)
         ? "network"
         : /HTTP \d{3}/i.test(message)
           ? "http"
@@ -225,18 +227,20 @@ async function callGemini(
               ? "parse"
               : /EMPTY_ITEMS/i.test(message)
                 ? "empty"
-                : null;
+                : "none";
+    attemptErrorMessage = attemptErrorType === "none" ? null : message.slice(0, 300);
+    throw error;
+  } finally {
+    if (attemptErrorType === "none") upstreamStatus = 200;
     console.warn(JSON.stringify({
       event: "gemini_attempt",
       model,
       durationMs: Date.now() - startedAt,
       upstreamStatus,
-      errorType,
-      errorMessage: errorType ? message.slice(0, 300) : null,
+      errorType: attemptErrorType,
+      errorMessage: attemptErrorMessage,
       normalizeMs,
     }));
-    throw error;
-  } finally {
     clearTimeout(timer);
   }
 }
