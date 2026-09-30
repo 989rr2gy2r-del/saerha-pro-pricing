@@ -17,7 +17,7 @@ const tempFile = path.join(new URL(".", import.meta.url).pathname, ".product-mat
 fs.writeFileSync(tempFile, transpiled, "utf8");
 try {
   const matcher = await import(pathToFileURL(tempFile).href + "?regression=1");
-  const { rankProductMatches, extractMatchConstraints, candidateMatchesConstraints, findLocalProductMatch } = matcher;
+  const { rankProductMatches, extractMatchConstraints, candidateMatchesConstraints, findLocalProductMatch, findProductBySku } = matcher;
 
 const products = [
   ["0761", "واير الخليج احمر مقاس 6مل", "WAIR GULF RED SAIZ 6 ML"],
@@ -48,6 +48,10 @@ const products = [
   unit: sku === "07251" ? "لف" : "متر",
   description: null,
 }));
+
+assert.equal(findProductBySku("0765", products)?.sku, "0765", "exact SKU resolver must return the catalog product");
+assert.equal(findProductBySku(" 0765 ", products)?.name_ar, "واير الخليج اخضر مقاس 6مل", "SKU resolver must tolerate surrounding whitespace");
+assert.equal(findProductBySku("999999", products), null, "unknown SKU must not invent a product");
 
 const aliases = [];
 
