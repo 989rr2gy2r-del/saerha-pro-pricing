@@ -384,13 +384,17 @@ export function extractMatchConstraints(value: string): MatchConstraints {
   };
 }
 
-export function candidateMatchesConstraints(text: string, constraints: MatchConstraints): boolean {
+export function candidateMatchesConstraints(
+  text: string,
+  constraints: MatchConstraints,
+  alreadyNormalized = false,
+): boolean {
   if (!constraints.productClass && !constraints.amps.length && !constraints.colors.length &&
       !constraints.fractions.length && !constraints.metricSizes.length && !constraints.inchSizes.length &&
       !constraints.pairs.length && !constraints.gangs.length && !constraints.poles.length &&
       !constraints.cores.length && !constraints.qualifiers.length) return true;
 
-  const normalized = normalizeProductText(text);
+  const normalized = alreadyNormalized ? String(text ?? "") : normalizeProductText(text);
   const hasClass = (kind: MatchConstraints["productClass"]) => {
     switch (kind) {
       case "rccb": return /\brccb\b|قاطع تسريب|قاطع تفاضلي|حماية تسرب|تسريب أرضي/.test(normalized);
@@ -942,10 +946,23 @@ export function findUniqueTechnicalProduct<T extends MatchableProductRecord>(
 
   if (!hasHardConstraints) return null;
 
-  const matches = products.filter((product) =>
+  // Restrict the technical scan to products sharing an identity token when
+  // possible. The previous implementation scanned and normalized the entire
+  // 4.5k-product catalog for every order row, which could freeze the browser.
+  const tokenIndex = getProductTokenIndex(products, new Map(), (product) => String((product as MatchableProductRecord).id));
+  const queryIdentity = identityTokens(text);
+  const candidateProductsById = new Map<string, T>();
+  for (const token of queryIdentity) {
+    for (const product of tokenIndex.byToken.get(token) ?? []) {
+      candidateProductsById.set(String((product as MatchableProductRecord).id), product as T);
+    }
+  }
+  const candidateProducts = candidateProductsById.size ? [...candidateProductsById.values()] : products;
+  const matches = candidateProducts.filter((product) =>
     candidateMatchesConstraints(
-      fieldValues(product).join(" "),
+      cachedNormalizedFields(product).join(" "),
       constraints,
+      true,
     ),
   );
 
@@ -975,7 +992,7 @@ export function findProductByNormalizedName<T extends MatchableProductRecord>(
       String(product.name_ar ?? ""),
       String((product as MatchableProductRecord & { short_name?: string | null }).short_name ?? ""),
     ]
-      .map((value) => normalizeProductText(value))
+      .map(normalizeProductText)
       .filter(Boolean);
     return names.some((name) => {
       if (name === target || target.includes(name) || name.includes(target)) return true;
