@@ -64,7 +64,7 @@ export function isOrderFooterNoise(line: string): boolean {
   return Boolean(value) && ORDER_FOOTER_MARKER.test(value);
 }
 
-function stopAtOrderFooter<T>(lines: T[], getText: (line: T) => string): T[] {
+export function stopAtOrderFooter<T>(lines: T[], getText: (line: T) => string): T[] {
   const footerIndex = lines.findIndex((line) => isOrderFooterNoise(getText(line)));
   return footerIndex >= 0 ? lines.slice(0, footerIndex) : lines;
 }
