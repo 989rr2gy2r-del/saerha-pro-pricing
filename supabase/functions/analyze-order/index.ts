@@ -97,7 +97,7 @@ async function sleep(ms: number) {
 }
 
 function isRetryableGeminiError(message: string) {
-  return /HTTP (408|429|500|502|503|504)|UNAVAILABLE|RESOURCE_EXHAUSTED|deadline|aborted|signal has been aborted/i.test(message);
+  return /HTTP (408|429|5\d{2})|UNAVAILABLE|RESOURCE_EXHAUSTED|deadline|aborted|signal has been aborted|INVALID_JSON|EMPTY_ITEMS/i.test(message);
 }
 
 async function callGemini(
@@ -111,61 +111,70 @@ async function callGemini(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          contents: [{
-            role: "user",
-            parts: [
-              { text: prompt },
-              ...(base64Data
-                ? [{ inline_data: { mime_type: mimeType, data: base64Data } }]
-                : []),
-            ],
-          }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseJsonSchema: {
-              type: "object",
-              properties: {
-                items: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      source_line_index: { type: "integer", minimum: 0 },
-                      description: { type: "string" },
-                      category_ar: { type: "string" },
-                      normalized_description_ar: { type: "string" },
-                      color: { type: "string" },
-                      specification: { type: "string" },
-                      brand: { type: "string" },
-                      quantity: { type: ["number", "null"] },
-                      unit: { type: "string" },
-                      raw_text: { type: "string" },
-                      confidence: { type: "number", minimum: 0, maximum: 1 },
-                      notes: { type: "string" },
-                    },
-                    required: ["source_line_index", "description", "category_ar", "normalized_description_ar", "color", "specification", "brand", "quantity", "unit", "raw_text", "confidence", "notes"],
-                  },
-                },
-                notes: { type: "string" },
-              },
-              required: ["items", "notes"],
-            },
-            thinkingConfig: { thinkingLevel: "low" },
-            maxOutputTokens: 2048,
+    let response: Response;
+    try {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
           },
-        }),
-      },
-    );
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [{
+              role: "user",
+              parts: [
+                { text: prompt },
+                ...(base64Data
+                  ? [{ inline_data: { mime_type: mimeType, data: base64Data } }]
+                  : []),
+              ],
+            }],
+            generationConfig: {
+              responseMimeType: "application/json",
+              responseJsonSchema: {
+                type: "object",
+                properties: {
+                  items: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        source_line_index: { type: "integer", minimum: 0 },
+                        description: { type: "string" },
+                        category_ar: { type: "string" },
+                        normalized_description_ar: { type: "string" },
+                        color: { type: "string" },
+                        specification: { type: "string" },
+                        brand: { type: "string" },
+                        quantity: { type: ["number", "null"] },
+                        unit: { type: "string" },
+                        raw_text: { type: "string" },
+                        confidence: { type: "number", minimum: 0, maximum: 1 },
+                        notes: { type: "string" },
+                      },
+                      required: ["source_line_index", "description", "category_ar", "normalized_description_ar", "color", "specification", "brand", "quantity", "unit", "raw_text", "confidence", "notes"],
+                    },
+                  },
+                  notes: { type: "string" },
+                },
+                required: ["items", "notes"],
+              },
+              thinkingConfig: { thinkingLevel: "low" },
+              maxOutputTokens: 2048,
+            },
+          }),
+        },
+      );
+    } catch (error) {
+      if (error instanceof TypeError) {
+        const message = error instanceof Error ? error.message : "unknown";
+        throw new Error(`Gemini ${model} FETCH_NETWORK_ERROR: ${message}`);
+      }
+      throw error;
+    }
 
     const responseText = await response.text();
     if (!response.ok) {
@@ -173,7 +182,30 @@ async function callGemini(
       throw new Error(`Gemini ${model} HTTP ${response.status}: ${detail}`);
     }
 
-    return normalize(extractText(JSON.parse(responseText)));
+    let payload: unknown;
+    try {
+      payload = JSON.parse(responseText);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown";
+      throw new Error(`Gemini ${model} INVALID_JSON: ${message}`);
+    }
+
+    let result: ReturnType<typeof normalize>;
+    try {
+      result = normalize(extractText(payload));
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        const message = error instanceof Error ? error.message : "unknown";
+        throw new Error(`Gemini ${model} INVALID_JSON: ${message}`);
+      }
+      throw error;
+    }
+
+    if (result.items.length === 0) {
+      throw new Error(`Gemini ${model} EMPTY_ITEMS: normalized items list is empty`);
+    }
+
+    return result;
   } finally {
     clearTimeout(timer);
   }
@@ -361,14 +393,15 @@ ${textInput
         });
         console.warn("Gemini " + model.id + " failed", message);
 
-        const isNetworkError = error instanceof TypeError;
+        const isNetworkError = message.includes(`Gemini ${model.id} FETCH_NETWORK_ERROR:`);
         const isTimeout =
           (typeof DOMException !== "undefined" &&
             error instanceof DOMException &&
             (error.name === "AbortError" || error.name === "TimeoutError")) ||
           /HTTP 408|ETIMEDOUT|ECONNRESET|timed out|timeout/i.test(message);
+        const isRetryableError = isRetryableGeminiError(message);
 
-        if (!isNetworkError && !isTimeout) break;
+        if (!isNetworkError && !isTimeout && !isRetryableError) break;
       }
     }
     return json({
