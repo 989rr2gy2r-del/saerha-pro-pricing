@@ -31,7 +31,7 @@ import { createCustomer, fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
 import { extractMatchConstraints, findLocalProductMatch, getMarketArabicTranslation, normalizeProductText, resolveProductByNormalizedNameCandidates, resolveProductBySkuCandidates } from "@/lib/matching/product-matcher";
-import { isOrderFooterNoise, normalizeQuantity, parseLocalOcrText, parseTextOrderFallback, stopAtOrderFooter } from "@/lib/order/order-input";
+import { normalizeQuantity, parseLocalOcrText, parseTextOrderFallback, stopAtOrderFooter } from "@/lib/order/order-input";
 import { extractOrderLineSignals, parseOrderSourceLines, reconcileOrderLineEvidence } from "@/lib/order/order-line-parser";
 
 type ProductRecord = {
