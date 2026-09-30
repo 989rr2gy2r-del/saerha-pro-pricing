@@ -59,6 +59,9 @@ type ReviewItem = {
   description: string;
   category_ar?: string;
   normalized_description_ar: string;
+  color?: string;
+  specification?: string;
+  brand?: string;
   quantity: number;
   unit: string;
   raw_text: string;
@@ -1881,6 +1884,9 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         normalized_description_ar: String(
           item["normalized_description_ar"] ?? item["arabic_name"] ?? item["description"] ?? item["raw_text"] ?? "",
         ).trim(),
+        color: String(item["color"] ?? "").trim(),
+        specification: String(item["specification"] ?? item["specs"] ?? "").trim(),
+        brand: String(item["brand"] ?? "").trim(),
         raw_text: String(item["raw_text"] ?? item["description"] ?? "").trim(),
         quantity: normalizeQuantity(Number(item["quantity"] ?? 0)),
         unit: String(item["unit"] ?? "").trim(),
@@ -2067,8 +2073,23 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         const productQuery = effectiveRawText
           ? stripOrderPrefix(effectiveRawText, catalogSkus)
           : stripOrderPrefix(item.raw_text || item.description, catalogSkus);
+        const structuredMatchEvidence = [
+          item.description,
+          item.normalized_description_ar,
+          item.color,
+          item.specification,
+          item.brand,
+          item.category_ar,
+        ]
+          .map((value) => String(value ?? "").trim())
+          .filter(Boolean)
+          .join(" ");
         const commercialUnit = sourceSignals.unit;
-        const searchQuery = [productQuery, commercialUnit].filter(Boolean).join(" ").trim();
+        const searchQuery = [...new Set(
+          [productQuery, structuredMatchEvidence, commercialUnit]
+            .map((value) => String(value ?? "").trim())
+            .filter(Boolean),
+        )].join(" ").trim();
         const marketTranslationAr = getMarketArabicTranslation(searchQuery);
 
         // Exact SKU match always resolves to the real catalog row. This bypasses
@@ -2090,6 +2111,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             item.description,
             effectiveRawText,
             item.raw_text,
+            [item.description, item.color, item.specification, item.brand].filter(Boolean).join(" "),
           ],
           matchingProducts,
         );
