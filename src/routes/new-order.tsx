@@ -1967,9 +1967,9 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         const rawItemSignals = extractOrderLineSignals(item.raw_text || "", catalogSkus);
         const currentSourceSignals = extractOrderLineSignals(effectiveRawText, catalogSkus);
         const skuHint =
-          currentSourceSignals.sku ||
           rawItemSignals.sku ||
-          String(item.sourceSku ?? "").trim();
+          String(item.sourceSku ?? "").trim() ||
+          currentSourceSignals.sku;
         if (skuHint) {
           const skuSource = sourceDataLines.find(
             (row) =>
