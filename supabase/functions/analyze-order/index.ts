@@ -339,23 +339,17 @@ ${textInput
           : 0;
         const lineCoverageOk = missingLines <= MAX_EXPECTED_LINE_GAP;
 
-        if (result.items.length > 0 && averageConfidence >= 0.78 && lineCoverageOk) {
-          return json({ success: true, result });
-        }
+        const warning = !lineCoverageOk
+          ? "تمت القراءة لكن بعض السطور لم تُستخرج؛ راجع الطلبية قبل الاعتماد."
+          : averageConfidence < 0.78
+            ? "تمت القراءة لكن الثقة منخفضة؛ راجع السطور قبل الاعتماد."
+            : undefined;
 
-        if (result.items.length > 0 && index < MODELS.length - 1) {
-          continue;
-        }
-
-        if (result.items.length > 0) {
-          return json({
-            success: true,
-            result,
-            warning: !lineCoverageOk
-              ? "تمت القراءة لكن بعض السطور لم تُستخرج؛ راجع الطلبية قبل الاعتماد."
-              : "تمت القراءة لكن الثقة منخفضة؛ راجع السطور قبل الاعتماد.",
-          });
-        }
+        return json({
+          success: true,
+          result,
+          ...(warning ? { warning } : {}),
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : "unknown";
         const statusMatch = message.match(/HTTP (\d{3})/);
@@ -366,6 +360,15 @@ ${textInput
           upstreamStatus,
         });
         console.warn("Gemini " + model.id + " failed", message);
+
+        const isNetworkError = error instanceof TypeError;
+        const isTimeout =
+          (typeof DOMException !== "undefined" &&
+            error instanceof DOMException &&
+            (error.name === "AbortError" || error.name === "TimeoutError")) ||
+          /HTTP 408|ETIMEDOUT|ECONNRESET|timed out|timeout/i.test(message);
+
+        if (!isNetworkError && !isTimeout) break;
       }
     }
     return json({
