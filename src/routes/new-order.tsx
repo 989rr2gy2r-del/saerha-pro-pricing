@@ -30,8 +30,8 @@ import type { Database } from "@/integrations/supabase/types";
 import { createCustomer, fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
-import { extractMatchConstraints, findLocalProductMatch, getMarketArabicTranslation, normalizeProductText, resolveProductBySkuCandidates } from "@/lib/matching/product-matcher";
-import { normalizeQuantity, parseLocalOcrText, parseTextOrderFallback } from "@/lib/order/order-input";
+import { extractMatchConstraints, findLocalProductMatch, getMarketArabicTranslation, normalizeProductText, resolveProductByNormalizedNameCandidates, resolveProductBySkuCandidates } from "@/lib/matching/product-matcher";
+import { isOrderFooterNoise, normalizeQuantity, parseLocalOcrText, parseTextOrderFallback } from "@/lib/order/order-input";
 import { extractOrderLineSignals, parseOrderSourceLines, reconcileOrderLineEvidence } from "@/lib/order/order-line-parser";
 
 type ProductRecord = {
@@ -1863,7 +1863,17 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
       const rawItems = Array.isArray(rawResult["items"])
         ? (rawResult["items"] as Record<string, unknown>[])
         : [];
-      const normalizedItems = rawItems.map((item, index: number) => ({
+      const itemRows = rawItems.filter((item) => {
+        const text = String(
+          item["raw_text"] ??
+            item["description"] ??
+            item["normalized_description_ar"] ??
+            item["arabic_name"] ??
+            "",
+        ).trim();
+        return !isOrderFooterNoise(text);
+      });
+      const normalizedItems = itemRows.map((item, index: number) => ({
         id: `${Date.now()}-${index}`,
         description: String(item["description"] ?? item["raw_text"] ?? "").trim(),
         category_ar: String(item["category_ar"] ?? "").trim(),
@@ -1907,9 +1917,11 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
 
       const catalogSkus = new Set(matchingProducts.map((product) => normalizeForMatch(product.sku)));
       const sourceLines = parseOrderSourceLines(text, catalogSkus);
-      const sourceDataLines = sourceLines.filter(
-        (row) => !/^(?:الصنف|الكمية|الطلبية|البيان|item|product|quantity)\b/i.test(row.rawLine),
-      );
+      const sourceDataLines = sourceLines
+        .filter(
+          (row) => !/^(?:الصنف|الكمية|الطلبية|البيان|item|product|quantity)\b/i.test(row.rawLine),
+        )
+        .filter((row) => !isOrderFooterNoise(row.rawLine));
 
       // Never fuzzy-align one extracted item to a nearby source line. That can
       // move a quantity/color from one repeated row to another. For text-like
@@ -2070,6 +2082,16 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           matchingProducts,
         );
         const exactSkuProduct = skuResolution.product;
+        const nameResolution = resolveProductByNormalizedNameCandidates(
+          [
+            item.normalized_description_ar,
+            item.description,
+            effectiveRawText,
+            item.raw_text,
+          ],
+          matchingProducts,
+        );
+        const exactNameProduct = nameResolution.product;
         const identitySku =
           skuResolution.sku ||
           String(item.sourceSku ?? rawItemSignals.sku ?? sourceSignals.sku ?? "").trim();
@@ -2094,7 +2116,21 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                 reason: "كود الصنف مطابق مباشرة",
               }],
             }
-          : searchQuery
+          : exactNameProduct && !nameResolution.conflict
+            ? {
+                product: exactNameProduct,
+                score: 1,
+                status: "HIGH_CONFIDENCE" as const,
+                reason: "مطابقة مباشرة للاسم بعد التطبيع في قاعدة البيانات",
+                candidates: [{
+                  id: exactNameProduct.id,
+                  sku: exactNameProduct.sku,
+                  name_ar: exactNameProduct.name_ar,
+                  score: 1,
+                  reason: "الاسم العربي مطابق بعد التطبيع",
+                }],
+              }
+            : searchQuery
             ? findLocalProductMatch(searchQuery, matchingProducts, marketTranslationAr, matchingAliases)
             : null;
 
@@ -2139,6 +2175,8 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             resolved_sku: identitySku,
             sku_candidates: skuResolution.candidates,
             sku_conflict: skuResolution.conflict,
+            normalized_name_match_sku: exactNameProduct?.sku ?? null,
+            normalized_name_conflict: nameResolution.conflict,
             selected_product_id: selectedProduct?.id ?? null,
             selected_product_sku: selectedProduct?.sku ?? null,
             selected_product_name: selectedProduct?.name_ar ?? null,
@@ -2153,6 +2191,8 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
 
         const matchReason = exactSkuProduct && selectedProduct
           ? "مطابقة مباشرة لكود الصنف الموجود في قاعدة البيانات"
+          : exactNameProduct && selectedProduct
+            ? "مطابقة مباشرة للاسم بعد التطبيع في قاعدة البيانات"
           : !selectedMatch
             ? !effectiveRawText
               ? "لا يوجد سطر مصدر قابل للتدقيق؛ لم يتم اختيار منتج أو كمية تلقائيًا."
