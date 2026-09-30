@@ -875,6 +875,37 @@ function stripCommercialOrderTail(value: string): string {
     .trim();
 }
 
+export function findUniqueTechnicalProduct<T extends MatchableProductRecord>(
+  text: string,
+  products: T[],
+): T | null {
+  const constraints = extractMatchConstraints(text);
+  const hasHardConstraints =
+    Boolean(constraints.productClass) ||
+    constraints.amps.length > 0 ||
+    constraints.colors.length > 0 ||
+    constraints.fractions.length > 0 ||
+    constraints.metricSizes.length > 0 ||
+    constraints.inchSizes.length > 0 ||
+    constraints.pairs.length > 0 ||
+    constraints.gangs.length > 0 ||
+    constraints.poles.length > 0 ||
+    constraints.cores.length > 0 ||
+    constraints.qualifiers.length > 0;
+
+  if (!hasHardConstraints) return null;
+
+  const matches = products.filter((product) =>
+    candidateMatchesConstraints(
+      fieldValues(product).join(" "),
+      constraints,
+    ),
+  );
+
+  const uniqueProducts = [...new Map(matches.map((product) => [product.id, product])).values()];
+  return uniqueProducts.length === 1 ? uniqueProducts[0] : null;
+}
+
 export function findProductByNormalizedName<T extends MatchableProductRecord>(
   text: string,
   products: T[],
@@ -890,7 +921,12 @@ export function findProductByNormalizedName<T extends MatchableProductRecord>(
       .map((value) => normalizeProductText(value))
       .filter(Boolean);
 
-    return names.some((name) => name === target || target.includes(name));
+    return names.some((name) => {
+      if (name === target || target.includes(name) || name.includes(target)) return true;
+      const nameTokens = uniqueTokens(name).filter((token) => !NON_IDENTITY_TOKENS.has(token));
+      const targetTokens = new Set(uniqueTokens(target).filter((token) => !NON_IDENTITY_TOKENS.has(token)));
+      return nameTokens.length >= 2 && nameTokens.every((token) => targetTokens.has(token));
+    });
   });
 
   const uniqueProducts = [...new Map(matches.map((product) => [product.id, product])).values()];
@@ -997,6 +1033,25 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
         values.map((alias) => ({ product_id, alias })),
       );
   if (!queries.length) return null;
+
+  for (const query of queries) {
+    const technicalProduct = findUniqueTechnicalProduct(query, products);
+    if (technicalProduct) {
+      return {
+        product: technicalProduct,
+        score: 1,
+        status: "HIGH_CONFIDENCE" as const,
+        reason: "مطابقة فنية وحيدة بعد تطبيق القيود الصريحة في الطلب",
+        candidates: [{
+          id: technicalProduct.id,
+          sku: technicalProduct.sku,
+          name_ar: technicalProduct.name_ar,
+          score: 1,
+          reason: "منتج وحيد يطابق جميع المواصفات الصريحة",
+        }],
+      };
+    }
+  }
 
   const ranked = queries.flatMap((query) =>
     rankProductMatches(query, products, aliasRows, (product) => product.id, 8),
