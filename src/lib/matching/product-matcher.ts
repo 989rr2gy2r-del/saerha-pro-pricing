@@ -879,12 +879,60 @@ export function findProductBySku<T extends MatchableProductRecord>(
   sku: string,
   products: T[],
 ): T | null {
-  const target = normalizeProductText(String(sku ?? "")).replace(/\\s+/g, "");
+  const target = normalizeProductText(String(sku ?? "")).replace(/\s+/g, "");
   if (!target) return null;
   return products.find((product) => {
-    const candidate = normalizeProductText(String(product.sku ?? "")).replace(/\\s+/g, "");
+    const candidate = normalizeProductText(String(product.sku ?? "")).replace(/\s+/g, "");
     return candidate === target;
   }) ?? null;
+}
+
+/**
+ * Resolve product identity from every trustworthy SKU representation available
+ * on one order row. A single resolved product is safe; conflicting resolved
+ * SKUs are intentionally left unresolved instead of guessing.
+ */
+export function resolveProductBySkuCandidates<T extends MatchableProductRecord>(
+  skus: Array<string | null | undefined>,
+  products: T[],
+): {
+  product: T | null;
+  sku: string;
+  candidates: string[];
+  conflict: boolean;
+} {
+  const normalizedInputs = [...new Set(
+    skus
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+      .map((value) => normalizeProductText(value).replace(/\s+/g, "")),
+  )];
+
+  const resolved = normalizedInputs
+    .map((normalizedSku) => {
+      const product = findProductBySku(normalizedSku, products);
+      return product ? { normalizedSku, product } : null;
+    })
+    .filter((value): value is { normalizedSku: string; product: T } => Boolean(value));
+
+  const uniqueProducts = [...new Map(resolved.map((row) => [row.product.id, row.product])).values()];
+  const uniqueSkus = [...new Set(resolved.map((row) => row.product.sku).filter(Boolean))];
+
+  if (uniqueProducts.length !== 1) {
+    return {
+      product: null,
+      sku: "",
+      candidates: uniqueSkus,
+      conflict: uniqueProducts.length > 1,
+    };
+  }
+
+  return {
+    product: uniqueProducts[0],
+    sku: String(uniqueProducts[0].sku ?? ""),
+    candidates: uniqueSkus,
+    conflict: false,
+  };
 }
 
 export function findLocalProductMatch<T extends MatchableProductRecord>(
