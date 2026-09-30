@@ -2115,6 +2115,34 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             ? "NEEDS_REVIEW"
             : "UNMATCHED";
 
+        // Opt-in diagnostic logging for root-cause analysis. Enable with
+        // localStorage.setItem("saerha_debug_matching", "1").
+        if (
+          import.meta.env.DEV ||
+          (typeof window !== "undefined" && window.localStorage.getItem("saerha_debug_matching") === "1")
+        ) {
+          console.debug("[سعّرها][MATCH]", {
+            raw_line: effectiveRawText,
+            source_kind: effectiveSourceKind,
+            source_index: sourceIndex,
+            source_sku: item.sourceSku ?? "",
+            parsed_sku: sourceSignals.sku,
+            raw_item_sku: rawItemSignals.sku,
+            resolved_sku: identitySku,
+            sku_candidates: skuResolution.candidates,
+            sku_conflict: skuResolution.conflict,
+            selected_product_id: selectedProduct?.id ?? null,
+            selected_product_sku: selectedProduct?.sku ?? null,
+            selected_product_name: selectedProduct?.name_ar ?? null,
+            search_query: searchQuery,
+            match_score: selectedMatch?.score ?? null,
+            match_status: status,
+            quantity: sourceSignals.quantity,
+            unit: sourceSignals.unit,
+            issues: evidenceIssues,
+          });
+        }
+
         const matchReason = exactSkuProduct && selectedProduct
           ? "مطابقة مباشرة لكود الصنف الموجود في قاعدة البيانات"
           : !selectedMatch
