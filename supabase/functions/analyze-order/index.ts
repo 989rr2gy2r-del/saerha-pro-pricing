@@ -8,10 +8,9 @@ const corsHeaders = {
 };
 
 const MODELS = [
-  // Keep the cascade inside Supabase Edge's request budget.
-  // 3.8 Flash is the current production Flash model; 3.5 Flash-Lite is the fast fallback.
-  { id: "gemini-3.8-flash", timeoutMs: 14000 },
-  { id: "gemini-3.5-flash-lite", timeoutMs: 8500 },
+  // Fast path: use Flash-Lite first for quicker order extraction, with the full Flash model as fallback.
+  { id: "gemini-3.5-flash-lite", timeoutMs: 7000, thinkingLevel: "minimal" },
+  { id: "gemini-3.8-flash", timeoutMs: 11000, thinkingLevel: "low" },
 ];
 
 const MAX_IMAGE_BASE64 = 12_000_000;
@@ -165,7 +164,7 @@ async function callGemini(
               },
               required: ["items", "notes"],
             },
-            thinkingConfig: { thinkingLevel: "low" },
+            thinkingConfig: { thinkingLevel: model === "gemini-3.5-flash-lite" ? "minimal" : "low" },
             maxOutputTokens: 2048,
           },
         }),
