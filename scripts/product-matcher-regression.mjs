@@ -63,7 +63,8 @@ const nameResolution = resolveProductByNormalizedNameCandidates(
 assert.equal(nameResolution.product?.sku, "22080", "one exact normalized name candidate must resolve");
 assert.equal(nameResolution.conflict, false, "same normalized name candidate must not conflict");
 
-assert.equal(findProductBySku("0765", products)?.sku, "0765", "exact SKU resolver must return the catalog product");\nconst skuResolution = resolveProductBySkuCandidates(["", " 0765 ", "0765"], products);
+assert.equal(findProductBySku("0765", products)?.sku, "0765", "exact SKU resolver must return the catalog product");
+const skuResolution = resolveProductBySkuCandidates(["", " 0765 ", "0765"], products);
 assert.equal(skuResolution.product?.sku, "0765", "resolver must use any valid SKU candidate");
 assert.equal(skuResolution.conflict, false, "same SKU candidates must not conflict");
 assert.equal(resolveProductBySkuCandidates(["0765", "999999"], products).product?.sku, "0765", "unknown secondary SKU must not erase a valid catalog SKU");
