@@ -347,8 +347,7 @@ export function extractMatchConstraints(value: string): MatchConstraints {
 
   const qualifiers: string[] = [];
   const qualifierPatterns: Array<[RegExp, string]> = [
-    [/\balfa\b|الفا/gi, "الفا"],    [/\badsany\b|\badsani\b|عدساني/gi, "عدساني"],    [/\bsaudi\b|سعودي/gi, "سعودي"],
-    [/\bgulf\b|الخليج/gi, "الخليج"],
+    [/\balfa\b|الفا/gi, "الفا"],    [/\badsany\b|\badsani\b|عدساني/gi, "عدساني"],    [/\bsaudi\b|سعودي/gi, "سعودي"],    [/\bgulf\b|الخليج/gi, "الخليج"],
     [/\bskimo\b|سكيمو/gi, "سكيمو"],
     [/\bdagco\b|داجكو/gi, "داجكو"],
     [/\bhyundai\b|هيواندي/gi, "هيواندي"],
@@ -697,8 +696,7 @@ export function rankProductMatches<T>(
   const tokenIndex = getProductTokenIndex(products, aliasesByProduct, getId);
   const candidateProductsById = new Map<string, T>();
   for (const variant of preparedVariants) {    const tokens = variant.identity.length ? variant.identity : variant.tokens;
-    for (const token of tokens) {
-      for (const product of tokenIndex.byToken.get(token) ?? []) candidateProductsById.set(getId(product), product);
+    for (const token of tokens) {      for (const product of tokenIndex.byToken.get(token) ?? []) candidateProductsById.set(getId(product), product);
     }
   }
   const candidateProducts = candidateProductsById.size ? [...candidateProductsById.values()] : products;
@@ -1048,7 +1046,6 @@ export function resolveProductBySkuCandidates<T extends MatchableProductRecord>(
       return product ? { normalizedSku, product } : null;
     })
     .filter((value): value is { normalizedSku: string; product: T } => Boolean(value));
-
   const uniqueProducts = [...new Map(resolved.map((row) => [row.product.id, row.product])).values()];
   const uniqueSkus = [...new Set(resolved.map((row) => row.product.sku).filter(Boolean))];
 
@@ -1190,9 +1187,10 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
   }));
 
   return {
-    // Keep the best real catalog product attached even when it still needs review.
-    // Status controls auto-acceptance; hiding the product made strong candidates disappear.
-    product: best.product,
+    // Keep auto-acceptance semantics unchanged. The review candidate is exposed
+    // separately so the UI can display the real catalog product without auto-accepting it.
+    product: autoAccept ? best.product : null,
+    reviewProduct: best.product,
     score: best.score,
     status: autoAccept ? ("HIGH_CONFIDENCE" as const) : ("NEEDS_REVIEW" as const),
     reason: autoAccept
