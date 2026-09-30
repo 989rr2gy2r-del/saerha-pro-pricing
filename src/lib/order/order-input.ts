@@ -57,13 +57,25 @@ export function normalizeOrderUnit(value: string): string {
   return aliases[key] ?? raw;
 }
 
+const ORDER_FOOTER_MARKER = /(?:^|[\\s\\d'":;,.|_-])(?:subtotal|sub\\s*total|discount|total|vat|الإجمالي|الاجمالي|المجموع|الخصم|الصافي|الضريبة|المجموع\\s*الفرعي)(?=\\b|\\s|[:：]|$)/iu;
+
+export function isOrderFooterNoise(line: string): boolean {
+  const value = String(line ?? "").replace(/[|¦]+/g, " ").replace(/\\s+/g, " ").trim();
+  return Boolean(value) && ORDER_FOOTER_MARKER.test(value);
+}
+
+function stopAtOrderFooter<T>(lines: T[], getText: (line: T) => string): T[] {
+  const footerIndex = lines.findIndex((line) => isOrderFooterNoise(getText(line)));
+  return footerIndex >= 0 ? lines.slice(0, footerIndex) : lines;
+}
+
 export function parseLocalOcrText(text: string): ParsedOrderItem[] {
   const unitPattern = LOCAL_OCR_UNITS;
-  const lines = text
+  const preparedLines = text
     .split(/\r?\n/)
     .map((line) => line.replace(/[|¦]+/g, " ").replace(/\s+/g, " ").trim())
-    .filter((line) => line.length >= 2)
-    .filter((line) => !/^(?:subtotal|sub\s*total|discount|total|الإجمالي|المجموع|الخصم|المجموع\s*الفرعي|subtotal\s*:|discount\s*:|total\s*:)/iu.test(line));
+    .filter((line) => line.length >= 2);
+  const lines = stopAtOrderFooter(preparedLines, (line) => line);
 
   return lines.map((line, index) => {
     let description = line;
@@ -111,10 +123,11 @@ export function parseLocalOcrText(text: string): ParsedOrderItem[] {
 
 export function parseTextOrderFallback(text: string): { items: ParsedOrderItem[]; notes: string } {
   const unitPattern = ORDER_UNITS;
-  const lines = text
+  const preparedLines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
+  const lines = stopAtOrderFooter(preparedLines, (line) => line);
 
   const items = lines.flatMap((line, index) => {
     const cleaned = line
