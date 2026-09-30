@@ -106,6 +106,7 @@ async function callGemini(
   mimeType: string,
   base64Data: string,
   prompt: string,
+  externalSignal?: AbortSignal,
 ) {
   const startedAt = Date.now();
   let upstreamStatus: number | null = null;
@@ -114,6 +115,8 @@ async function callGemini(
   let attemptErrorMessage: string | null = null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const abortExternal = () => controller.abort();
+  externalSignal?.addEventListener("abort", abortExternal, { once: true });
   try {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
@@ -241,6 +244,7 @@ async function callGemini(
       normalizeMs,
     }));
     clearTimeout(timer);
+    externalSignal?.removeEventListener("abort", abortExternal);
   }
 }
 Deno.serve(async (req) => {
@@ -368,74 +372,74 @@ ${textInput
 
     const attempts: Array<{ model: string; error: string; upstreamStatus: number | null }> = [];
     let lastResult: ReturnType<typeof normalize> | null = null;
+    const hedgeController = new AbortController();
 
-    for (let index = 0; index < MODELS.length; index += 1) {
-      const model = MODELS[index];
+    // Run the two independent Gemini paths concurrently. Previously the second
+    // model waited for the first to time out/fail, adding 7-18s before fallback.
+    // The first successful model now wins; the slower loser is aborted.
+    const modelCalls = MODELS.map((model, index) => {
       const modelPrompt =
         index === 0
           ? prompt
-          : prompt + "\n\nهذه محاولة احتياطية بعد تعذر المحرك الأول. لا تخترع أي معلومة؛ ركز على قراءة كل الصفوف والكمية والوحدة بدقة.";
+          : prompt + "\\n\\nهذه محاولة احتياطية موازية. لا تخترع أي معلومة؛ ركز على قراءة كل الصفوف والكمية والوحدة بدقة.";
+      return callGemini(
+        apiKey,
+        model.id,
+        model.timeoutMs,
+        mimeType,
+        base64Data,
+        modelPrompt,
+        hedgeController.signal,
+      ).then((result) => ({ result, index, model }));
+    });
 
-      try {
-        const result = await callGemini(
-          apiKey,
-          model.id,
-          model.timeoutMs,
-          mimeType,
-          base64Data,
-          modelPrompt,
-        );
-        lastResult = result;
+    try {
+      const winner = await Promise.any(modelCalls);
+      lastResult = winner.result;
+      hedgeController.abort();
 
-        const confidences = result.items.map((item) => item.confidence).filter((value) => value > 0);
-        const averageConfidence = confidences.length
-          ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length
-          : 0;
+      const confidences = winner.result.items.map((item) => item.confidence).filter((value) => value > 0);
+      const averageConfidence = confidences.length
+        ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length
+        : 0;
 
-        const expectedLines = textInput
-          ? textInput
-              .split(/\r?\n/)
-              .map((line) => line.trim())
-              .filter((line) => line.length >= 3)
-              .filter((line) => !/^(?:الصنف|الكمية|الطلبية|البيان|item|product|quantity)$/i.test(line))
-              .length
-          : 0;
-        const missingLines = expectedLines > 0
-          ? expectedLines - result.items.length
-          : 0;
-        const lineCoverageOk = missingLines <= MAX_EXPECTED_LINE_GAP;
+      const expectedLines = textInput
+        ? textInput
+            .split(/\\r?\\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.length >= 3)
+            .filter((line) => !/^(?:الصنف|الكمية|الطلبية|البيان|item|product|quantity)$/i.test(line))
+            .length
+        : 0;
+      const missingLines = expectedLines > 0
+        ? expectedLines - winner.result.items.length
+        : 0;
+      const lineCoverageOk = missingLines <= MAX_EXPECTED_LINE_GAP;
 
-        const warning = !lineCoverageOk
-          ? "تمت القراءة لكن بعض السطور لم تُستخرج؛ راجع الطلبية قبل الاعتماد."
-          : averageConfidence < 0.78
-            ? "تمت القراءة لكن الثقة منخفضة؛ راجع السطور قبل الاعتماد."
-            : undefined;
+      const warning = !lineCoverageOk
+        ? "تمت القراءة لكن بعض السطور لم تُستخرج؛ راجع الطلبية قبل الاعتماد."
+        : averageConfidence < 0.78
+          ? "تمت القراءة لكن الثقة منخفضة؛ راجع السطور قبل الاعتماد."
+          : undefined;
 
-        return json({
-          success: true,
-          result,
-          ...(warning ? { warning } : {}),
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "unknown";
-        const statusMatch = message.match(/HTTP (\d{3})/);
-        const upstreamStatus = statusMatch ? Number(statusMatch[1]) : null;
+      return json({
+        success: true,
+        result: winner.result,
+        ...(warning ? { warning } : {}),
+      });
+    } catch (error) {
+      hedgeController.abort();
+      const errors = error instanceof AggregateError ? error.errors : [error];
+      for (let index = 0; index < errors.length; index += 1) {
+        const model = MODELS[index] ?? MODELS[0];
+        const modelError = errors[index];
+        const message = modelError instanceof Error ? modelError.message : String(modelError ?? "unknown");
+        const statusMatch = message.match(/HTTP (\\d{3})/);
         attempts.push({
           model: model.id,
           error: message.slice(0, 800),
-          upstreamStatus,
+          upstreamStatus: statusMatch ? Number(statusMatch[1]) : null,
         });
-        console.warn("Gemini " + model.id + " failed", message);
-
-        const isNetworkError = message.includes(`Gemini ${model.id} FETCH_NETWORK_ERROR:`);
-        const isTimeout =
-          (typeof DOMException !== "undefined" &&
-            error instanceof DOMException &&
-            (error.name === "AbortError" || error.name === "TimeoutError")) ||
-          /HTTP 408|ETIMEDOUT|ECONNRESET|timed out|timeout/i.test(message);
-        const isRetryableError = isRetryableGeminiError(message);
-
-        if (!isNetworkError && !isTimeout && !isRetryableError) break;
       }
     }
     return json({
