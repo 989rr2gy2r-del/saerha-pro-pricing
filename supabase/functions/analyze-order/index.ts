@@ -57,6 +57,14 @@ function normalize(value: unknown) {
             : typeof row.arabic_name === "string"
               ? row.arabic_name.trim()
               : "",
+        color: typeof row.color === "string" ? row.color.trim() : "",
+        specification:
+          typeof row.specification === "string"
+            ? row.specification.trim()
+            : typeof row.specs === "string"
+              ? row.specs.trim()
+              : "",
+        brand: typeof row.brand === "string" ? row.brand.trim() : "",
         quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : null,
         unit: typeof row.unit === "string" ? row.unit.trim() : "",
         raw_text: typeof row.raw_text === "string" ? row.raw_text.trim() : "",
@@ -136,13 +144,16 @@ async function callGemini(
                       description: { type: "string" },
                       category_ar: { type: "string" },
                       normalized_description_ar: { type: "string" },
+                      color: { type: "string" },
+                      specification: { type: "string" },
+                      brand: { type: "string" },
                       quantity: { type: ["number", "null"] },
                       unit: { type: "string" },
                       raw_text: { type: "string" },
                       confidence: { type: "number", minimum: 0, maximum: 1 },
                       notes: { type: "string" },
                     },
-                    required: ["source_line_index", "description", "category_ar", "normalized_description_ar", "quantity", "unit", "raw_text", "confidence", "notes"],
+                    required: ["source_line_index", "description", "category_ar", "normalized_description_ar", "color", "specification", "brand", "quantity", "unit", "raw_text", "confidence", "notes"],
                   },
                 },
                 notes: { type: "string" },
@@ -220,8 +231,12 @@ Deno.serve(async (req) => {
 1) raw_text: النص الخام المقروء من الصورة، محافظًا على ترتيب الكلمات والأرقام كما ظهرت قدر الإمكان. لا تعيد بناء السطر من الترجمة.
 2) description: الوصف المقروء بعد تصحيح أخطاء OCR الواضحة فقط، من دون اختراع اسم أو إضافة رقم.
 3) category_ar: نوع المنتج الفني كما هو مفهوم من النص فقط، بكلمة/عبارة قصيرة مثل: كوع، سوكت، بايب، نيبل، نبل، محبس، بوكس، كنكتر. إذا لم يكن النوع واضحًا اتركه فارغًا.
-4) source_line_index: رقم ترتيب السطر الذي قرأته، يبدأ من 0، ويجب أن يكون فريدًا ومحافظًا على ترتيب المصدر.\n4) normalized_description_ar: الاسم التجاري المفهوم بالعربية، لأن هذا الحقل سيُستخدم لمطابقة قاعدة المنتجات. لا تستخدمه لاستبدال raw_text.
-5) quantity: الكمية الرقمية الموجودة في نفس السطر فقط.
+4) source_line_index: رقم ترتيب السطر الذي قرأته، يبدأ من 0، ويجب أن يكون فريدًا ومحافظًا على ترتيب المصدر.
+5) normalized_description_ar: الاسم التجاري المفهوم بالعربية، لأن هذا الحقل سيُستخدم لمطابقة قاعدة المنتجات. لا تستخدمه لاستبدال raw_text.
+6) color: اللون المكتوب في نفس السطر فقط، مثل أخضر/أحمر/أصفر/أزرق/أسود. إذا لم يوجد لون صريح اتركه فارغًا. لا تستنتجه من اسم منتج آخر.
+7) specification: المواصفة الفنية المكتوبة في نفس السطر فقط، مثل 1.5 مم أو 2.5 مم أو 30 سم أو 3 كور. لا تخترع مواصفة.
+8) brand: الماركة/المصنع المكتوب في نفس السطر فقط. إذا لم توجد اتركه فارغًا.
+9) quantity: الكمية الرقمية الموجودة في نفس السطر فقط.
 6) unit: الوحدة المرتبطة بالكمية في نفس السطر مثل حبة، قطعة، رول، كرتون، دزينة، متر.
 7) confidence: ثقتك في قراءة السطر من 0 إلى 1.
 
