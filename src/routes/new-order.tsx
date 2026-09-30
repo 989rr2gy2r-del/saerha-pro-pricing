@@ -1986,8 +1986,14 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           }
         }
 
+        const evidenceRawLine =
+          effectiveRawText && currentSourceSignals.sku
+            ? effectiveRawText
+            : rawItemSignals.sku
+              ? item.raw_text
+              : effectiveRawText || item.raw_text;
         const evidence = reconcileOrderLineEvidence(
-          effectiveRawText || item.raw_text,
+          evidenceRawLine,
           item.quantity,
           item.unit,
           catalogSkus,
@@ -2079,7 +2085,9 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           !evidenceIssues.some((issue) => /لم يتم اعتمادها|لا تطابق|أكثر من زوج|تعارض/.test(issue));
 
         const selectedProduct =
-          selectedMatch && sourceEvidenceSafe && selectedMatch.status === "HIGH_CONFIDENCE"
+          selectedMatch &&
+          selectedMatch.status === "HIGH_CONFIDENCE" &&
+          (Boolean(exactSkuProduct) || sourceEvidenceSafe)
             ? selectedMatch.product
             : null;
         const confidence = selectedMatch
@@ -2091,19 +2099,21 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             ? "NEEDS_REVIEW"
             : "UNMATCHED";
 
-        const matchReason = !selectedMatch
-          ? !effectiveRawText
-            ? "لا يوجد سطر مصدر قابل للتدقيق؛ لم يتم اختيار منتج أو كمية تلقائيًا."
-            : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة."
-          : !sourceQuantityKnown
-            ? "تعذر إثبات كمية الطلب من نص السطر المصدر؛ لم تُستخدم كمية القراءة الذكية."
-            : !sourceUnitKnown
-              ? "تعذر إثبات وحدة الطلب من نص السطر المصدر؛ لم تُستخدم وحدة القراءة الذكية."
-              : !sourceEvidenceSafe
-                ? "يوجد تعارض بين القراءة الذكية ودليل السطر المصدر؛ تُرك البند للمراجعة."
-                : selectedMatch.status === "HIGH_CONFIDENCE" && selectedProduct
-                  ? "مطابقة آمنة: خصائص السطر المصدر تطابق سجلًا حقيقيًا في قاعدة المنتجات."
-                  : selectedMatch.reason;
+        const matchReason = exactSkuProduct && selectedProduct
+          ? "مطابقة مباشرة لكود الصنف الموجود في قاعدة البيانات"
+          : !selectedMatch
+            ? !effectiveRawText
+              ? "لا يوجد سطر مصدر قابل للتدقيق؛ لم يتم اختيار منتج أو كمية تلقائيًا."
+              : "لم يتم العثور على منتج مطابق؛ لم يتم اختراع منتج من خارج القاعدة."
+            : !sourceQuantityKnown
+              ? "تعذر إثبات كمية الطلب من نص السطر المصدر؛ لم تُستخدم كمية القراءة الذكية."
+              : !sourceUnitKnown
+                ? "تعذر إثبات وحدة الطلب من نص السطر المصدر؛ لم تُستخدم وحدة القراءة الذكية."
+                : !sourceEvidenceSafe
+                  ? "يوجد تعارض بين القراءة الذكية ودليل السطر المصدر؛ تُرك البند للمراجعة."
+                  : selectedMatch.status === "HIGH_CONFIDENCE" && selectedProduct
+                    ? "مطابقة آمنة: خصائص السطر المصدر تطابق سجلًا حقيقيًا في قاعدة المنتجات."
+                    : selectedMatch.reason;
 
         return {
           ...item,
