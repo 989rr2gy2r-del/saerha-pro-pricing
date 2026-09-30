@@ -1779,16 +1779,9 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
       } else {
         setProgress(20);
         image = await prepareGeminiImage(first);
-        setProgress(28);
-        // Run the existing local OCR before Gemini as a second, auditable text
-        // channel. Gemini still sees the original image and remains authoritative
-        // for ambiguous handwriting; the OCR text is only supporting evidence.
-        try {
-          const localOcr = await readImageLocally(first, setProgress);
-          text = localOcr.text;
-        } catch {
-          text = "";
-        }
+        // Do not run local Tesseract before the primary AI read. That created a
+        // second full OCR pass on every image and made analysis unnecessarily slow.
+        // Local OCR remains the fallback when the smart reader fails.
         setProgress(35);
       }
 
