@@ -53,6 +53,7 @@ const products = [
 }));
 
 assert.equal(findProductByNormalizedName("مسمار طلقات", products)?.sku, "22099", "a specific catalog-name prefix must resolve when it maps to one product");
+assert.equal(findProductByNormalizedName("طلقات ديكور", products)?.sku, "22080", "exact normalized Arabic name must resolve the catalog product");
 assert.equal(
   findUniqueTechnicalProduct("واير سلك كهرباء اخضر 1.5 مم",
     products,
@@ -60,7 +61,7 @@ assert.equal(
   "07155",
   "unique color/size wire constraints must resolve the single catalog product",
 );
-assert.equal(findProductByNormalizedName("طلقات ديكور", products)?.sku, "22080", "exact normalized Arabic name must resolve the catalog product");
+
 assert.equal(
   findProductByNormalizedName("16 0 طلقات ديكور 2 7 1750 ميد", products)?.sku,
   "22080",
