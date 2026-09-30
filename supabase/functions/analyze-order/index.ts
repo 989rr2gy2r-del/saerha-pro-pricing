@@ -441,10 +441,59 @@ ${textInput
           upstreamStatus: statusMatch ? Number(statusMatch[1]) : null,
         });
       }
+
+      // Do not push the browser into local Tesseract after a transient Gemini
+      // 503/429/timeout. Retry once on the server instead, with a short backoff.
+      // This keeps the UI responsive and follows the provider's transient-error
+      // retry pattern while putting a hard upper bound on the request time.
+      if (errors.some((entry) => isRetryableGeminiError(entry instanceof Error ? entry.message : String(entry ?? "")))) {
+        await sleep(1200);
+        const retryController = new AbortController();
+        const retryCalls = MODELS.map((model, index) => {
+          const retryPrompt =
+            index === 0
+              ? prompt
+              : prompt + "\n\nهذه إعادة محاولة احتياطية. لا تخترع أي معلومة؛ ركز على قراءة كل الصفوف والكمية والوحدة بدقة.";
+          return callGemini(
+            apiKey,
+            model.id,
+            model.timeoutMs,
+            mimeType,
+            base64Data,
+            retryPrompt,
+            retryController.signal,
+          ).then((result) => ({ result, index, model }));
+        });
+
+        try {
+          const retryWinner = await Promise.any(retryCalls);
+          retryController.abort();
+          lastResult = retryWinner.result;
+          return json({
+            success: true,
+            result: retryWinner.result,
+            warning: "تمت إعادة المحاولة تلقائيًا بعد تعذر القراءة الأولى.",
+          });
+        } catch (retryError) {
+          retryController.abort();
+          const retryErrors = retryError instanceof AggregateError ? retryError.errors : [retryError];
+          for (let index = 0; index < retryErrors.length; index += 1) {
+            const model = MODELS[index] ?? MODELS[0];
+            const modelError = retryErrors[index];
+            const message = modelError instanceof Error ? modelError.message : String(modelError ?? "unknown");
+            const statusMatch = message.match(/HTTP (\\d{3})/);
+            attempts.push({
+              model: model.id + " (retry)",
+              error: message.slice(0, 800),
+              upstreamStatus: statusMatch ? Number(statusMatch[1]) : null,
+            });
+          }
+        }
+      }
     }
     return json({
       success: false,
-      error: "تعذر تشغيل محرك القراءة الذكي حاليًا. سيتم تشغيل القراءة الاحتياطية.",
+      error: "تعذر تشغيل محرك القراءة الذكي بعد إعادة المحاولة. أعد المحاولة بعد لحظات.",
       code: attempts.some((attempt) => /AbortError|aborted|signal has been aborted/i.test(attempt.error))
         ? "GEMINI_TIMEOUT"
         : "GEMINI_FAILED",
