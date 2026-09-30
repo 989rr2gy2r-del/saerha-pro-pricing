@@ -1965,25 +1965,33 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         // OCR/AI row and the parsed source disagree on position, locate the exact
         // source row by its catalog SKU before doing any name matching.
         const rawItemSignals = extractOrderLineSignals(item.raw_text || "", catalogSkus);
-        const currentSourceSignals = extractOrderLineSignals(effectiveRawText, catalogSkus);
-        const skuHint =
-          rawItemSignals.sku ||
-          String(item.sourceSku ?? "").trim() ||
-          currentSourceSignals.sku;
-        if (skuHint) {
-          const skuSource = sourceDataLines.find(
-            (row) =>
-              !usedOriginalSourceIndices.has(row.index) &&
-              row.signals.sku === skuHint,
-          );
-          if (skuSource && skuSource.index !== sourceIndex) {
-            if (sourceIndex != null) usedOriginalSourceIndices.delete(sourceIndex);
-            usedOriginalSourceIndices.add(skuSource.index);
-            effectiveRawText = skuSource.rawLine;
-            effectiveSourceKind = sourceKind === "original_text" ? "original_text" : "local_ocr";
-            sourceIndex = skuSource.index;
-            sourceAlignmentScore = 1;
-          }
+        let currentSourceSignals = extractOrderLineSignals(effectiveRawText, catalogSkus);
+        const skuHints = [
+          String(item.sourceSku ?? "").trim(),
+          rawItemSignals.sku,
+          currentSourceSignals.sku,
+        ].filter(Boolean);
+
+        // Re-align the source row by a real catalog SKU before reading quantity/unit.
+        // This is deterministic and stronger than positional or fuzzy alignment.
+        const skuSource = skuHints
+          .map((sku) =>
+            sourceDataLines.find(
+              (row) =>
+                !usedOriginalSourceIndices.has(row.index) &&
+                row.signals.sku === sku,
+            ),
+          )
+          .find(Boolean);
+
+        if (skuSource && skuSource.index !== sourceIndex) {
+          if (sourceIndex != null) usedOriginalSourceIndices.delete(sourceIndex);
+          usedOriginalSourceIndices.add(skuSource.index);
+          effectiveRawText = skuSource.rawLine;
+          effectiveSourceKind = sourceKind === "original_text" ? "original_text" : "local_ocr";
+          sourceIndex = skuSource.index;
+          sourceAlignmentScore = 1;
+          currentSourceSignals = skuSource.signals;
         }
 
         const evidenceRawLine =
