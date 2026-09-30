@@ -875,6 +875,48 @@ function stripCommercialOrderTail(value: string): string {
     .trim();
 }
 
+export function findProductByNormalizedName<T extends MatchableProductRecord>(
+  text: string,
+  products: T[],
+): T | null {
+  const target = normalizeProductText(stripCommercialOrderTail(String(text ?? "")));
+  if (!target) return null;
+
+  const matches = products.filter((product) => {
+    const names = [
+      String(product.name_ar ?? ""),
+      String((product as MatchableProductRecord & { short_name?: string | null }).short_name ?? ""),
+    ]
+      .map((value) => normalizeProductText(value))
+      .filter(Boolean);
+
+    return names.some((name) => name === target || target.includes(name));
+  });
+
+  const uniqueProducts = [...new Map(matches.map((product) => [product.id, product])).values()];
+  return uniqueProducts.length === 1 ? uniqueProducts[0] : null;
+}
+
+export function resolveProductByNormalizedNameCandidates<T extends MatchableProductRecord>(
+  texts: Array<string | null | undefined>,
+  products: T[],
+): {
+  product: T | null;
+  candidates: string[];
+  conflict: boolean;
+} {
+  const resolved = texts
+    .map((text) => findProductByNormalizedName(String(text ?? ""), products))
+    .filter((product): product is T => Boolean(product));
+
+  const uniqueProducts = [...new Map(resolved.map((product) => [product.id, product])).values()];
+  return {
+    product: uniqueProducts.length === 1 ? uniqueProducts[0] : null,
+    candidates: uniqueProducts.map((product) => String(product.sku ?? "")),
+    conflict: uniqueProducts.length > 1,
+  };
+}
+
 export function findProductBySku<T extends MatchableProductRecord>(
   sku: string,
   products: T[],
