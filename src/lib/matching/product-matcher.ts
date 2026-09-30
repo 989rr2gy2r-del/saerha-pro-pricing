@@ -921,7 +921,14 @@ export function findProductByNormalizedName<T extends MatchableProductRecord>(
       .map((value) => normalizeProductText(value))
       .filter(Boolean);
 
-    return names.some((name) => {
+    const rawTarget = String(text ?? "").trim();
+    return names.some((name, nameIndex) => {
+      const rawName = String(
+        nameIndex === 0
+          ? product.name_ar ?? ""
+          : (product as MatchableProductRecord & { short_name?: string | null }).short_name ?? "",
+      ).trim();
+      if (rawTarget && rawName && rawTarget === rawName) return true;
       if (name === target || target.includes(name) || name.includes(target)) return true;
       const nameTokens = uniqueTokens(name).filter((token) => !NON_IDENTITY_TOKENS.has(token));
       const targetTokens = new Set(uniqueTokens(target).filter((token) => !NON_IDENTITY_TOKENS.has(token)));
