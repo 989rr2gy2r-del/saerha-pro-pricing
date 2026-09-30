@@ -347,8 +347,7 @@ export function extractMatchConstraints(value: string): MatchConstraints {
 
   const qualifiers: string[] = [];
   const qualifierPatterns: Array<[RegExp, string]> = [
-    [/\balfa\b|الفا/gi, "الفا"],    [/\badsany\b|\badsani\b|عدساني/gi, "عدساني"],
-    [/\bsaudi\b|سعودي/gi, "سعودي"],
+    [/\balfa\b|الفا/gi, "الفا"],    [/\badsany\b|\badsani\b|عدساني/gi, "عدساني"],    [/\bsaudi\b|سعودي/gi, "سعودي"],
     [/\bgulf\b|الخليج/gi, "الخليج"],
     [/\bskimo\b|سكيمو/gi, "سكيمو"],
     [/\bdagco\b|داجكو/gi, "داجكو"],
@@ -697,8 +696,7 @@ export function rankProductMatches<T>(
   const aliasesByProduct = prepareAliases(aliases);
   const tokenIndex = getProductTokenIndex(products, aliasesByProduct, getId);
   const candidateProductsById = new Map<string, T>();
-  for (const variant of preparedVariants) {
-    const tokens = variant.identity.length ? variant.identity : variant.tokens;
+  for (const variant of preparedVariants) {    const tokens = variant.identity.length ? variant.identity : variant.tokens;
     for (const token of tokens) {
       for (const product of tokenIndex.byToken.get(token) ?? []) candidateProductsById.set(getId(product), product);
     }
@@ -972,14 +970,22 @@ export function findProductByNormalizedName<T extends MatchableProductRecord>(
     String((product as MatchableProductRecord & { short_name?: string | null }).short_name ?? "").trim(),
   ].includes(rawTarget));
   const exactMatches = [...new Map([...exact, ...exactRaw].map((product) => [product.id, product])).values()];
-  const matches = exactMatches.length ? exactMatches : [...index.byName.entries()]
-    .filter(([name]) => target.includes(name) || name.includes(target))
-    .flatMap(([, values]) => values)
-    .filter((product) => {
-      const nameTokens = uniqueTokens(product.name_ar).filter((token) => !NON_IDENTITY_TOKENS.has(token));
+  // Prefix/containment resolution is less common than exact lookup, so keep
+  // the full-catalog fallback only for that case to preserve existing behavior.
+  const matches = exactMatches.length ? exactMatches : products.filter((product) => {
+    const names = [
+      String(product.name_ar ?? ""),
+      String((product as MatchableProductRecord & { short_name?: string | null }).short_name ?? ""),
+    ]
+      .map((value) => normalizeProductText(value))
+      .filter(Boolean);
+    return names.some((name) => {
+      if (name === target || target.includes(name) || name.includes(target)) return true;
+      const nameTokens = uniqueTokens(name).filter((token) => !NON_IDENTITY_TOKENS.has(token));
       const targetTokens = new Set(uniqueTokens(target).filter((token) => !NON_IDENTITY_TOKENS.has(token)));
       return nameTokens.length >= 2 && nameTokens.every((token) => targetTokens.has(token));
     });
+  });
 
   const uniqueProducts = [...new Map(matches.map((product) => [product.id, product])).values()];
   return uniqueProducts.length === 1 ? uniqueProducts[0] : null;
@@ -1047,8 +1053,7 @@ export function resolveProductBySkuCandidates<T extends MatchableProductRecord>(
   const uniqueSkus = [...new Set(resolved.map((row) => row.product.sku).filter(Boolean))];
 
   if (uniqueProducts.length !== 1) {
-    return {
-      product: null,
+    return {      product: null,
       sku: "",
       candidates: uniqueSkus,
       conflict: uniqueProducts.length > 1,
