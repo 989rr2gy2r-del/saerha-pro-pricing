@@ -19,6 +19,7 @@ const {
   normalizeQuantity,
   parseTextOrderFallback,
   parseLocalOcrText,
+  isOrderFooterNoise,
 } = orderInput;
 
 const whatsappOrder = `1. PVC Circular Socket Box – 15 pcs
@@ -76,6 +77,16 @@ for (const [line, quantity, unit] of handwrittenOcrLines) {
 assert.equal(normalizeOrderUnit("coil"), "رول");
 assert.equal(normalizeOrderUnit("لف"), "رول");
 assert.equal(normalizeOrderUnit("dozen"), "دزينة");
+assert.equal(isOrderFooterNoise("1329270 SUBTOTAL"), true, "subtotal with a leading amount must be footer noise");
+assert.equal(isOrderFooterNoise("DISCOUNT 43.270"), true, "discount row must be footer noise");
+assert.equal(isOrderFooterNoise("TOTAL : 1286.000"), true, "total row must be footer noise");
+
+const footerOcr = parseLocalOcrText(
+  "1 845451 صندوق تلفون 3 PCS 9.100 27.300\n2 830301 صندوق تلفون 5 PCS 6.400 32.000\n1329270 SUBTOTAL\nDISCOUNT 43.270\nTOTAL : 1286.000",
+);
+assert.equal(footerOcr.length, 2, "OCR parser must stop at the first invoice footer");
+assert.ok(footerOcr.every((item) => !/subtotal|discount|total/i.test(item.raw_text)));
+
 assert.equal(normalizeQuantity(0.5), 0.5, "decimal quantities must not be rounded");
 const decimal = parseTextOrderFallback("PVC Pipe - 0.5 meter");
 assert.equal(decimal.items[0]?.quantity, 0.5);
