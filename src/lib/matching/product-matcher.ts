@@ -910,7 +910,7 @@ export function findProductByNormalizedName<T extends MatchableProductRecord>(
   text: string,
   products: T[],
 ): T | null {
-  const target = normalizeProductText(stripCommercialOrderTail(String(text ?? "")));
+  const target = normalizeProductText(String(text ?? ""));
   if (!target) return null;
 
   const matches = products.filter((product) => {
