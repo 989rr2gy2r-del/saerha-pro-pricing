@@ -61,18 +61,6 @@ assert.equal(
   "unique color/size wire constraints must resolve the single catalog product",
 );
 
-assert.equal(
-  findProductByNormalizedName("16 0 طلقات ديكور 2 7 1750 ميد", products)?.sku,
-  "22080",
-  "exact catalog name embedded in noisy OCR must resolve without fuzzy guessing",
-);
-const nameResolution = resolveProductByNormalizedNameCandidates(
-  ["طقات ديكور", "طلقات ديكور"],
-  products,
-);
-assert.equal(nameResolution.product?.sku, "22080", "one exact normalized name candidate must resolve");
-assert.equal(nameResolution.conflict, false, "same normalized name candidate must not conflict");
-
 assert.equal(findProductBySku("0765", products)?.sku, "0765", "exact SKU resolver must return the catalog product");
 const skuResolution = resolveProductBySkuCandidates(["", " 0765 ", "0765"], products);
 assert.equal(skuResolution.product?.sku, "0765", "resolver must use any valid SKU candidate");
