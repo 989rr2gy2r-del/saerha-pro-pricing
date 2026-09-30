@@ -17,7 +17,7 @@ const tempFile = path.join(new URL(".", import.meta.url).pathname, ".product-mat
 fs.writeFileSync(tempFile, transpiled, "utf8");
 try {
   const matcher = await import(pathToFileURL(tempFile).href + "?regression=1");
-  const { rankProductMatches, extractMatchConstraints, candidateMatchesConstraints, findLocalProductMatch, findProductBySku } = matcher;
+  const { rankProductMatches, extractMatchConstraints, candidateMatchesConstraints, findLocalProductMatch, findProductBySku, resolveProductBySkuCandidates } = matcher;
 
 const products = [
   ["0761", "واير الخليج احمر مقاس 6مل", "WAIR GULF RED SAIZ 6 ML"],
@@ -49,7 +49,11 @@ const products = [
   description: null,
 }));
 
-assert.equal(findProductBySku("0765", products)?.sku, "0765", "exact SKU resolver must return the catalog product");
+assert.equal(findProductBySku("0765", products)?.sku, "0765", "exact SKU resolver must return the catalog product");\nconst skuResolution = resolveProductBySkuCandidates(["", " 0765 ", "0765"], products);
+assert.equal(skuResolution.product?.sku, "0765", "resolver must use any valid SKU candidate");
+assert.equal(skuResolution.conflict, false, "same SKU candidates must not conflict");
+assert.equal(resolveProductBySkuCandidates(["0765", "999999"], products).product?.sku, "0765", "unknown secondary SKU must not erase a valid catalog SKU");
+
 assert.equal(findProductBySku(" 0765 ", products)?.name_ar, "واير الخليج اخضر مقاس 6مل", "SKU resolver must tolerate surrounding whitespace");
 assert.equal(findProductBySku("999999", products), null, "unknown SKU must not invent a product");
 
