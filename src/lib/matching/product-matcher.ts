@@ -875,6 +875,18 @@ function stripCommercialOrderTail(value: string): string {
     .trim();
 }
 
+export function findProductBySku<T extends MatchableProductRecord>(
+  sku: string,
+  products: T[],
+): T | null {
+  const target = normalizeProductText(String(sku ?? "")).replace(/\\s+/g, "");
+  if (!target) return null;
+  return products.find((product) => {
+    const candidate = normalizeProductText(String(product.sku ?? "")).replace(/\\s+/g, "");
+    return candidate === target;
+  }) ?? null;
+}
+
 export function findLocalProductMatch<T extends MatchableProductRecord>(
   text: string,
   products: T[],
