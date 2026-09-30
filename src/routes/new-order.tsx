@@ -30,7 +30,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { createCustomer, fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
-import { extractMatchConstraints, findLocalProductMatch, getMarketArabicTranslation, normalizeProductText } from "@/lib/matching/product-matcher";
+import { extractMatchConstraints, findLocalProductMatch, findProductBySku, getMarketArabicTranslation, normalizeProductText } from "@/lib/matching/product-matcher";
 import { normalizeQuantity, parseLocalOcrText, parseTextOrderFallback } from "@/lib/order/order-input";
 import { extractOrderLineSignals, parseOrderSourceLines, reconcileOrderLineEvidence } from "@/lib/order/order-line-parser";
 
@@ -1961,8 +1961,33 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           sourceAlignmentScore = 0.75;
         }
 
+        // SKU is a primary identity key, not a fuzzy-search hint. When the
+        // OCR/AI row and the parsed source disagree on position, locate the exact
+        // source row by its catalog SKU before doing any name matching.
+        const rawItemSignals = extractOrderLineSignals(item.raw_text || "", catalogSkus);
+        const currentSourceSignals = extractOrderLineSignals(effectiveRawText, catalogSkus);
+        const skuHint =
+          currentSourceSignals.sku ||
+          rawItemSignals.sku ||
+          String(item.sourceSku ?? "").trim();
+        if (skuHint) {
+          const skuSource = sourceDataLines.find(
+            (row) =>
+              !usedOriginalSourceIndices.has(row.index) &&
+              row.signals.sku === skuHint,
+          );
+          if (skuSource && skuSource.index !== sourceIndex) {
+            if (sourceIndex != null) usedOriginalSourceIndices.delete(sourceIndex);
+            usedOriginalSourceIndices.add(skuSource.index);
+            effectiveRawText = skuSource.rawLine;
+            effectiveSourceKind = sourceKind === "original_text" ? "original_text" : "local_ocr";
+            sourceIndex = skuSource.index;
+            sourceAlignmentScore = 1;
+          }
+        }
+
         const evidence = reconcileOrderLineEvidence(
-          effectiveRawText,
+          effectiveRawText || item.raw_text,
           item.quantity,
           item.unit,
           catalogSkus,
@@ -2011,13 +2036,38 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         }
 
         const sourceSignals = { ...evidence.signals, issues: evidenceIssues };
-        const productQuery = effectiveRawText ? stripOrderPrefix(effectiveRawText, catalogSkus) : "";
+        const productQuery = effectiveRawText
+          ? stripOrderPrefix(effectiveRawText, catalogSkus)
+          : stripOrderPrefix(item.raw_text || item.description, catalogSkus);
         const commercialUnit = sourceSignals.unit;
         const searchQuery = [productQuery, commercialUnit].filter(Boolean).join(" ").trim();
         const marketTranslationAr = getMarketArabicTranslation(searchQuery);
-        const match = searchQuery
-          ? findLocalProductMatch(searchQuery, matchingProducts, marketTranslationAr, matchingAliases)
-          : null;
+
+        // Exact SKU match always resolves to the real catalog row. This bypasses
+        // fuzzy ranking when the customer/OCR already supplied a catalog code,
+        // preventing a valid coded item from becoming "needs review".
+        const identitySku =
+          sourceSignals.sku ||
+          rawItemSignals.sku ||
+          skuHint;
+        const exactSkuProduct = findProductBySku(identitySku, matchingProducts);
+        const match = exactSkuProduct
+          ? {
+              product: exactSkuProduct,
+              score: 1,
+              status: "HIGH_CONFIDENCE" as const,
+              reason: "مطابقة مباشرة لكود الصنف الموجود في قاعدة البيانات",
+              candidates: [{
+                id: exactSkuProduct.id,
+                sku: exactSkuProduct.sku,
+                name_ar: exactSkuProduct.name_ar,
+                score: 1,
+                reason: "كود الصنف مطابق مباشرة",
+              }],
+            }
+          : searchQuery
+            ? findLocalProductMatch(searchQuery, matchingProducts, marketTranslationAr, matchingAliases)
+            : null;
 
         const selectedMatch = match;
         const sourceQuantityKnown = sourceSignals.quantity != null && sourceSignals.quantity > 0;
@@ -2065,7 +2115,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           extractionConfidence: item.extractionConfidence ?? item.confidence,
           matchScore: selectedMatch?.score ?? null,
           product: selectedProduct,
-          sourceSku: sourceSignals.sku,
+          sourceSku: identitySku,
           sourceTrace: {
             raw_line: effectiveRawText,
             source_kind: effectiveSourceKind,
@@ -2075,7 +2125,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             unit_raw: sourceSignals.unitRaw,
             quantity_span: sourceSignals.quantitySpan,
             unit_span: sourceSignals.unitSpan,
-            sku: sourceSignals.sku,
+            sku: identitySku,
             ai_quantity: Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : null,
             ai_unit: String(item.unit ?? ""),
             quantity_source: evidence.quantitySource,
@@ -2727,7 +2777,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                       ref={(node) => { keyboardFieldRefs.current[`${item.id}:sku`] = node; }}
                                       type="text"
                                       inputMode="numeric"
-                                      value={skuDrafts[item.id] ?? item.product?.sku ?? ""}
+                                      value={skuDrafts[item.id] ?? item.product?.sku ?? item.sourceSku ?? ""}
                                       onFocus={(event) => {
                                         beginSkuEdit(index);
                                         event.currentTarget.select();
