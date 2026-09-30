@@ -1838,19 +1838,13 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           : serverMessage
             ? `تعذر تشغيل القراءة الذكية: ${serverMessage} — جارٍ تشغيل القراءة الاحتياطية.`
             : "تعذر تشغيل القراءة الذكية؛ جارٍ تشغيل القراءة الاحتياطية.";
-        setAnalysisError(fallbackNotice);
-        setProgress(30);
-        if (image && /^data:image\//i.test(image)) {
-          const local = await readImageLocally(first, setProgress);
-          rawResult = { items: local.items, notes: `تمت قراءة الصورة محليًا. النص المستخرج: ${local.text}` };
-        } else if (text.trim()) {
-          const localText = await parseTextOrderFallback(text);
-          if (!localText.items.length) throw serverError;
-          rawResult = localText;
-        } else {
-          throw serverError;
-        }
-      }
+        setAnalysisError(
+          timedOut
+            ? "القراءة الذكية تأخرت بعد إعادة المحاولة. لم نشغّل القراءة المحلية حتى لا تتجمد الصفحة؛ أعد المحاولة بعد لحظات."
+            : "تعذر تشغيل القراءة الذكية بعد إعادة المحاولة. لم نشغّل القراءة المحلية حتى لا تتجمد الصفحة؛ أعد المحاولة.",
+        );
+        setProgress(0);
+        throw serverError;      }
         }
 
       const rawItems = Array.isArray(rawResult["items"])
