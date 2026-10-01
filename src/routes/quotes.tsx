@@ -89,6 +89,7 @@ function Quotes() {
   const [open, setOpen] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
 
   const openQuoteForEditing = (quote: Quote) => {
     window.location.assign(
@@ -118,9 +119,51 @@ function Quotes() {
       setLoading(true);
       await deleteQuote(quote.id);
       setOpen(null);
+      setSelectedQuoteIds((current) => current.filter((id) => id !== quote.id));
       setQuotes((current) => current.filter((item) => item.id !== quote.id));
     } catch (deleteError) {
       alert(deleteError instanceof Error ? deleteError.message : "تعذر حذف عرض السعر");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleQuoteSelection = (quoteId: string) => {
+    setSelectedQuoteIds((current) =>
+      current.includes(quoteId)
+        ? current.filter((id) => id !== quoteId)
+        : [...current, quoteId],
+    );
+  };
+
+  const selectAllQuotes = () => {
+    setSelectedQuoteIds(filteredQuotes.map((quote) => quote.id));
+  };
+
+  const clearQuoteSelection = () => {
+    setSelectedQuoteIds([]);
+  };
+
+  const handleDeleteSelectedQuotes = async () => {
+    const selectedQuotes = quotes.filter((quote) => selectedQuoteIds.includes(quote.id));
+    if (selectedQuotes.length === 0) return;
+
+    if (!window.confirm(`هل تريد حذف ${selectedQuotes.length} عروض أسعار محددة نهائيًا؟ سيتم حذف بنودها أيضًا.`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      for (const quote of selectedQuotes) {
+        await deleteQuote(quote.id);
+      }
+      setOpen(null);
+      setSelectedQuoteIds([]);
+      setQuotes((current) =>
+        current.filter((quote) => !selectedQuoteIds.includes(quote.id)),
+      );
+    } catch (deleteError) {
+      alert(deleteError instanceof Error ? deleteError.message : "تعذر حذف العروض المحددة");
     } finally {
       setLoading(false);
     }
@@ -679,6 +722,34 @@ function Quotes() {
           />
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={selectAllQuotes}
+            disabled={loading || filteredQuotes.length === 0}
+          >
+            تحديد الكل
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={clearQuoteSelection}
+            disabled={loading || selectedQuoteIds.length === 0}
+          >
+            إلغاء التحديد
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => void handleDeleteSelectedQuotes()}
+            disabled={loading || selectedQuoteIds.length === 0}
+          >
+            <Trash2 className="ml-2 h-4 w-4" />
+            حذف المحدد{selectedQuoteIds.length > 0 ? ` (${selectedQuoteIds.length})` : ""}
+          </Button>
+        </div>
+
         {loading ? (
           <div className="rounded-lg border p-4 text-sm text-muted-foreground">
             جارٍ تحميل العروض...
@@ -692,7 +763,15 @@ function Quotes() {
         <div className="space-y-3 lg:hidden">
           {filteredQuotes.map((q) => (
             <Card key={q.id} className="shadow-card" onClick={() => setOpen(q)}>
-              <CardContent className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 p-4">
+              <CardContent className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 p-4">
+                <input
+                  type="checkbox"
+                  aria-label={`تحديد عرض السعر ${q.reference}`}
+                  checked={selectedQuoteIds.includes(q.id)}
+                  onChange={() => toggleQuoteSelection(q.id)}
+                  onClick={(event) => event.stopPropagation()}
+                  className="mt-1 h-4 w-4"
+                />
                 <div className="min-w-0 space-y-1">
                   <p className="num text-sm font-extrabold">{q.reference}</p>
                   <p className="truncate text-sm">{getCustomerName(q.customers)}</p>
@@ -714,6 +793,17 @@ function Quotes() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12 text-center">
+                    <input
+                      type="checkbox"
+                      aria-label="تحديد كل العروض"
+                      checked={filteredQuotes.length > 0 && filteredQuotes.every((quote) => selectedQuoteIds.includes(quote.id))}
+                      onChange={(event) =>
+                        event.target.checked ? selectAllQuotes() : clearQuoteSelection()
+                      }
+                      className="h-4 w-4"
+                    />
+                  </TableHead>
                   <TableHead className="text-right">رقم العرض</TableHead>
                   <TableHead className="text-right">العميل</TableHead>
                   <TableHead className="text-right">التاريخ</TableHead>
@@ -728,6 +818,15 @@ function Quotes() {
               <TableBody>
                 {quotes.map((q) => (
                   <TableRow key={q.id}>
+                    <TableCell className="text-center">
+                      <input
+                        type="checkbox"
+                        aria-label={`تحديد عرض السعر ${q.reference}`}
+                        checked={selectedQuoteIds.includes(q.id)}
+                        onChange={() => toggleQuoteSelection(q.id)}
+                        className="h-4 w-4"
+                      />
+                    </TableCell>
                     <TableCell className="num font-bold">{q.reference}</TableCell>
                     <TableCell>{getCustomerName(q.customers)}</TableCell>
                     <TableCell className="num">{q.issue_date}</TableCell>
