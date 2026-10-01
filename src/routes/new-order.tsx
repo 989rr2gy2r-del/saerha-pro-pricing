@@ -1014,6 +1014,17 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   };
 
   const focusNextOrderField = (index: number, field: "sku" | "product" | "quantity" | "unit" | "price" | "discount") => {
+
+  const focusVerticalOrderField = (
+    index: number,
+    field: "sku" | "product" | "quantity" | "unit" | "price" | "discount",
+    direction: "up" | "down",
+  ) => {
+    const nextIndex = direction === "down" ? index + 1 : index - 1;
+    if (!analysisResult?.items[nextIndex]) return;
+    const nextItem = analysisResult.items[nextIndex];
+    keyboardFieldRefs.current[`${nextItem.id}:${field}`]?.focus();
+  };
     const order: Array<"sku" | "product" | "quantity" | "unit" | "price" | "discount"> = ["sku", "product", "quantity", "unit", "price", "discount"];
     const position = order.indexOf(field);
     if (position < order.length - 1) focusOrderField(index, order[position + 1]);
@@ -2909,7 +2920,12 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                         });
                                       }}
                                       onKeyDown={(event) => {
-                                        if (event.key === "Enter") {
+
+                                        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                                          event.preventDefault();
+                                          focusVerticalOrderField(index, "sku", event.key === "ArrowDown" ? "down" : "up");
+                                          return;
+                                        }                                        if (event.key === "Enter") {
                                           event.preventDefault();
                                           const matched = finishSkuEdit(index);
                                           if (matched) {
@@ -3139,7 +3155,12 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                       }}
                                       onChange={(event) => updateNumericDraft(index, "quantity", event.target.value)}
                                       onKeyDown={(event) => {
-                                        if (event.key === "Enter") {
+
+                                        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                                          event.preventDefault();
+                                          focusVerticalOrderField(index, "quantity", event.key === "ArrowDown" ? "down" : "up");
+                                          return;
+                                        }                                        if (event.key === "Enter") {
                                           event.preventDefault();
                                           finishNumericEdit(index, "quantity");
                                           focusNextOrderField(index, "quantity");
@@ -3178,7 +3199,12 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                       }}
                                       onChange={(event) => updateNumericDraft(index, "price", event.target.value)}
                                       onKeyDown={(event) => {
-                                        if (event.key === "Enter") {
+
+                                        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                                          event.preventDefault();
+                                          focusVerticalOrderField(index, "price", event.key === "ArrowDown" ? "down" : "up");
+                                          return;
+                                        }                                        if (event.key === "Enter") {
                                           event.preventDefault();
                                           finishNumericEdit(index, "price");
                                           focusNextOrderField(index, "price");
@@ -3217,7 +3243,12 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                         }}
                                           onChange={(event) => updateDiscountDraft(index, event.target.value)}
                                         onKeyDown={(event) => {
-                                          if (event.key === "Enter") {
+
+                                        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                                          event.preventDefault();
+                                          focusVerticalOrderField(index, "discount", event.key === "ArrowDown" ? "down" : "up");
+                                          return;
+                                        }                                          if (event.key === "Enter") {
                                             event.preventDefault();
                                             finishDiscountEdit(index);
                                             focusNextOrderField(index, "discount");
