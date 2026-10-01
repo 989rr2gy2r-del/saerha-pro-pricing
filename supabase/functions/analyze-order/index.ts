@@ -8,9 +8,9 @@ const corsHeaders = {
 };
 
 const MODELS = [
-  // Fast path: use Flash-Lite first for quicker order extraction, with the full Flash model as fallback.
-  { id: "gemini-3.5-flash-lite", timeoutMs: 7000, thinkingLevel: "minimal" },
-  { id: "gemini-3.8-flash", timeoutMs: 11000, thinkingLevel: "low" },
+  // Dense invoice images can need more than a few seconds. Keep both multimodal paths parallel, but give them enough time to finish before the server retry.
+  { id: "gemini-3.5-flash-lite", timeoutMs: 18000, thinkingLevel: "minimal" },
+  { id: "gemini-3.6-flash", timeoutMs: 22000, thinkingLevel: "low" },
 ];
 
 const MAX_IMAGE_BASE64 = 12_000_000;
