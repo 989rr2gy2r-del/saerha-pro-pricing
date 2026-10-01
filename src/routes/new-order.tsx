@@ -564,16 +564,13 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     [products],
   );
 
-  const productById = useMemo(
-    () => new Map(products.map((product) => [product.id, product])),
-    [products],
-  );
-
   const productSearchIndex = useMemo(
     () =>
-      productOptions.map((option) => {
-        const product = productById.get(option.value);
-        if (!product) return null;
+      products.map((product) => {
+        const option = {
+          value: product.id,
+          label: product.name_ar + " — " + product.sku,
+        };
 
         const fields = [
           product.sku,
@@ -599,16 +596,9 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           fields,
           haystack: fields.join(" "),
         };
-      }).filter(
-        (entry): entry is {
-          option: (typeof productOptions)[number];
-          fields: string[];
-          haystack: string;
-        } => Boolean(entry),
-      ),
-    [productOptions, productById, productAliases],
+      }),
+    [products, productAliases],
   );
-
   const MAX_RENDERED_PRODUCT_RESULTS = 150;
 
   const filterProductOptions = (query: string) => {
