@@ -498,6 +498,9 @@ function Quotes() {
 
       const footerHeight = contentWidth * (103 / 1055);
       const footerY = pageHeight - 12 - footerHeight;
+      // First page remains unchanged. Later pages start the item table directly
+      // below the official header instead of reserving the first-page info block.
+      const subsequentPageTableY = 4 + contentWidth * (244 / 1055) + 10;
 
       const createWatermark = async () => {
         const image = document.createElement("img");
@@ -811,7 +814,7 @@ function Quotes() {
           doc.addPage();
           page += 1;
           await drawHeader();
-          y = 279;
+          y = subsequentPageTableY;
           y = drawTableHeader(y);
         }
         y = await drawTableRow(y, item, index);
@@ -822,7 +825,7 @@ function Quotes() {
         doc.addPage();
         page += 1;
         await drawHeader();
-        y = 279;
+        y = subsequentPageTableY;
         y = drawTableHeader(y);
       }
 
