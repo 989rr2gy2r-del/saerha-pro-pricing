@@ -1014,9 +1014,19 @@ export function resolveProductByNormalizedNameCandidates<T extends MatchableProd
   candidates: string[];
   conflict: boolean;
 } {
-  const resolved = texts
-    .map((text) => findProductByNormalizedName(String(text ?? ""), products))
-    .filter((product): product is T => Boolean(product));
+  const index = getProductLookupIndex(products);
+  const resolved: T[] = [];
+
+  // Exact-only indexed lookup for the order-analysis path.
+  // Prefix/containment fallback is intentionally excluded here because it can
+  // scan the entire 4,583-row catalog once per candidate text.
+  for (const text of texts) {
+    const target = normalizeProductText(String(text ?? ""));
+    if (!target) continue;
+    for (const product of index.byName.get(target) ?? []) {
+      resolved.push(product);
+    }
+  }
 
   const uniqueProducts = [...new Map(resolved.map((product) => [product.id, product])).values()];
   return {
