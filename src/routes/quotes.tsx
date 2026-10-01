@@ -328,7 +328,7 @@ function Quotes() {
       const contentWidth = pageWidth - margin * 2;
 
       const footerHeight = contentWidth * (103 / 1055);
-      const footerY = pageHeight - 36 - footerHeight;
+      const footerY = pageHeight - 12 - footerHeight;
 
       const createWatermark = async () => {
         const image = document.createElement("img");
