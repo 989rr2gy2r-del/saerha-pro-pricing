@@ -696,6 +696,7 @@ function Quotes() {
       };
 
       const drawTableRow = async (y: number, item: QuoteItem, index: number) => {
+        await ensureCanvasFont();
         const widths = [104, 60, 52, 42, 188, 54, 23];
         const tableWidth = widths.reduce((a, b) => a + b, 0);
         const description = String(item.product_name ?? "");
