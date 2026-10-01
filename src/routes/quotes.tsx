@@ -580,7 +580,7 @@ function Quotes() {
         // jsPDF's splitTextToSize can lose/reorder mixed Arabic + numbers/symbols,
         // so keep the logical product name intact and perform a measured wrap here.
         const descriptionLines: string[] = [];
-        const tokens = description.trim().split(/\\s+/).filter(Boolean);
+        const tokens = description.trim().split(/\s+/).filter(Boolean);
         let currentLine = "";
 
         const pushWrappedToken = (token: string) => {
@@ -650,8 +650,10 @@ function Quotes() {
             descriptionLines.forEach((line, lineIndex) => {
               // Use a fixed right anchor for every line. This guarantees true
               // right alignment regardless of Arabic shaping or mixed numerals.
-              const renderedLine = processArabic(line);
-              doc.text(renderedLine, cursor + w - 7, y + 15 + lineIndex * 10, {
+              // Pass the logical Arabic text directly to jsPDF. Its Arabic and
+              // bidi plugins process the logical string before writing the PDF.
+              // Pre-shaping here breaks mixed Arabic + numeric runs.
+              doc.text(line, cursor + w - 7, y + 15 + lineIndex * 10, {
                 align: "right",
               });
             });
