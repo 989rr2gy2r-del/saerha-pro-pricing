@@ -455,7 +455,7 @@ function Quotes() {
           doc.setFillColor("#FFFFFF");
           doc.rect(leftX, y, leftW, row, "FD");
           drawLabelCell(leftX, y, leftW, label);
-          doc.setFont(i === 0 || i === 1 ? "helvetica" : arabicBoldFontName, "normal");
+          doc.setFont(i === 0 ? "helvetica" : arabicBoldFontName, "normal");
           doc.setFontSize(i === 1 ? 6.2 : 9.2);
           doc.setTextColor(TEXT);
           const centeredValue = i === 0 || i === 1 || i === 3;
