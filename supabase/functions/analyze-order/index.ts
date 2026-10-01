@@ -491,6 +491,12 @@ ${textInput
         }
       }
     }
+    console.error("GEMINI_DIAGNOSTIC", JSON.stringify({
+      event: "gemini_failure_diagnostic",
+      attempts,
+      hadResult: Boolean(lastResult?.items?.length),
+    }));
+
     return json({
       success: false,
       error: "تعذر تشغيل محرك القراءة الذكي بعد إعادة المحاولة. أعد المحاولة بعد لحظات.",
