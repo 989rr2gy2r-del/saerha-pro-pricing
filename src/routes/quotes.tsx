@@ -592,9 +592,27 @@ function Quotes() {
             i === 0
               ? String(quote.reference ?? "")
               : i === 1
-                ? formatInvoiceDate(String(value)) || formatInvoiceDate(quote.issue_date) || String(quote.issue_date ?? "")
+                ? ""
                 : String(value);
-          doc.text(actualValue, valueX, y + 19, { align: centeredValue ? "center" : "left" });
+
+          if (i === 1) {
+            // Render the ISO date as separate numeric segments. This keeps the
+            // exact invoice font while avoiding jsPDF's mixed RTL/LTR handling
+            // that was dropping everything after the day in the PDF.
+            const [day, month, year] = getInvoiceDateParts(
+              String(value || quote.issue_date || ""),
+            );
+            const dateParts = [day, "/", month, "/", year];
+            const dateWidths = dateParts.map((part) => doc.getTextWidth(part));
+            const dateWidth = dateWidths.reduce((sum, partWidth) => sum + partWidth, 0);
+            let dateX = valueX - dateWidth / 2;
+            dateParts.forEach((part, partIndex) => {
+              doc.text(part, dateX, y + 19);
+              dateX += dateWidths[partIndex];
+            });
+          } else {
+            doc.text(actualValue, valueX, y + 19, { align: centeredValue ? "center" : "left" });
+          }
         });
 
         const customerRows = [
@@ -652,14 +670,20 @@ function Quotes() {
         doc.text(currency, currencyValueX + 8, lastY + 19, { align: "left" });
       };
 
-      const formatInvoiceDate = (value?: string | null) => {
-        if (!value) return "";
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return String(value);
-        const day = String(date.getDate()).padStart(2, "0");
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const year = date.getFullYear();
-        return day + "/" + month + "/" + year;
+      const getInvoiceDateParts = (value?: string | null) => {
+        const raw = String(value ?? "").trim();
+        const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (isoMatch) {
+          return [isoMatch[3], isoMatch[2], isoMatch[1]] as const;
+        }
+
+        const date = new Date(raw);
+        if (Number.isNaN(date.getTime())) return ["", "", ""] as const;
+        return [
+          String(date.getDate()).padStart(2, "0"),
+          String(date.getMonth() + 1).padStart(2, "0"),
+          String(date.getFullYear()),
+        ] as const;
       };
 
       const drawTableHeader = (y: number) => {
