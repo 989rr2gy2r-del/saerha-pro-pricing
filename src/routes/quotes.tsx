@@ -574,8 +574,11 @@ function Quotes() {
         const widths = [104, 60, 52, 42, 188, 54, 23];
         const tableWidth = widths.reduce((a, b) => a + b, 0);
         const description = String(item.product_name ?? "");
-        const descriptionLines = doc.splitTextToSize(processArabic(description), widths[4] - 10) as string[];
-        const rowHeight = Math.max(30, Math.min(52, 12 + descriptionLines.length * 11));
+        // Keep the logical product name intact while wrapping. Arabic shaping is
+        // applied only after wrapping so mixed Arabic/number/symbol tokens are not
+        // reordered or altered by the line-break step.
+        const descriptionLines = doc.splitTextToSize(description, widths[4] - 10) as string[];
+        const rowHeight = Math.max(30, 12 + descriptionLines.length * 11);
 
         let cursor = margin;
         // Transparent body rows: keep the watermark visible through the table.
@@ -599,10 +602,11 @@ function Quotes() {
             doc.setFont(arabicBoldFontName, "normal");
             doc.setFontSize(8.8);
             doc.setTextColor(TEXT);
-            descriptionLines.slice(0, 3).forEach((line, lineIndex) => {
-              const textWidth = doc.getTextWidth(line);
+            descriptionLines.forEach((line, lineIndex) => {
+              const renderedLine = processArabic(line);
+              const textWidth = doc.getTextWidth(renderedLine);
               const textX = cursor + w - 7 - textWidth;
-              doc.text(line, textX, y + 15 + lineIndex * 10);
+              doc.text(renderedLine, textX, y + 15 + lineIndex * 10);
             });
           } else if (i === 0 || i === 1 || i === 2 || i === 3 || i === 5 || i === 6) {
             if (i === 2) {
@@ -675,7 +679,8 @@ function Quotes() {
       const items = quote.quotation_items ?? [];
 
       for (const [index, item] of items.entries()) {
-        if (y + 26 > footerY - 10) {
+        // Leave enough room for the full wrapped description row.
+        if (y + 80 > footerY - 10) {
           drawFooter();
           doc.addPage();
           page += 1;
