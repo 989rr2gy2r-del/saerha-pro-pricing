@@ -564,6 +564,11 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     [products],
   );
 
+  const productById = useMemo(
+    () => new Map(products.map((product) => [product.id, product])),
+    [products],
+  );
+
   const productSearchIndex = useMemo(
     () =>
       products.map((product) => {
