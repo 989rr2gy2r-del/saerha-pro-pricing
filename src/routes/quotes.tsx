@@ -457,7 +457,9 @@ function Quotes() {
           doc.setFont(arabicBoldFontName, "normal");
           doc.setFontSize(9.2);
           doc.setTextColor(TEXT);
-          doc.text(processArabic(String(value)), leftX + 8, y + 19, { align: "left" });
+          const centeredValue = i === 0 || i === 1 || i === 3;
+          const valueX = centeredValue ? leftX + (leftW - 72) / 2 : leftX + 8;
+          doc.text(String(value), valueX, y + 19, { align: centeredValue ? "center" : "left" });
         });
 
         const customerRows = [
