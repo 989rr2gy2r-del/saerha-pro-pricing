@@ -2225,7 +2225,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           description: selectedProduct?.name_ar ?? (productQuery || item.description || item.raw_text),
           normalized_description_ar: marketTranslationAr,
           quoteName: selectedProduct?.name_ar ?? undefined,
-          quantity: sourceSignals.quantity != null ? normalizeQuantity(sourceSignals.quantity) : 0,
+          // For image/handwriting input, Gemini reads the quantity directly from the invoice table.\n          // If the source-line parser cannot see a commercial quantity in raw_text, preserve that\n          // structured quantity instead of replacing a clearly read value with zero.\n          quantity: sourceSignals.quantity != null\n            ? normalizeQuantity(sourceSignals.quantity)\n            : sourceKind !== "original_text" && Number.isFinite(Number(item.quantity)) && Number(item.quantity) > 0\n              ? normalizeQuantity(Number(item.quantity))\n              : 0,
           confidence,
           extractionConfidence: item.extractionConfidence ?? item.confidence,
           matchScore: selectedMatch?.score ?? null,
