@@ -484,25 +484,35 @@ function Quotes() {
         doc.rect(rightX, lastY, rightW, row, "FD");
 
         const termLabelW = 72;
-        const currencyLabelW = 58;
         const termValueW = 112;
-        const currencyValueW = rightW - termLabelW - currencyLabelW - termValueW;
+        const currencyLabelW = 58;
+        const currencyValueW = rightW - termLabelW - termValueW - currencyLabelW;
+
+        const termLabelX = rightX + rightW - termLabelW;
+        const termValueX = termLabelX - termValueW;
+        const currencyLabelX = termValueX - currencyLabelW;
+        const currencyValueX = rightX;
 
         doc.setFillColor("#F1F5F7");
-        doc.rect(rightX + rightW - termLabelW, lastY, termLabelW, row, "F");
-        doc.rect(rightX + rightW - termLabelW - termValueW - currencyLabelW, lastY, currencyLabelW, row, "F");
+        doc.rect(termLabelX, lastY, termLabelW, row, "F");
+        doc.rect(currencyLabelX, lastY, currencyLabelW, row, "F");
+
+        doc.setDrawColor(GRID);
+        doc.setLineWidth(0.55);
+        doc.line(termValueX, lastY, termValueX, lastY + row);
+        doc.line(currencyLabelX, lastY, currencyLabelX, lastY + row);
 
         doc.setFont(arabicBoldFontName, "normal");
         doc.setFontSize(8.2);
         doc.setTextColor(TEXT);
-        doc.text(processArabic("التعامل"), rightX + rightW - termLabelW / 2, lastY + 19, { align: "center" });
-        doc.text(processArabic("العملة"), rightX + currencyValueW + termValueW + currencyLabelW / 2, lastY + 19, { align: "center" });
+        doc.text(processArabic("التعامل"), termLabelX + termLabelW / 2, lastY + 19, { align: "center" });
+        doc.text(processArabic("العملة"), currencyLabelX + currencyLabelW / 2, lastY + 19, { align: "center" });
 
-        drawText(quote.price_type === "reseller" ? "جملة" : "أجل", rightX + rightW - termLabelW - 8, lastY + 19, 9.2, "right", true);
+        drawText("نقدا", termValueX + termValueW - 8, lastY + 19, 9.2, "right", true);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8.2);
         doc.setTextColor(TEXT);
-        doc.text(currency, rightX + 8, lastY + 19, { align: "left" });
+        doc.text(currency, currencyValueX + 8, lastY + 19, { align: "left" });
       };
 
       const formatInvoiceDate = (value?: string | null) => {
