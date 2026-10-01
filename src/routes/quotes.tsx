@@ -571,7 +571,7 @@ function Quotes() {
 
         const leftRows = [
           ["رقم الفاتورة", quote.reference],
-          ["التاريخ والوقت", quote.created_at ?? quote.issue_date],
+          ["التاريخ", quote.issue_date ?? quote.created_at],
           ["المستخدم", ""],
           ["إجمالي الفاتورة", Number(quote.total ?? 0).toFixed(3)],
         ];
@@ -584,7 +584,7 @@ function Quotes() {
           doc.rect(leftX, y, leftW, row, "FD");
           drawLabelCell(leftX, y, leftW, label);
           doc.setFont(i === 0 ? "helvetica" : arabicBoldFontName, "normal");
-          doc.setFontSize(i === 1 ? 6.2 : 9.2);
+          doc.setFontSize(9.2);
           doc.setTextColor(TEXT);
           const centeredValue = i === 0 || i === 1 || i === 3;
           const valueX = centeredValue ? leftX + (leftW - 72) / 2 : leftX + 8;
@@ -594,7 +594,7 @@ function Quotes() {
               : i === 1
                 ? formatInvoiceDate(String(value)) || formatInvoiceDate(quote.issue_date) || String(quote.issue_date ?? "")
                 : String(value);
-          doc.text(i === 1 ? "\u200E" + actualValue + "\u200E" : actualValue, valueX, y + 19, { align: centeredValue ? "center" : "left" });
+          doc.text(actualValue, valueX, y + 19, { align: centeredValue ? "center" : "left" });
         });
 
         const customerRows = [
@@ -659,11 +659,7 @@ function Quotes() {
         const day = String(date.getDate()).padStart(2, "0");
         const month = String(date.getMonth() + 1).padStart(2, "0");
         const year = date.getFullYear();
-        const hours24 = date.getHours();
-        const minutes = String(date.getMinutes()).padStart(2, "0");
-        const hours12 = hours24 % 12 || 12;
-        const period = hours24 >= 12 ? "م" : "ص";
-        return day + "/" + month + "/" + year + " " + String(hours12).padStart(2, "0") + ":" + minutes + " " + period;
+        return day + "/" + month + "/" + year;
       };
 
       const drawTableHeader = (y: number) => {
