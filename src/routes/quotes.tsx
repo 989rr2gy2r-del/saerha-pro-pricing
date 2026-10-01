@@ -454,12 +454,18 @@ function Quotes() {
           doc.setFillColor("#FFFFFF");
           doc.rect(leftX, y, leftW, row, "FD");
           drawLabelCell(leftX, y, leftW, label);
-          doc.setFont(arabicBoldFontName, "normal");
+          doc.setFont(i === 0 ? "helvetica" : arabicBoldFontName, "normal");
           doc.setFontSize(9.2);
           doc.setTextColor(TEXT);
           const centeredValue = i === 0 || i === 1 || i === 3;
           const valueX = centeredValue ? leftX + (leftW - 72) / 2 : leftX + 8;
-          doc.text(String(value), valueX, y + 19, { align: centeredValue ? "center" : "left" });
+          const actualValue =
+            i === 0
+              ? String(quote.reference ?? "")
+              : i === 1
+                ? formatInvoiceDate(quote.issue_date) || String(quote.issue_date ?? "")
+                : String(value);
+          doc.text(actualValue, valueX, y + 19, { align: centeredValue ? "center" : "left" });
         });
 
         const customerRows = [
