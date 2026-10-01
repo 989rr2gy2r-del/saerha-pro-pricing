@@ -574,10 +574,55 @@ function Quotes() {
         const widths = [104, 60, 52, 42, 188, 54, 23];
         const tableWidth = widths.reduce((a, b) => a + b, 0);
         const description = String(item.product_name ?? "");
-        // Keep the logical product name intact while wrapping. Arabic shaping is
-        // applied only after wrapping so mixed Arabic/number/symbol tokens are not
-        // reordered or altered by the line-break step.
-        const descriptionLines = doc.splitTextToSize(description, widths[4] - 10) as string[];
+        const descriptionWidth = widths[4] - 10;
+
+        // Wrap against the same shaped text that will actually be drawn.
+        // jsPDF's splitTextToSize can lose/reorder mixed Arabic + numbers/symbols,
+        // so keep the logical product name intact and perform a measured wrap here.
+        const descriptionLines: string[] = [];
+        const tokens = description.trim().split(/\\s+/).filter(Boolean);
+        let currentLine = "";
+
+        const pushWrappedToken = (token: string) => {
+          let remainder = token;
+          while (remainder.length > 0) {
+            let candidate = currentLine ? currentLine + " " + remainder : remainder;
+            if (doc.getTextWidth(processArabic(candidate)) <= descriptionWidth) {
+              currentLine = candidate;
+              remainder = "";
+              continue;
+            }
+
+            if (currentLine) {
+              descriptionLines.push(currentLine);
+              currentLine = "";
+              continue;
+            }
+
+            let chunk = "";
+            let consumed = 0;
+            for (const character of remainder) {
+              const nextChunk = chunk + character;
+              if (doc.getTextWidth(processArabic(nextChunk)) > descriptionWidth && chunk) {
+                break;
+              }
+              chunk = nextChunk;
+              consumed += character.length;
+            }
+
+            if (!chunk) {
+              chunk = remainder.slice(0, 1);
+              consumed = 1;
+            }
+
+            descriptionLines.push(chunk);
+            remainder = remainder.slice(consumed);
+          }
+        };
+
+        tokens.forEach(pushWrappedToken);
+        if (currentLine) descriptionLines.push(currentLine);
+
         const rowHeight = Math.max(30, 12 + descriptionLines.length * 11);
 
         let cursor = margin;
@@ -603,10 +648,12 @@ function Quotes() {
             doc.setFontSize(8.8);
             doc.setTextColor(TEXT);
             descriptionLines.forEach((line, lineIndex) => {
+              // Use a fixed right anchor for every line. This guarantees true
+              // right alignment regardless of Arabic shaping or mixed numerals.
               const renderedLine = processArabic(line);
-              const textWidth = doc.getTextWidth(renderedLine);
-              const textX = cursor + w - 7 - textWidth;
-              doc.text(renderedLine, textX, y + 15 + lineIndex * 10);
+              doc.text(renderedLine, cursor + w - 7, y + 15 + lineIndex * 10, {
+                align: "right",
+              });
             });
           } else if (i === 0 || i === 1 || i === 2 || i === 3 || i === 5 || i === 6) {
             if (i === 2) {
