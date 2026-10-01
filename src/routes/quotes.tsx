@@ -466,7 +466,7 @@ function Quotes() {
               : i === 1
                 ? formatInvoiceDate(String(value)) || formatInvoiceDate(quote.issue_date) || String(quote.issue_date ?? "")
                 : String(value);
-          doc.text(processArabic(actualValue), valueX, y + 19, { align: centeredValue ? "center" : "left" });
+          doc.text(actualValue, valueX, y + 19, { align: centeredValue ? "center" : "left" });
         });
 
         const customerRows = [
