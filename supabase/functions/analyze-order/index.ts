@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const MODELS = [
   // Dense invoice images can need more than a few seconds. Keep both multimodal paths parallel, but give them enough time to finish before the server retry.
-  { id: "gemini-3.5-flash-lite", timeoutMs: 18000, thinkingLevel: "minimal" },
+  { id: "gemini-3.1-flash-lite", timeoutMs: 15000, thinkingLevel: "minimal" },
   { id: "gemini-3.6-flash", timeoutMs: 22000, thinkingLevel: "low" },
 ];
 
@@ -168,7 +168,7 @@ async function callGemini(
               required: ["items", "notes"],
             },
             thinkingConfig: { thinkingLevel: model === "gemini-3.5-flash-lite" ? "minimal" : "low" },
-            maxOutputTokens: 2048,
+            maxOutputTokens: 8192,
           },
         }),
       },
