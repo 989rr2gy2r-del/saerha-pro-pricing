@@ -600,7 +600,9 @@ function Quotes() {
             doc.setFontSize(8.8);
             doc.setTextColor(TEXT);
             descriptionLines.slice(0, 3).forEach((line, lineIndex) => {
-              doc.text(line, cursor + w - 7, y + 15 + lineIndex * 10, { align: "right" });
+              const textWidth = doc.getTextWidth(line);
+              const textX = cursor + w - 7 - textWidth;
+              doc.text(line, textX, y + 15 + lineIndex * 10);
             });
           } else if (i === 0 || i === 1 || i === 2 || i === 3 || i === 5 || i === 6) {
             if (i === 2) {
