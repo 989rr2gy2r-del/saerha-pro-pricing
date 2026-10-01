@@ -1073,6 +1073,47 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     return true;
   };
 
+  const handleAddProductLine = () => {
+    if (!analysisResult) return;
+
+    const newItem: ReviewItem = {
+      id: `manual-${Date.now()}-${analysisResult.items.length}`,
+      description: "",
+      normalized_description_ar: "",
+      quantity: 1,
+      unit: "",
+      raw_text: "",
+      confidence: 1,
+      extractionConfidence: 1,
+      matchScore: null,
+      notes: "",
+      product: null,
+      matchReason: "تمت إضافة السطر يدويًا لاختيار صنف من قاعدة البيانات",
+      status: "UNMATCHED",
+      rejected: false,
+      accepted: false,
+      priceAmount: null,
+      basePriceAmount: null,
+      basePriceUnit: "",
+      priceType: null,
+      priceLabel: "اختر صنفًا من قاعدة البيانات",
+      discountPercent: 0,
+      discountType: "percent",
+      discountValue: 0,
+      quoteName: "",
+      sourceSku: "",
+      sourceUnitPrice: null,
+      sourceTrace: undefined,
+    };
+
+    setAnalysisResult((previous) =>
+      previous ? { ...previous, items: [...previous.items, newItem] } : previous,
+    );
+    setOpenProductPickerId(newItem.id);
+    setProductSearches((previous) => ({ ...previous, [newItem.id]: "" }));
+    setAnalysisError("");
+  };
+
   const handleProductSelect = (index: number, productId: string) => {
     const selected = products.find((product) => product.id === productId) ?? null;
     const current = analysisResult?.items[index];
@@ -3305,6 +3346,19 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                           </tbody>
                           <tfoot className="border-t bg-muted/40">
                             <tr>
+                              <td colSpan={8} className="px-4 py-3">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="w-full border-dashed font-extrabold"
+                                  onClick={handleAddProductLine}
+                                >
+                                  <Plus className="ml-2 h-4 w-4" />
+                                  إضافة صنف من قاعدة البيانات
+                                </Button>
+                              </td>
+                            </tr>
+                            <tr>
                               <td colSpan={8} className="px-4 py-4">
                                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                                   <div className="grid w-full gap-3 sm:grid-cols-2 lg:max-w-xl">
@@ -3692,6 +3746,16 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                             </div>
                           );
                         })}
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full border-dashed font-extrabold"
+                          onClick={handleAddProductLine}
+                        >
+                          <Plus className="ml-2 h-4 w-4" />
+                          إضافة صنف من قاعدة البيانات
+                        </Button>
 
                         <div className="rounded-xl border bg-muted/40 p-3">
                           <div className="space-y-3">
