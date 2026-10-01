@@ -867,24 +867,30 @@ export type MatchableProductRecord = {
   color?: string | null;
 };
 
-type ProductLookupIndex<T extends MatchableProductRecord> = { bySku: Map<string, T>; byName: Map<string, T[]> };
+type ProductLookupIndex<T extends MatchableProductRecord> = { bySku: Map<string, T>; byName: Map<string, T[]>; byRawName: Map<string, T[]> };
 const productLookupIndexCache = new WeakMap<object, ProductLookupIndex<MatchableProductRecord>>();
 function getProductLookupIndex<T extends MatchableProductRecord>(products: T[]): ProductLookupIndex<T> {
   const cached = productLookupIndexCache.get(products as object) as ProductLookupIndex<T> | undefined;
   if (cached) return cached;
   const bySku = new Map<string, T>();
   const byName = new Map<string, T[]>();
+  const byRawName = new Map<string, T[]>();
   for (const product of products) {
     const sku = normalizeProductText(String(product.sku ?? "")).replace(/\s+/g, "");
     if (sku && !bySku.has(sku)) bySku.set(sku, product);
     for (const name of [String(product.name_ar ?? ""), String((product as MatchableProductRecord & { short_name?: string | null }).short_name ?? "")]) {
+      const rawName = name.trim();
+      if (rawName) {
+        const rawList = byRawName.get(rawName);
+        if (rawList) rawList.push(product); else byRawName.set(rawName, [product]);
+      }
       const normalized = normalizeProductText(name);
       if (!normalized) continue;
       const list = byName.get(normalized);
       if (list) list.push(product); else byName.set(normalized, [product]);
     }
   }
-  const index = { bySku, byName };
+  const index = { bySku, byName, byRawName };
   productLookupIndexCache.set(products as object, index as ProductLookupIndex<MatchableProductRecord>);
   return index;
 }
@@ -973,6 +979,7 @@ export function findUniqueTechnicalProduct<T extends MatchableProductRecord>(
 export function findProductByNormalizedName<T extends MatchableProductRecord>(
   text: string,
   products: T[],
+  allowFuzzyFallback = true,
 ): T | null {
   const target = normalizeProductText(String(text ?? ""));
   if (!target) return null;
@@ -980,14 +987,14 @@ export function findProductByNormalizedName<T extends MatchableProductRecord>(
   const index = getProductLookupIndex(products);
   const rawTarget = String(text ?? "").trim();
   const exact = index.byName.get(target) ?? [];
-  const exactRaw = products.filter((product) => [
-    String(product.name_ar ?? "").trim(),
-    String((product as MatchableProductRecord & { short_name?: string | null }).short_name ?? "").trim(),
-  ].includes(rawTarget));
+  const exactRaw = rawTarget ? index.byRawName.get(rawTarget) ?? [] : [];
   const exactMatches = [...new Map([...exact, ...exactRaw].map((product) => [product.id, product])).values()];
+  if (exactMatches.length || !allowFuzzyFallback) {
+    return exactMatches.length === 1 ? exactMatches[0] : null;
+  }
   // Prefix/containment resolution is less common than exact lookup, so keep
   // the full-catalog fallback only for that case to preserve existing behavior.
-  const matches = exactMatches.length ? exactMatches : products.filter((product) => {
+  const matches = products.filter((product) => {
     const names = [
       String(product.name_ar ?? ""),
       String((product as MatchableProductRecord & { short_name?: string | null }).short_name ?? ""),
@@ -1015,7 +1022,7 @@ export function resolveProductByNormalizedNameCandidates<T extends MatchableProd
   conflict: boolean;
 } {
   const resolved = texts
-    .map((text) => findProductByNormalizedName(String(text ?? ""), products))
+    .map((text) => findProductByNormalizedName(String(text ?? ""), products, false))
     .filter((product): product is T => Boolean(product));
 
   const uniqueProducts = [...new Map(resolved.map((product) => [product.id, product])).values()];
