@@ -723,7 +723,7 @@ function Quotes() {
           String(index + 1),
         ];
 
-        values.forEach((value, i) => {
+        for (const [i, value] of values.entries()) {
           const w = widths[i];
           if (i === 4) {
             await drawDescriptionImage(
@@ -748,7 +748,7 @@ function Quotes() {
             }
           }
           cursor += w;
-        });
+        }
 
         return y + rowHeight;
       };
