@@ -66,6 +66,7 @@ type Quote = {
   id: string;
   reference: string;
   issue_date?: string | null;
+  created_at?: string | null;
   expiry_date?: string | null;
   price_type?: string;
   discount_amount?: number;
@@ -102,7 +103,7 @@ function Quotes() {
     const { data, error } = await supabase
       .from("quotations")
       .select(
-        "id, reference, issue_date, expiry_date, price_type, discount_amount, tax_amount, subtotal, total, currency, status, notes, customers(name, company, phone), quotation_items(id, product_name, sku, quantity, unit, unit_price, discount_amount, line_total)",
+        "id, reference, issue_date, created_at, expiry_date, price_type, discount_amount, tax_amount, subtotal, total, currency, status, notes, customers(name, company, phone), quotation_items(id, product_name, sku, quantity, unit, unit_price, discount_amount, line_total)",
       )
       .order("issue_date", { ascending: false });
     if (!error) setQuotes((data ?? []) as unknown as Quote[]);
@@ -463,7 +464,7 @@ function Quotes() {
             i === 0
               ? String(quote.reference ?? "")
               : i === 1
-                ? formatInvoiceDate(quote.issue_date) || String(quote.issue_date ?? "")
+                ? formatInvoiceDate(quote.created_at) || formatInvoiceDate(quote.issue_date) || String(quote.issue_date ?? "")
                 : String(value);
           doc.text(actualValue, valueX, y + 19, { align: centeredValue ? "center" : "left" });
         });
