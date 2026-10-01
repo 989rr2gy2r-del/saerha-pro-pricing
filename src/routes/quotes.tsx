@@ -287,6 +287,131 @@ function Quotes() {
         return typeof api.processArabic === "function" ? api.processArabic(value) : value;
       };
 
+      // Product descriptions contain Arabic mixed with measurements, fractions,
+      // symbols and Latin codes. jsPDF's Arabic pre-processing is not reliable
+      // for this mixed content, so descriptions are rendered by the browser's
+      // native RTL/Bidi engine and embedded as transparent PNGs in the PDF.
+      const canvasFontName = "ArabicInvoiceCanvas";
+      let canvasFontReady = false;
+
+      const ensureCanvasFont = async () => {
+        if (canvasFontReady) return;
+        if (typeof FontFace === "undefined" || !document.fonts) {
+          throw new Error("متصفح غير مدعوم لرسم وصف الأصناف بالعربية");
+        }
+
+        const font = new FontFace(
+          canvasFontName,
+          `url(data:font/ttf;base64,${boldBase64})`,
+        );
+        await font.load();
+        document.fonts.add(font);
+        await document.fonts.load(`700 35px "${canvasFontName}"`);
+        canvasFontReady = true;
+      };
+
+      const wrapDescriptionForCanvas = (
+        value: string,
+        maxWidth: number,
+        fontSize: number,
+      ) => {
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        if (!context) return [value];
+
+        context.font = `700 ${fontSize}px "${canvasFontName}"`;
+        context.direction = "rtl";
+        context.textAlign = "right";
+
+        const lines: string[] = [];
+        const tokens = value.trim().split(/\s+/).filter(Boolean);
+        let current = "";
+
+        const pushToken = (token: string) => {
+          const candidate = current ? `${current} ${token}` : token;
+          if (context.measureText(candidate).width <= maxWidth) {
+            current = candidate;
+            return;
+          }
+
+          if (current) {
+            lines.push(current);
+            current = "";
+          }
+
+          if (context.measureText(token).width <= maxWidth) {
+            current = token;
+            return;
+          }
+
+          let chunk = "";
+          for (const character of token) {
+            const next = chunk + character;
+            if (context.measureText(next).width > maxWidth && chunk) {
+              lines.push(chunk);
+              chunk = character;
+            } else {
+              chunk = next;
+            }
+          }
+          if (chunk) current = chunk;
+        };
+
+        tokens.forEach(pushToken);
+        if (current) lines.push(current);
+        return lines.length > 0 ? lines : [""];
+      };
+
+      const drawDescriptionImage = async (
+        value: string,
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        fontSize = 8.8,
+      ) => {
+        await ensureCanvasFont();
+
+        const scale = 4;
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.ceil(width * scale));
+        canvas.height = Math.max(1, Math.ceil(height * scale));
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("تعذر تجهيز وصف الصنف");
+
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.font = `700 ${fontSize * scale}px "${canvasFontName}"`;
+        context.direction = "rtl";
+        context.textAlign = "right";
+        context.textBaseline = "alphabetic";
+        context.fillStyle = TEXT;
+
+        const rightPadding = 7 * scale;
+        const lineHeight = 10 * scale;
+        const lines = wrapDescriptionForCanvas(
+          value,
+          (width - 10) * scale,
+          fontSize * scale,
+        );
+
+        lines.forEach((line, lineIndex) => {
+          context.fillText(
+            line,
+            canvas.width - rightPadding,
+            15 * scale + lineIndex * lineHeight,
+          );
+        });
+
+        doc.addImage(
+          canvas.toDataURL("image/png"),
+          "PNG",
+          x,
+          y,
+          width,
+          height,
+        );
+      };
+
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 36;
@@ -570,59 +695,15 @@ function Quotes() {
         return y + 34;
       };
 
-      const drawTableRow = (y: number, item: QuoteItem, index: number) => {
+      const drawTableRow = async (y: number, item: QuoteItem, index: number) => {
         const widths = [104, 60, 52, 42, 188, 54, 23];
         const tableWidth = widths.reduce((a, b) => a + b, 0);
         const description = String(item.product_name ?? "");
-        const descriptionWidth = widths[4] - 10;
-
-        // Wrap against the same shaped text that will actually be drawn.
-        // jsPDF's splitTextToSize can lose/reorder mixed Arabic + numbers/symbols,
-        // so keep the logical product name intact and perform a measured wrap here.
-        const descriptionLines: string[] = [];
-        const tokens = description.trim().split(/\s+/).filter(Boolean);
-        let currentLine = "";
-
-        const pushWrappedToken = (token: string) => {
-          let remainder = token;
-          while (remainder.length > 0) {
-            let candidate = currentLine ? currentLine + " " + remainder : remainder;
-            if (doc.getTextWidth(processArabic(candidate)) <= descriptionWidth) {
-              currentLine = candidate;
-              remainder = "";
-              continue;
-            }
-
-            if (currentLine) {
-              descriptionLines.push(currentLine);
-              currentLine = "";
-              continue;
-            }
-
-            let chunk = "";
-            let consumed = 0;
-            for (const character of remainder) {
-              const nextChunk = chunk + character;
-              if (doc.getTextWidth(processArabic(nextChunk)) > descriptionWidth && chunk) {
-                break;
-              }
-              chunk = nextChunk;
-              consumed += character.length;
-            }
-
-            if (!chunk) {
-              chunk = remainder.slice(0, 1);
-              consumed = 1;
-            }
-
-            descriptionLines.push(chunk);
-            remainder = remainder.slice(consumed);
-          }
-        };
-
-        tokens.forEach(pushWrappedToken);
-        if (currentLine) descriptionLines.push(currentLine);
-
+        const descriptionLines = wrapDescriptionForCanvas(
+          description,
+          widths[4] - 10,
+          8.8,
+        );
         const rowHeight = Math.max(30, 12 + descriptionLines.length * 11);
 
         let cursor = margin;
@@ -644,19 +725,14 @@ function Quotes() {
         values.forEach((value, i) => {
           const w = widths[i];
           if (i === 4) {
-            doc.setFont(arabicBoldFontName, "normal");
-            doc.setFontSize(8.8);
-            doc.setTextColor(TEXT);
-            descriptionLines.forEach((line, lineIndex) => {
-              // Use a fixed right anchor for every line. This guarantees true
-              // right alignment regardless of Arabic shaping or mixed numerals.
-              // Pass the logical Arabic text directly to jsPDF. Its Arabic and
-              // bidi plugins process the logical string before writing the PDF.
-              // Pre-shaping here breaks mixed Arabic + numeric runs.
-              doc.text(line, cursor + w - 7, y + 15 + lineIndex * 10, {
-                align: "right",
-              });
-            });
+            await drawDescriptionImage(
+              description,
+              cursor,
+              y,
+              w,
+              rowHeight,
+              8.8,
+            );
           } else if (i === 0 || i === 1 || i === 2 || i === 3 || i === 5 || i === 6) {
             if (i === 2) {
               doc.setFont(arabicBoldFontName, "normal");
@@ -737,7 +813,7 @@ function Quotes() {
           y = 279;
           y = drawTableHeader(y);
         }
-        y = drawTableRow(y, item, index);
+        y = await drawTableRow(y, item, index);
       }
 
       if (y + 145 > footerY - 10) {
