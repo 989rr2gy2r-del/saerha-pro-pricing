@@ -2053,6 +2053,11 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         }
 
         const sourceSignals = { ...evidence.signals, issues: evidenceIssues };
+        // For image/handwriting rows, the AI may preserve the commercial unit
+        // in the structured field even when its raw OCR line omits the unit.
+        // Use that value for display only; sourceEvidenceSafe below still
+        // requires source-text proof before a line is treated as fully verified.
+        const displayUnit = sourceSignals.unit || normalizeUnitValue(String(item.unit ?? ""));
         const productQuery = effectiveRawText
           ? stripOrderPrefix(effectiveRawText, catalogSkus)
           : stripOrderPrefix(item.raw_text || item.description, catalogSkus);
@@ -2245,7 +2250,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           sourceUnitPrice: item.sourceUnitPrice ?? null,
           sourceLineTotal: item.sourceLineTotal ?? null,
           matchCandidates: selectedMatch?.candidates,
-          unit: sourceSignals.unit || "",
+          unit: displayUnit,
           matchReason,
           status,
           rejected: false,
@@ -3148,7 +3153,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <Select value={item.unit || "حبة"} onValueChange={(value) => handleUnitChange(index, value)}><SelectTrigger
+                                    <Select value={item.unit || ""} onValueChange={(value) => handleUnitChange(index, value)}><SelectTrigger
                                         ref={(node) => { keyboardFieldRefs.current[`${item.id}:unit`] = node; }}
                                         className="h-10 w-32 cursor-pointer font-bold"
                                         title="اختيار الوحدة — Enter للانتقال للسعر"
@@ -3544,7 +3549,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                 </div>
                                 <div className="space-y-1">
                                   <Label className="text-xs">الوحدة</Label>
-                                  <Select value={item.unit || "حبة"} onValueChange={(value) => handleUnitChange(index, value)}>
+                                  <Select value={item.unit || ""} onValueChange={(value) => handleUnitChange(index, value)}>
                                     <SelectTrigger><SelectValue placeholder="اختر الوحدة" /></SelectTrigger>
                                     <SelectContent>{["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent>
                                   </Select>
