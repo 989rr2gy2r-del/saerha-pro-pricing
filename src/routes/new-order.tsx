@@ -2989,7 +2989,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                               handleOpenProductPicker(index);
                                             }
                                           }
-                                        }}}
+                                        }}
                                       >
                                         <div className="flex items-start justify-between gap-3">
                                           <div className="min-w-0">
