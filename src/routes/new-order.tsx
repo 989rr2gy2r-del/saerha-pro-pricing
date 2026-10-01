@@ -569,13 +569,20 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     [products],
   );
 
-  const productSearchIndex = useMemo(
-    () =>
-      products.map((product) => {
-        const option = {
-          value: product.id,
-          label: product.name_ar + " — " + product.sku,
-        };
+  const MAX_RENDERED_PRODUCT_RESULTS = 150;
+
+  const filterProductOptions = (query: string) => {
+    const normalizedQuery = normalizeForMatch(query);
+    if (!normalizedQuery) {
+      return productOptions.slice(0, 25);
+    }
+
+    const queryTokens = normalizedQuery.split(" ").filter(Boolean);
+
+    return productOptions
+      .map((option) => {
+        const product = productById.get(option.value);
+        if (!product) return null;
 
         const fields = [
           product.sku,
@@ -596,27 +603,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           .filter(Boolean)
           .map((value) => normalizeForMatch(String(value)));
 
-        return {
-          option,
-          fields,
-          haystack: fields.join(" "),
-        };
-      }),
-    [products, productAliases],
-  );
-  const MAX_RENDERED_PRODUCT_RESULTS = 150;
-
-  const filterProductOptions = (query: string) => {
-    const normalizedQuery = normalizeForMatch(query);
-    if (!normalizedQuery) {
-      return productOptions.slice(0, 25);
-    }
-
-    const queryTokens = normalizedQuery.split(" ").filter(Boolean);
-
-    return productSearchIndex
-      .map((entry) => {
-        const { option, fields, haystack } = entry;
+        const haystack = fields.join(" ");
         if (!haystack) return null;
 
         const matches = queryTokens.every((token) => {
