@@ -1013,8 +1013,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     });
   };
 
-  const focusNextOrderField = (index: number, field: "sku" | "product" | "quantity" | "unit" | "price" | "discount") => {
-
   const focusVerticalOrderField = (
     index: number,
     field: "sku" | "product" | "quantity" | "unit" | "price" | "discount",
@@ -1023,15 +1021,20 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     const nextIndex = direction === "down" ? index + 1 : index - 1;
     if (!analysisResult?.items[nextIndex]) return;
     const nextItem = analysisResult.items[nextIndex];
-    keyboardFieldRefs.current[`${nextItem.id}:${field}`]?.focus();
+    const target = keyboardFieldRefs.current[nextItem.id + ":" + field];
+    if (!target) return;
+    window.requestAnimationFrame(() => {
+      target.focus();
+      if (target instanceof HTMLInputElement) target.select();
+    });
   };
+
+  const focusNextOrderField = (index: number, field: "sku" | "product" | "quantity" | "unit" | "price" | "discount") => {
     const order: Array<"sku" | "product" | "quantity" | "unit" | "price" | "discount"> = ["sku", "product", "quantity", "unit", "price", "discount"];
     const position = order.indexOf(field);
     if (position < order.length - 1) focusOrderField(index, order[position + 1]);
     else if (index < (analysisResult?.items.length ?? 0) - 1) focusOrderField(index + 1, "sku");
   };
-
-
 
   const finishSkuEdit = (index: number) => {
     const item = analysisResult?.items[index];
@@ -2972,6 +2975,11 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                           handleOpenProductPicker(index);
                                         }}
                                         onKeyDown={(event) => {
+                                          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                                            event.preventDefault();
+                                            focusVerticalOrderField(index, "product", event.key === "ArrowDown" ? "down" : "up");
+                                            return;
+                                          }
                                           if (event.key === "Enter") {
                                             event.preventDefault();
                                             if (item.product) {
@@ -2981,7 +2989,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                               handleOpenProductPicker(index);
                                             }
                                           }
-                                        }}
+                                        }}}
                                       >
                                         <div className="flex items-start justify-between gap-3">
                                           <div className="min-w-0">
@@ -3179,6 +3187,11 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                         className="h-10 w-32 cursor-pointer font-bold"
                                         title="اختيار الوحدة — Enter للانتقال للسعر"
                                           onKeyDown={(event) => {
+                                          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                                            event.preventDefault();
+                                            focusVerticalOrderField(index, "unit", event.key === "ArrowDown" ? "down" : "up");
+                                            return;
+                                          }
                                           if (event.key === "Enter") {
                                             event.preventDefault();
                                             focusNextOrderField(index, "unit");
