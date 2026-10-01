@@ -443,7 +443,7 @@ function Quotes() {
 
         const leftRows = [
           ["رقم الفاتورة", quote.reference],
-          ["التاريخ والوقت", formatInvoiceDate(quote.issue_date)],
+          ["التاريخ والوقت", quote.created_at ?? quote.issue_date],
           ["المستخدم", ""],
           ["إجمالي الفاتورة", Number(quote.total ?? 0).toFixed(3)],
         ];
@@ -464,7 +464,7 @@ function Quotes() {
             i === 0
               ? String(quote.reference ?? "")
               : i === 1
-                ? formatInvoiceDate(quote.created_at) || formatInvoiceDate(quote.issue_date) || String(quote.issue_date ?? "")
+                ? formatInvoiceDate(String(value)) || formatInvoiceDate(quote.issue_date) || String(quote.issue_date ?? "")
                 : String(value);
           doc.text(actualValue, valueX, y + 19, { align: centeredValue ? "center" : "left" });
         });
