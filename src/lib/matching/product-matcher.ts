@@ -867,30 +867,24 @@ export type MatchableProductRecord = {
   color?: string | null;
 };
 
-type ProductLookupIndex<T extends MatchableProductRecord> = { bySku: Map<string, T>; byName: Map<string, T[]>; byRawName: Map<string, T[]> };
+type ProductLookupIndex<T extends MatchableProductRecord> = { bySku: Map<string, T>; byName: Map<string, T[]> };
 const productLookupIndexCache = new WeakMap<object, ProductLookupIndex<MatchableProductRecord>>();
 function getProductLookupIndex<T extends MatchableProductRecord>(products: T[]): ProductLookupIndex<T> {
   const cached = productLookupIndexCache.get(products as object) as ProductLookupIndex<T> | undefined;
   if (cached) return cached;
   const bySku = new Map<string, T>();
   const byName = new Map<string, T[]>();
-  const byRawName = new Map<string, T[]>();
   for (const product of products) {
     const sku = normalizeProductText(String(product.sku ?? "")).replace(/\s+/g, "");
     if (sku && !bySku.has(sku)) bySku.set(sku, product);
     for (const name of [String(product.name_ar ?? ""), String((product as MatchableProductRecord & { short_name?: string | null }).short_name ?? "")]) {
-      const rawName = name.trim();
-      if (rawName) {
-        const rawList = byRawName.get(rawName);
-        if (rawList) rawList.push(product); else byRawName.set(rawName, [product]);
-      }
       const normalized = normalizeProductText(name);
       if (!normalized) continue;
       const list = byName.get(normalized);
       if (list) list.push(product); else byName.set(normalized, [product]);
     }
   }
-  const index = { bySku, byName, byRawName };
+  const index = { bySku, byName };
   productLookupIndexCache.set(products as object, index as ProductLookupIndex<MatchableProductRecord>);
   return index;
 }
@@ -979,7 +973,6 @@ export function findUniqueTechnicalProduct<T extends MatchableProductRecord>(
 export function findProductByNormalizedName<T extends MatchableProductRecord>(
   text: string,
   products: T[],
-  allowFuzzyFallback = true,
 ): T | null {
   const target = normalizeProductText(String(text ?? ""));
   if (!target) return null;
@@ -987,14 +980,14 @@ export function findProductByNormalizedName<T extends MatchableProductRecord>(
   const index = getProductLookupIndex(products);
   const rawTarget = String(text ?? "").trim();
   const exact = index.byName.get(target) ?? [];
-  const exactRaw = rawTarget ? index.byRawName.get(rawTarget) ?? [] : [];
+  const exactRaw = products.filter((product) => [
+    String(product.name_ar ?? "").trim(),
+    String((product as MatchableProductRecord & { short_name?: string | null }).short_name ?? "").trim(),
+  ].includes(rawTarget));
   const exactMatches = [...new Map([...exact, ...exactRaw].map((product) => [product.id, product])).values()];
-  if (exactMatches.length || !allowFuzzyFallback) {
-    return exactMatches.length === 1 ? exactMatches[0] : null;
-  }
   // Prefix/containment resolution is less common than exact lookup, so keep
   // the full-catalog fallback only for that case to preserve existing behavior.
-  const matches = products.filter((product) => {
+  const matches = exactMatches.length ? exactMatches : products.filter((product) => {
     const names = [
       String(product.name_ar ?? ""),
       String((product as MatchableProductRecord & { short_name?: string | null }).short_name ?? ""),
@@ -1022,7 +1015,7 @@ export function resolveProductByNormalizedNameCandidates<T extends MatchableProd
   conflict: boolean;
 } {
   const resolved = texts
-    .map((text) => findProductByNormalizedName(String(text ?? ""), products, false))
+    .map((text) => findProductByNormalizedName(String(text ?? ""), products))
     .filter((product): product is T => Boolean(product));
 
   const uniqueProducts = [...new Map(resolved.map((product) => [product.id, product])).values()];
@@ -1097,80 +1090,242 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
     | Array<{ product_id: string; alias: string; normalized_alias?: string | null }>
     | Record<string, string[]> = [],
 ) {
+  const startedAt = typeof performance !== "undefined" ? performance.now() : 0;
+  const debug =
+    typeof window !== "undefined" &&
+    window.localStorage.getItem("saerha_debug_matching") === "1";
+  const finish = <R>(result: R, candidateCount = 0) => {
+    if (debug) {
+      const durationMs = Math.round(
+        (typeof performance !== "undefined" ? performance.now() : 0) - startedAt,
+      );
+      console.info("[سعّرها][MATCH_TIMING]", {
+        durationMs,
+        catalogCount: products.length,
+        candidateCount,
+        query: text,
+      });
+    }
+    return result;
+  };
+
   const requestedUnit = normalizeCommercialMatchUnit(
     text.match(/(?:حبة|قطعة|قطع|كرتون|كرتونه|رول|لفة|لفه|لف|باكيت|باك|متر|عبوة|طقم|كيس|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|coils?|packets?|packs?|cartons?|boxes?|meters?|meter)$/i)?.[0] ?? "",
   );
-  const queries = [text, normalizedArabic]
-    .map(stripCommercialOrderTail)
-    .filter(Boolean);
-  const aliasRows = Array.isArray(aliases)
-    ? aliases
-    : Object.entries(aliases).flatMap(([product_id, values]) =>
-        values.map((alias) => ({ product_id, alias })),
-      );
-  if (!queries.length) return null;
+  const queries = [...new Set(
+    [text, normalizedArabic]
+      .map(stripCommercialOrderTail)
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean),
+  )];
+  if (!queries.length || !products.length) return finish(null);
 
+  const aliasesByProduct = Array.isArray(aliases)
+    ? prepareAliases(aliases)
+    : prepareAliases(
+        Object.entries(aliases).flatMap(([product_id, values]) =>
+          values.map((alias) => ({ product_id, alias })),
+        ),
+      );
+
+  const lookup = getProductLookupIndex(products);
+  const exactProducts = new Map<string, T>();
+
+  // Fast exact-name path: indexed lookup only; no catalog scan.
   for (const query of queries) {
-    const technicalProduct = findUniqueTechnicalProduct(query, products);
-    if (
-      technicalProduct &&
-      (!requestedUnit ||
-        normalizeCommercialMatchUnit(technicalProduct.unit ?? "") === requestedUnit)
-    ) {      return {
-        product: technicalProduct,
-        score: 1,
-        status: "HIGH_CONFIDENCE" as const,
-        reason: "مطابقة فنية وحيدة بعد تطبيق القيود الصريحة في الطلب",
-        candidates: [{
-          id: technicalProduct.id,
-          sku: technicalProduct.sku,
-          name_ar: technicalProduct.name_ar,
-          score: 1,
-          reason: "منتج وحيد يطابق جميع المواصفات الصريحة",
-        }],
-      };
+    for (const variant of buildMarketQueryVariants(query)) {
+      const normalized = normalizeProductText(variant);
+      if (!normalized) continue;
+      for (const product of lookup.byName.get(normalized) ?? []) {
+        exactProducts.set(product.id, product);
+      }
     }
   }
 
-  const ranked = queries.flatMap((query) =>
-    rankProductMatches(query, products, aliasRows, (product) => product.id, 8),
-  );
-
-  const byProduct = new Map<string, (typeof ranked)[number]>();
-  for (const candidate of ranked) {
-    const previous = byProduct.get(candidate.productId);
-    if (!previous || candidate.score > previous.score) byProduct.set(candidate.productId, candidate);
+  if (exactProducts.size === 1) {
+    const product = [...exactProducts.values()][0];
+    const unitCompatible =
+      !requestedUnit ||
+      normalizeCommercialMatchUnit(product.unit ?? "") === requestedUnit;
+    if (unitCompatible) {
+      return finish({
+        product,
+        score: 1,
+        status: "HIGH_CONFIDENCE" as const,
+        reason: "مطابقة مباشرة للاسم بعد التطبيع في قاعدة البيانات",
+        candidates: [{
+          id: product.id,
+          sku: product.sku,
+          name_ar: product.name_ar,
+          score: 1,
+          reason: "الاسم العربي مطابق بعد التطبيع",
+        }],
+      }, 1);
+    }
   }
 
-  const sorted = [...byProduct.values()].sort((a, b) => b.score - a.score);
+  const tokenIndex = getProductTokenIndex(
+    products,
+    aliasesByProduct,
+    (product) => String(product.id),
+  );
+  const queryVariants = queries.flatMap(buildMarketQueryVariants);
+  const preparedVariants = queryVariants.map(prepareText);
+  const candidateProductsById = new Map<string, T>();
+
+  // Fast retrieval: only products sharing meaningful identity tokens enter ranking.
+  for (const variant of preparedVariants) {
+    const tokens = variant.identity.length ? variant.identity : variant.tokens;
+    for (const token of tokens) {
+      for (const product of tokenIndex.byToken.get(token) ?? []) {
+        candidateProductsById.set(String(product.id), product);
+      }
+    }
+  }
+
+  // No O(4,583) fuzzy fallback: this is the guard against browser freezes.
+  if (!candidateProductsById.size) return finish(null);
+
+  const queryConstraints = extractMatchConstraints(text);
+  const ranked: Array<MatchCandidate<T> & { productId: string }> = [];
+
+  for (const product of candidateProductsById.values()) {
+    const preparedProduct = prepareProduct(product, (item) => String(item.id));
+    const productAliases = (aliasesByProduct.get(preparedProduct.id) ?? []).map(prepareText);
+    const searchable = [...preparedProduct.fields, ...productAliases];
+    const searchableText = searchable.map((field) => field.value).join(" ");
+
+    if (!candidateMatchesConstraints(searchableText, queryConstraints, true)) continue;
+
+    let bestScore = 0;
+    let bestSignals = {
+      exact: false,
+      alias: false,
+      rapid: 0,
+      token: 0,
+      character: 0,
+      attributes: 0,
+      numeric: 0,
+      identity: 0,
+      cores: 0,
+    };
+    let bestReason = "تشابه جزئي يحتاج مراجعة";
+
+    for (const variant of preparedVariants) {
+      const exact = preparedProduct.fields.some((field) => field.value === variant.value);
+      const alias = productAliases.some((field) => field.value === variant.value);
+      const token = Math.max(
+        0,
+        ...searchable.map((field) => preparedSoftTokenScore(variant.tokens, field.tokens)),
+      );
+      const character = Math.max(
+        0,
+        ...searchable.map((field) => preparedCharacterScore(variant.bigrams, field.bigrams)),
+      );
+      const identity = variant.identity.length
+        ? Math.max(
+            0,
+            ...searchable.map((field) => preparedOverlapScore(variant.identity, field.identity)),
+          )
+        : 1;
+      const identityPrecision = variant.identity.length
+        ? Math.max(
+            0,
+            ...searchable.map((field) => {
+              if (!field.identity.length) return 0;
+              const variantSet = new Set(variant.identity);
+              let matched = 0;
+              for (const token of field.identity) if (variantSet.has(token)) matched += 1;
+              return matched / field.identity.length;
+            }),
+          )
+        : 1;
+
+      const candidateNumbers = [...new Set(searchable.flatMap((field) => field.numbers))];
+      const candidateFractions = [...new Set(searchable.flatMap((field) => field.fractions))];
+      const numeric = variant.numbers.length
+        ? variant.numbers.filter((number) => candidateNumbers.includes(number)).length / variant.numbers.length
+        : 1;
+      const fraction = variant.fractions.length
+        ? variant.fractions.filter((number) => candidateFractions.includes(number)).length / variant.fractions.length
+        : 1;
+      const attributes = Math.min(numeric, fraction);
+      const specificationConflict =
+        (variant.numbers.length > 0 && numeric < 1) ||
+        (variant.fractions.length > 0 && fraction < 1);
+
+      let score = exact || alias
+        ? 1
+        : 0.36 * identity + 0.20 * identityPrecision + 0.20 * token + 0.10 * character + 0.14 * attributes;
+
+      if (identity >= 1 && identityPrecision >= 0.95 && attributes === 1) score += 0.12;
+      if (specificationConflict) score = Math.min(score, 0.72);
+      score = Math.max(0, Math.min(1, score));
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestSignals = {
+          exact,
+          alias,
+          rapid: 0,
+          token,
+          character,
+          attributes,
+          numeric,
+          identity,
+          cores: queryConstraints.cores.length ? 1 : 0,
+        };
+        bestReason = exact
+          ? "مطابقة مباشرة لاسم الصنف في قاعدة البيانات"
+          : alias
+            ? "مطابقة مباشرة لاسم بديل محفوظ"
+            : specificationConflict
+              ? "الاسم قريب لكن المواصفة أو المقاس لا يطابق الطلب"
+              : identity >= 0.9 && attributes === 1
+                ? "مطابقة قوية للاسم والمواصفات"
+                : "تشابه جزئي يحتاج مراجعة";
+      }
+    }
+
+    if (bestScore >= 0.35) {
+      ranked.push({
+        product,
+        productId: preparedProduct.id,
+        score: bestScore,
+        status:
+          bestSignals.exact ||
+          bestSignals.alias ||
+          (bestSignals.identity >= 0.9 && bestSignals.attributes === 1 && bestScore >= 0.86)
+            ? "HIGH_CONFIDENCE"
+            : "NEEDS_REVIEW",
+        reason: bestReason,
+        signals: bestSignals,
+      });
+    }
+  }
+
+  const sorted = ranked.sort((a, b) => b.score - a.score).slice(0, 8);
   const unitCompatible = requestedUnit
-    ? sorted.filter((candidate) => normalizeCommercialMatchUnit(candidate.product.unit ?? "") === requestedUnit)
+    ? sorted.filter(
+        (candidate) => normalizeCommercialMatchUnit(candidate.product.unit ?? "") === requestedUnit,
+      )
     : sorted;
   const considered = unitCompatible.length ? unitCompatible : sorted;
   const best = considered[0];
   const second = considered[1];
 
-  if (!best || best.score < 0.55) return null;
+  if (!best || best.score < 0.55) return finish(null, candidateProductsById.size);
 
   const margin = second ? best.score - second.score : 1;
-  const competingExactEvidence = Boolean(
+  const ambiguous = Boolean(
     second &&
-      best.product.id !== second.product.id &&
-      (best.signals.exact || best.signals.alias) &&
-      (second.signals.exact || second.signals.alias) &&
-      Math.abs(best.score - second.score) < 0.001,
-  );
-  const ambiguous =
-    competingExactEvidence ||
-    (Boolean(second) &&
       margin < 0.10 &&
       !best.signals.exact &&
       !best.signals.alias &&
-      best.product.id !== second?.product?.id);
-
+      best.product.id !== second.product.id,
+  );
   const bestUnit = normalizeCommercialMatchUnit(best.product.unit ?? "");
   const unitMismatch = Boolean(requestedUnit && bestUnit && requestedUnit !== bestUnit);
-
   const colorVariantAmbiguous =
     !hasExplicitColor(text) &&
     candidateHasSpecificColor(best.product) &&
@@ -1180,7 +1335,6 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
         candidate.score >= best.score - 0.12,
     );
 
-  const queryConstraints = extractMatchConstraints(text);
   const hardConstraintCount =
     (queryConstraints.productClass ? 1 : 0) +
     queryConstraints.amps.length +
@@ -1202,17 +1356,7 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
     !colorVariantAmbiguous &&
     (exactCatalogEvidence || uniqueTechnicalMatch);
 
-  const candidates = considered.slice(0, 5).map((candidate) => ({
-    id: candidate.product.id,
-    sku: candidate.product.sku,
-    name_ar: candidate.product.name_ar,
-    score: candidate.score,
-    reason: candidate.reason,
-  }));
-
-  return {
-    // Keep auto-acceptance semantics unchanged. The review candidate is exposed
-    // separately so the UI can display the real catalog product without auto-accepting it.
+  return finish({
     product: autoAccept ? best.product : null,
     reviewProduct: best.product,
     score: best.score,
@@ -1226,6 +1370,12 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
           : ambiguous
             ? "أكثر من صنف في القاعدة متقارب؛ يلزم اختيار المستخدم"
             : "المرشح لم يتجاوز شروط المطابقة الآمنة",
-    candidates,
-  };
+    candidates: considered.slice(0, 5).map((candidate) => ({
+      id: candidate.product.id,
+      sku: candidate.product.sku,
+      name_ar: candidate.product.name_ar,
+      score: candidate.score,
+      reason: candidate.reason,
+    })),
+  }, candidateProductsById.size);
 }
