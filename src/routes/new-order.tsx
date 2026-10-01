@@ -571,6 +571,54 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
   const MAX_RENDERED_PRODUCT_RESULTS = 150;
 
+  // Build the normalized catalog search data once when the catalog/aliases change.
+  // The previous implementation rebuilt and normalized every product field on every
+  // keystroke/backspace in the picker. Keep the matching rules identical; only move
+  // the expensive catalog preparation out of the per-query path.
+  const productSearchIndex = useMemo(
+    () =>
+      productOptions
+        .map((option) => {
+          const product = productById.get(option.value);
+          if (!product) return null;
+
+          const fields = [
+            product.sku,
+            product.name_ar,
+            product.name_en,
+            product.short_name,
+            product.brand,
+            product.model,
+            product.size,
+            product.category_main,
+            product.category_sub,
+            product.category_third,
+            product.product_group,
+            product.description,
+            product.unit,
+            ...(productAliases[product.id] ?? []),
+          ]
+            .filter(Boolean)
+            .map((value) => normalizeForMatch(String(value)));
+
+          return {
+            option,
+            fields,
+            haystack: fields.join(" "),
+          };
+        })
+        .filter(
+          (
+            entry,
+          ): entry is {
+            option: (typeof productOptions)[number];
+            fields: string[];
+            haystack: string;
+          } => Boolean(entry),
+        ),
+    [productOptions, productById, productAliases],
+  );
+
   const filterProductOptions = (query: string) => {
     const normalizedQuery = normalizeForMatch(query);
     if (!normalizedQuery) {
@@ -579,31 +627,9 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
     const queryTokens = normalizedQuery.split(" ").filter(Boolean);
 
-    return productOptions
-      .map((option) => {
-        const product = productById.get(option.value);
-        if (!product) return null;
-
-        const fields = [
-          product.sku,
-          product.name_ar,
-          product.name_en,
-          product.short_name,
-          product.brand,
-          product.model,
-          product.size,
-          product.category_main,
-          product.category_sub,
-          product.category_third,
-          product.product_group,
-          product.description,
-          product.unit,
-          ...(productAliases[product.id] ?? []),
-        ]
-          .filter(Boolean)
-          .map((value) => normalizeForMatch(String(value)));
-
-        const haystack = fields.join(" ");
+    return productSearchIndex
+      .map((entry) => {
+        const { option, fields, haystack } = entry;
         if (!haystack) return null;
 
         const matches = queryTokens.every((token) => {
