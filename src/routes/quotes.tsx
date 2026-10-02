@@ -4,10 +4,9 @@ import { FileSpreadsheet, FolderOpen, MessageCircle, Plus, Search, Trash2 } from
 import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
 import { useEffect, useMemo, useRef, useState } from "react";
-import * as pdfjsLib from "pdfjs-dist";
-import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+const PDFJS_URL = "https://unpkg.com/pdfjs-dist@5.4.624/build/pdf.min.mjs";
+const PDFJS_WORKER_URL = "https://unpkg.com/pdfjs-dist@5.4.624/build/pdf.worker.min.mjs";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/badge";
@@ -95,7 +94,7 @@ function PdfCanvasPreview({ pdfUrl }: { pdfUrl: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    let pdfDocument: pdfjsLib.PDFDocumentProxy | null = null;
+    let pdfDocument: { numPages: number; getPage: (pageNumber: number) => Promise<any>; destroy: () => Promise<void> } | null = null;
 
     const render = async () => {
       const container = containerRef.current;
@@ -105,6 +104,8 @@ function PdfCanvasPreview({ pdfUrl }: { pdfUrl: string }) {
       container.replaceChildren();
 
       try {
+        const pdfjsLib = await import(/* @vite-ignore */ PDFJS_URL);
+        pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
         pdfDocument = await pdfjsLib.getDocument({ url: pdfUrl }).promise;
         const outputScale = Math.min(window.devicePixelRatio || 1, 2);
 
