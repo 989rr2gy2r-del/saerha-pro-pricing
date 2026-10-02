@@ -561,18 +561,37 @@ function Quotes() {
           headerCanvas.width,
           headerCanvas.height,
         ).data;
+
+        // Align the visible blue header band itself with the exact table width.
+        // The crop is measured from the actual approved header image at runtime;
+        // no fixed pixel offset is assumed.
         let minX = headerCanvas.width;
         let maxX = -1;
+        let widestBlueSpan = 0;
 
         for (let y = 0; y < headerCanvas.height; y += 1) {
+          let rowMinX = headerCanvas.width;
+          let rowMaxX = -1;
+
           for (let x = 0; x < headerCanvas.width; x += 1) {
             const offset = (y * headerCanvas.width + x) * 4;
             const alpha = pixels[offset + 3];
-            const brightness =
-              (pixels[offset] + pixels[offset + 1] + pixels[offset + 2]) / 3;
-            if (alpha > 10 && brightness < 248) {
-              minX = Math.min(minX, x);
-              maxX = Math.max(maxX, x);
+            const red = pixels[offset];
+            const green = pixels[offset + 1];
+            const blue = pixels[offset + 2];
+
+            if (alpha > 10 && blue > 90 && blue > red * 1.5 && blue > green * 1.2) {
+              rowMinX = Math.min(rowMinX, x);
+              rowMaxX = Math.max(rowMaxX, x);
+            }
+          }
+
+          if (rowMaxX >= rowMinX) {
+            const rowSpan = rowMaxX - rowMinX + 1;
+            if (rowSpan > widestBlueSpan) {
+              widestBlueSpan = rowSpan;
+              minX = rowMinX;
+              maxX = rowMaxX;
             }
           }
         }
