@@ -132,7 +132,7 @@ export function parseTextOrderFallback(text: string): { items: ParsedOrderItem[]
   const items = lines.flatMap((line, index) => {
     const cleaned = line
       .replace(/[|¦]+/g, "\t")
-      .replace(/\s*=\s*(?=[0-9٠-٩]+(?:[.,][0-9٠-٩]+)?\s*(?:(?:حبة|قطعة|قطع|علبة|كرتون|كرتونه|رول|لفة|لفه|لف|باكيت|باك|متر|مترات|meter|meters|m|سم|cm|مم|mm|كجم|كغ|جم|غ|لتر|مل|ml|عبوة|طقم|كيس|صندوق|دزينة|درزن|dozen|dozens|dz|dzn|زوج|pcs|pc|pieces|piece|roll|rolls|coil|coils|packet|packets|pack|packs|carton|cartons|box|boxes))?\s*$)/, " ")
+      .replace(/\s*=\s*(?=[0-9٠-٩]+(?:[.,][0-9٠-٩]+)?\s*(?:(?:حبة|قطعة|قطع|علبة|كرتون|كرتونه|رول|لفة|لفه|لف|باكيت|باكت|باك|متر|مترات|meter|meters|m|سم|cm|مم|mm|كجم|كغ|جم|غ|لتر|مل|ml|عبوة|طقم|كيس|صندوق|دزينة|درزن|dozen|dozens|dz|dzn|زوج|pcs|pc|pieces|piece|roll|rolls|coil|coils|packet|packets|pack|packs|carton|cartons|box|boxes))?\s*$)/, " ")
       .replace(/^[-*•]+\s*/, "")
       .replace(/^\s*(?:م|رقم|no|item)\.?\s*/i, "")
       .replace(/^\s*\d+[.)\-:]\s*/, "")
