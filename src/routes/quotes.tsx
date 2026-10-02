@@ -88,6 +88,8 @@ const getCustomerName = (customers?: QuoteCustomerValue) =>
 function Quotes() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [open, setOpen] = useState<Quote | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
@@ -977,6 +979,40 @@ function Quotes() {
     }
   };
 
+  useEffect(() => {
+    if (!open) {
+      setPdfPreviewUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
+      setPdfPreviewLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setPdfPreviewLoading(true);
+    setPdfPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+
+    void createPdfBlob(open)
+      .then((pdfBlob) => {
+        if (cancelled) return;
+        setPdfPreviewUrl(URL.createObjectURL(pdfBlob));
+      })
+      .catch((error) => {
+        console.error("PDF preview failed", error);
+      })
+      .finally(() => {
+        if (!cancelled) setPdfPreviewLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
   return (
     <AppShell
       title="عروض الأسعار"
@@ -1163,22 +1199,23 @@ function Quotes() {
                    <Trash2 className="ml-1 h-4 w-4" /> حذف العرض
                  </Button>
                </div>
-              {open.quotation_items?.map((it: QuoteItem) => (
-                <div key={it.id} className="rounded-xl border border-border p-3">
-                  <p className="text-sm font-bold">{it.product_name}</p>
-                  <p className="num text-xs text-accent">{it.sku}</p>
-                  <dl className="num mt-2 grid grid-cols-2 gap-2 text-xs">
-                    <div>الكمية: {it.quantity}</div>
-                    <div>الوحدة: {it.unit}</div>
-                    <div>سعر الوحدة: {Number(it.unit_price ?? 0).toFixed(3)}</div>
-                    <div>الخصم: {Number(it.discount_amount ?? 0).toFixed(3)}</div>
-                    <div>الإجمالي: {Number(it.line_total ?? 0).toFixed(3)}</div>
-                  </dl>
-                </div>
-              ))}
-              <p className="rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
-                {open.notes}
-              </p>
+              <div className="overflow-hidden rounded-xl border border-border bg-muted/30">
+                {pdfPreviewLoading ? (
+                  <div className="flex min-h-[70vh] items-center justify-center p-6 text-sm text-muted-foreground">
+                    جارٍ تجهيز الفاتورة...
+                  </div>
+                ) : pdfPreviewUrl ? (
+                  <iframe
+                    title={`معاينة الفاتورة ${open.reference}`}
+                    src={pdfPreviewUrl}
+                    className="h-[70vh] w-full bg-white"
+                  />
+                ) : (
+                  <div className="flex min-h-[70vh] items-center justify-center p-6 text-sm text-destructive">
+                    تعذر عرض الفاتورة. استخدم زر PDF لتنزيلها.
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>
