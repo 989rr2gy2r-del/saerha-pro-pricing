@@ -538,9 +538,81 @@ function Quotes() {
       };
 
       const drawHeader = async () => {
-        // Official header image from the approved invoice design.
+        // Keep the approved header artwork, but remove only its internal horizontal
+        // white margins so the visible header edges align with the invoice tables.
         const headerHeight = contentWidth * (244 / 1055);
-        doc.addImage(`data:image/png;base64,${headerBase64}`, "PNG", margin, 4, contentWidth, headerHeight);
+        const headerImage = document.createElement("img");
+        headerImage.src = `data:image/png;base64,${headerBase64}`;
+        await new Promise<void>((resolve, reject) => {
+          headerImage.onload = () => resolve();
+          headerImage.onerror = () => reject(new Error("تعذر تحميل ترويسة الفاتورة"));
+        });
+
+        const headerCanvas = document.createElement("canvas");
+        headerCanvas.width = headerImage.naturalWidth;
+        headerCanvas.height = headerImage.naturalHeight;
+        const headerContext = headerCanvas.getContext("2d");
+        if (!headerContext) throw new Error("تعذر تجهيز ترويسة الفاتورة");
+        headerContext.drawImage(headerImage, 0, 0);
+
+        const pixels = headerContext.getImageData(
+          0,
+          0,
+          headerCanvas.width,
+          headerCanvas.height,
+        ).data;
+        let minX = headerCanvas.width;
+        let maxX = -1;
+
+        for (let y = 0; y < headerCanvas.height; y += 1) {
+          for (let x = 0; x < headerCanvas.width; x += 1) {
+            const offset = (y * headerCanvas.width + x) * 4;
+            const alpha = pixels[offset + 3];
+            const brightness =
+              (pixels[offset] + pixels[offset + 1] + pixels[offset + 2]) / 3;
+            if (alpha > 10 && brightness < 248) {
+              minX = Math.min(minX, x);
+              maxX = Math.max(maxX, x);
+            }
+          }
+        }
+
+        if (maxX >= minX) {
+          const croppedWidth = maxX - minX + 1;
+          const croppedCanvas = document.createElement("canvas");
+          croppedCanvas.width = croppedWidth;
+          croppedCanvas.height = headerCanvas.height;
+          const croppedContext = croppedCanvas.getContext("2d");
+          if (!croppedContext) throw new Error("تعذر قص ترويسة الفاتورة");
+          croppedContext.drawImage(
+            headerCanvas,
+            minX,
+            0,
+            croppedWidth,
+            headerCanvas.height,
+            0,
+            0,
+            croppedWidth,
+            headerCanvas.height,
+          );
+          doc.addImage(
+            croppedCanvas.toDataURL("image/png"),
+            "PNG",
+            margin,
+            4,
+            contentWidth,
+            headerHeight,
+          );
+        } else {
+          doc.addImage(
+            `data:image/png;base64,${headerBase64}`,
+            "PNG",
+            margin,
+            4,
+            contentWidth,
+            headerHeight,
+          );
+        }
 
         // Official logo watermark: kept behind the live invoice data.
         const watermark = await createWatermark();
