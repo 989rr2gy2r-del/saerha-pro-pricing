@@ -681,7 +681,7 @@ function Quotes() {
           doc.setLineWidth(0.55);
           doc.setFillColor("#FFFFFF");
           doc.rect(leftX, y, leftW, row, "FD");
-          drawLabelCell(leftX, y, leftW, label);
+          drawLabelCell(leftX, y, leftW, String(label ?? ""));
           doc.setFont(i === 0 ? "helvetica" : arabicBoldFontName, "normal");
           doc.setFontSize(9.2);
           doc.setTextColor(TEXT);
