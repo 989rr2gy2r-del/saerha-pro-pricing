@@ -1292,18 +1292,6 @@ function Quotes() {
                   </div>
                 )}
               </div>
-                ) : pdfPreviewUrl ? (
-                  <iframe
-                    title={`معاينة الفاتورة ${open.reference}`}
-                    src={`${pdfPreviewUrl}#view=FitH&zoom=page-width`}
-                    className="block h-[calc((92vh-180px)*1.08)] min-h-[454px] w-[108%] max-w-none origin-top-center scale-[0.9259] border-0 bg-white sm:h-[calc(92vh-180px)] sm:min-h-[420px] sm:w-full sm:max-w-full sm:scale-100"
-                  />
-                ) : (
-                  <div className="flex min-h-[70vh] items-center justify-center p-6 text-sm text-destructive">
-                    تعذر عرض الفاتورة. استخدم زر PDF لتنزيلها.
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </DialogContent>
