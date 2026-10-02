@@ -132,6 +132,7 @@ export function parseTextOrderFallback(text: string): { items: ParsedOrderItem[]
   const items = lines.flatMap((line, index) => {
     const cleaned = line
       .replace(/[|¦]+/g, "\t")
+      .replace(/\s*=\s*/g, " ")
       .replace(/^[-*•]+\s*/, "")
       .replace(/^\s*(?:م|رقم|no|item)\.?\s*/i, "")
       .replace(/^\s*\d+[.)\-:]\s*/, "")
