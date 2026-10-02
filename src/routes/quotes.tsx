@@ -526,6 +526,14 @@ function Quotes() {
           canvas.width,
           canvas.height,
         );
+
+        // The approved watermark asset contains two solid edge lines (2px left,
+        // 5px right). Remove only those edge pixels; keep the watermark geometry
+        // and all invoice content unchanged.
+        const edge = 8;
+        context.clearRect(0, 0, edge, canvas.height);
+        context.clearRect(canvas.width - edge, 0, edge, canvas.height);
+
         return canvas.toDataURL("image/png");
       };
 
