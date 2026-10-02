@@ -51,6 +51,23 @@ const whatsappOrder = `1. PVC Circular Socket Box – 15 pcs
 const expectedQuantities = [15,500,5,3,12,4,3,7,1,12,30,30,2,2,1,1,1,1,1,15,10,16,20,15,1];
 const expectedUnits = ["حبة","مل","حبة","حبة","حبة","حبة","حبة","حبة","حبة","حبة","حبة","متر","رول","رول","رول","رول","رول","رول","رول","حبة","حبة","حبة","","حبة","حبة"];
 
+const equalsOrder = `فيوشر برغي 6 ملي = 2 باكت
+مسمار سن ساج 1.5 انش = 150 حبة
+مسمار سن ساج 2 انش = 100 حبة
+سليكون شفاف = 3 حبة
+سوبر جلو = 1 حبة`;
+const equalsParsed = parseTextOrderFallback(equalsOrder);
+assert.equal(equalsParsed.items.length, 5, "equals-separated order must preserve all 5 rows");
+assert.deepEqual(equalsParsed.items.map((item) => item.description), [
+  "فيوشر برغي 6 ملي",
+  "مسمار سن ساج 1.5 انش",
+  "مسمار سن ساج 2 انش",
+  "سليكون شفاف",
+  "سوبر جلو",
+]);
+assert.deepEqual(equalsParsed.items.map((item) => item.quantity), [2, 150, 100, 3, 1]);
+assert.deepEqual(equalsParsed.items.map((item) => item.unit), ["باكيت", "حبة", "حبة", "حبة", "حبة"]);
+
 const parsed = parseTextOrderFallback(whatsappOrder);
 assert.equal(parsed.items.length, 25, "WhatsApp order must preserve all 25 rows");
 assert.deepEqual(parsed.items.map((item) => item.quantity), expectedQuantities);
