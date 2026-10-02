@@ -3,7 +3,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { FileSpreadsheet, FolderOpen, MessageCircle, Plus, Search, Trash2 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/badge";
@@ -84,6 +88,81 @@ const getCustomerList = (customers?: QuoteCustomerValue) => {
 
 const getCustomerName = (customers?: QuoteCustomerValue) =>
   getCustomerList(customers)[0]?.name?.trim() || "عميل";
+
+function PdfCanvasPreview({ pdfUrl }: { pdfUrl: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let pdfDocument: pdfjsLib.PDFDocumentProxy | null = null;
+
+    const render = async () => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      setError(false);
+      container.replaceChildren();
+
+      try {
+        pdfDocument = await pdfjsLib.getDocument({ url: pdfUrl }).promise;
+        const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+
+        for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+          if (cancelled) return;
+
+          const page = await pdfDocument.getPage(pageNumber);
+          const baseViewport = page.getViewport({ scale: 1 });
+          const availableWidth = Math.max(container.clientWidth - 2, 1);
+          const scale = availableWidth / baseViewport.width;
+          const viewport = page.getViewport({ scale });
+
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d", { alpha: false });
+          if (!context) throw new Error("تعذر تجهيز معاينة الفاتورة");
+
+          canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
+          canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
+          canvas.style.display = "block";
+          canvas.style.width = "100%";
+          canvas.style.height = "auto";
+          canvas.style.background = "#ffffff";
+          canvas.setAttribute("aria-label", `صفحة ${pageNumber} من الفاتورة`);
+
+          container.appendChild(canvas);
+
+          await page.render({
+            canvasContext: context,
+            viewport,
+            transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined,
+          }).promise;
+        }
+      } catch (renderError) {
+        if (!cancelled) {
+          console.error("PDF canvas preview failed", renderError);
+          setError(true);
+        }
+      }
+    };
+
+    void render();
+
+    return () => {
+      cancelled = true;
+      void pdfDocument?.destroy();
+    };
+  }, [pdfUrl]);
+
+  if (error) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center p-6 text-sm text-destructive">
+        تعذر عرض الفاتورة. استخدم زر PDF لتنزيلها.
+      </div>
+    );
+  }
+
+  return <div ref={containerRef} className="w-full overflow-hidden bg-white" />;
+}
 
 function Quotes() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -1199,11 +1278,19 @@ function Quotes() {
                    <Trash2 className="ml-1 h-4 w-4" /> حذف العرض
                  </Button>
                </div>
-              <div className="overflow-hidden rounded-xl border border-border bg-muted/30">
+              <div className="max-h-[70vh] overflow-y-auto overflow-x-hidden rounded-xl border border-border bg-muted/30">
                 {pdfPreviewLoading ? (
                   <div className="flex min-h-[70vh] items-center justify-center p-6 text-sm text-muted-foreground">
                     جارٍ تجهيز الفاتورة...
                   </div>
+                ) : pdfPreviewUrl ? (
+                  <PdfCanvasPreview pdfUrl={pdfPreviewUrl} />
+                ) : (
+                  <div className="flex min-h-[70vh] items-center justify-center p-6 text-sm text-destructive">
+                    تعذر عرض الفاتورة. استخدم زر PDF لتنزيلها.
+                  </div>
+                )}
+              </div>
                 ) : pdfPreviewUrl ? (
                   <iframe
                     title={`معاينة الفاتورة ${open.reference}`}
