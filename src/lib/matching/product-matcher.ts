@@ -1196,6 +1196,18 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
   // No O(4,583) fuzzy fallback: this is the guard against browser freezes.
   if (!candidateProductsById.size) return finish(null);
 
+  // If the order explicitly states a commercial unit, rank only compatible
+  // catalog units when available. This prevents a "حبة" product from winning
+  // over the requested "باكت" product when the wording is otherwise similar.
+  const unitCompatibleCandidates = requestedUnit
+    ? [...candidateProductsById.values()].filter(
+        (product) => normalizeCommercialMatchUnit(product.unit ?? "") === requestedUnit,
+      )
+    : [];
+  const candidateProducts = unitCompatibleCandidates.length
+    ? unitCompatibleCandidates
+    : [...candidateProductsById.values()];
+
   const queryConstraints = extractMatchConstraints(text);
   const ranked: Array<MatchCandidate<T> & { productId: string }> = [];
 
