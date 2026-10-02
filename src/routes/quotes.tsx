@@ -729,7 +729,46 @@ function Quotes() {
         doc.addImage(`data:image/png;base64,${footerBase64}`, "PNG", margin, footerY, contentWidth, footerHeight);
       };
 
-      const drawInfo = () => {
+      const drawArabicCellValue = async (
+        value: string,
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        fontSize = 9.2,
+      ) => {
+        await ensureCanvasFont();
+
+        const scale = 4;
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.ceil(width * scale));
+        canvas.height = Math.max(1, Math.ceil(height * scale));
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("تعذر تجهيز اسم العميل");
+
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.font = `700 ${fontSize * scale}px "${canvasFontName}"`;
+        context.direction = "rtl";
+        context.textAlign = "right";
+        context.textBaseline = "middle";
+        context.fillStyle = TEXT;
+        context.fillText(
+          value,
+          canvas.width - 7 * scale,
+          (height * scale) / 2,
+        );
+
+        doc.addImage(
+          canvas.toDataURL("image/png"),
+          "PNG",
+          x,
+          y,
+          width,
+          height,
+        );
+      };
+
+      const drawInfo = async () => {
         // Exact geometry measured from the supplied official invoice PDF (A4: 595 x 842 pt).
         // The first information row starts directly below the official blue header band.
         const top = 132;
@@ -812,7 +851,18 @@ function Quotes() {
           doc.setFillColor("#FFFFFF");
           doc.rect(rightX, y, rightW, row, "FD");
           drawLabelCell(rightX, y, rightW, label);
-          drawText(String(value), rightX + rightW - 82, y + 19, 9.2, "right", true);
+          if (i === 0 && String(value).trim()) {
+            await drawArabicCellValue(
+              String(value),
+              rightX,
+              y,
+              rightW - 72,
+              row,
+              9.2,
+            );
+          } else {
+            drawText(String(value), rightX + rightW - 82, y + 19, 9.2, "right", true);
+          }
         });
 
         // The last official row contains the transaction term plus the currency cell.
@@ -1007,7 +1057,7 @@ function Quotes() {
       // Keep the item table clearly below the blue header band and the invoice/customer information block.
       let y = 279;
       await drawHeader();
-      drawInfo();
+      await drawInfo();
       y = drawTableHeader(y);
       const items = quote.quotation_items ?? [];
 
