@@ -106,13 +106,14 @@ function PdfCanvasPreview({ pdfUrl }: { pdfUrl: string }) {
       try {
         const pdfjsLib = await import(/* @vite-ignore */ PDFJS_URL);
         pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
-        pdfDocument = await pdfjsLib.getDocument({ url: pdfUrl }).promise;
+        const loadedPdfDocument = await pdfjsLib.getDocument({ url: pdfUrl }).promise;
+        pdfDocument = loadedPdfDocument;
         const outputScale = Math.min(window.devicePixelRatio || 1, 2);
 
-        for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+        for (let pageNumber = 1; pageNumber <= loadedPdfDocument.numPages; pageNumber += 1) {
           if (cancelled) return;
 
-          const page = await pdfDocument.getPage(pageNumber);
+          const page = await loadedPdfDocument.getPage(pageNumber);
           const baseViewport = page.getViewport({ scale: 1 });
           const availableWidth = Math.max(container.clientWidth - 2, 1);
           const scale = availableWidth / baseViewport.width;
