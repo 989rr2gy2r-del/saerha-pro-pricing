@@ -297,9 +297,6 @@ export function parseTextOrderFallback(text: string): { items: ParsedOrderItem[]
     const quantityUnit = new RegExp(`^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?\\s*$`, "i");
     const trailingQuantity = new RegExp(`^(.+?)\\s+([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s*(${unitPattern})?\\s*$`, "i");
 , "i");
-
-    // Pasted customer lists often start with quantity and then the product name
-    // without a unit. Preserve that row instead of dropping it when no later number exists.
     const leadingBareQuantity = new RegExp(`^([0-9٠-٩]+(?:[.,][0-9٠-٩]+)?)\\s+(.+)export type ParsedOrderItem = {
   id: string;
   description: string;
@@ -471,7 +468,7 @@ export function parseTextOrderFallback(text: string): { items: ParsedOrderItem[]
         description = (leading[2] ?? "").replace(/^\d+[.)\-:]?\s+/, "").trim();
       } else if (leadingBare) {
         quantity = toNumber(leadingBare[1] ?? "");
-        description = (leadingBare[2] ?? "").replace(/^\\d+[.)\\-:]?\\s+/, "").trim();
+        description = (leadingBare[2] ?? "").replace(/^\d+[.)\-:]?\s+/, "").trim();
       } else if (trailing) {
         quantity = toNumber(trailing[2] ?? "");
         unit = normalizeOrderUnit(trailing[3] ?? "");
