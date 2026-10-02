@@ -2154,8 +2154,30 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           .filter(Boolean)
           .join(" ");
         const commercialUnit = sourceSignals.unit;
+        // Some handwritten English orders repeat a product family and put only
+        // the new size/quantity on the following line. If the current line has
+        // no product identity at all, inherit only the previous line's product
+        // words (never its previous size or quantity) as matching context.
+        const currentAttributeOnly = normalizeProductText(productQuery)
+          .replace(/\b\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?\b/g, " ")
+          .replace(/\b(?:انش|inch|in|pcs?|pieces?|piece|حبة|قطعة|قطع)\b/gi, " ")
+          .replace(/\s+/g, " ")
+          .trim() === "";
+        const previousItem = itemIndex > 0 ? normalizedItems[itemIndex - 1] : null;
+        const inheritedProductContext = currentAttributeOnly && previousItem
+          ? normalizeProductText(
+              previousItem.normalized_description_ar ||
+                previousItem.description ||
+                previousItem.raw_text ||
+                "",
+            )
+              .replace(/\b\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?\b/g, " ")
+              .replace(/\b(?:انش|inch|in|pcs?|pieces?|piece|حبة|قطعة|قطع)\b/gi, " ")
+              .replace(/\s+/g, " ")
+              .trim()
+          : "";
         const searchQuery = [...new Set(
-          [productQuery, structuredMatchEvidence, commercialUnit]
+          [productQuery, structuredMatchEvidence, commercialUnit, inheritedProductContext]
             .map((value) => String(value ?? "").trim())
             .filter(Boolean),
         )].join(" ").trim();
