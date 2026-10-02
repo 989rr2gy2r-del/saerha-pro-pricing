@@ -19,7 +19,7 @@ export type MatchCandidate<T> = {
 };
 
 const MARKET_SYNONYMS: Array<[RegExp, string]> = [
-  [/\bamps?\b/gi, "امبير"], [/\bamperes?\b/gi, "امبير"], [/\bmeters?\b/gi, "متر"], [/\brolls?\b|\bcoils?\b/gi, "رول"], [/(?:^|\s)(?:لفه|لفة|لف)(?=\s|$)/gi, "رول"], [/\bpcs?\b|\bpieces?\b/gi, "حبة"],
+  [/\bamps?\b/gi, "امبير"], [/\bfisher\b/gi, "فيوشر"], [/\bamperes?\b/gi, "امبير"], [/\bmeters?\b/gi, "متر"], [/\brolls?\b|\bcoils?\b/gi, "رول"], [/(?:^|\s)(?:لفه|لفة|لف)(?=\s|$)/gi, "رول"], [/\bpcs?\b|\bpieces?\b/gi, "حبة"],
   [/\bgangs?\b/gi, "دقمة"], [/\b1[-\s]?way\b/gi, "1 دقمة"], [/\b2[-\s]?way\b/gi, "2 دقمة"], [/\b3[-\s]?way\b/gi, "3 دقمة"], [/\b4[-\s]?way\b/gi, "4 دقمة"], [/\b5[-\s]?way\b/gi, "5 دقمة"], [/\b6[-\s]?way\b/gi, "6 دقمة"], [/\bround[-\s]?pin\b/gi, "دائري"],
 
   [/\bpvc\b/gi, "بلاستيك"], [/\bcircular\b/gi, "دائري"],
@@ -52,7 +52,7 @@ const MARKET_SYNONYMS: Array<[RegExp, string]> = [
   [/ساكت/gi, "ساكت"],
   [/ملبوش/gi, "ملبوش"],
   [/انش|إنش|بوصه|بوصة/gi, "انش"],
-  [/ملم|مم/gi, "مم"],
+  [/ملي|ملم|مم/gi, "مم"],
   [/امبير|أمبير/gi, "امبير"],
   [/اخضر|أخضر/gi, "اخضر"],
   [/ابيض|أبيض/gi, "ابيض"],
