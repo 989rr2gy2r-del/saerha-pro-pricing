@@ -729,46 +729,7 @@ function Quotes() {
         doc.addImage(`data:image/png;base64,${footerBase64}`, "PNG", margin, footerY, contentWidth, footerHeight);
       };
 
-      const drawArabicCellValue = async (
-        value: string,
-        x: number,
-        y: number,
-        width: number,
-        height: number,
-        fontSize = 9.2,
-      ) => {
-        await ensureCanvasFont();
-
-        const scale = 4;
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.max(1, Math.ceil(width * scale));
-        canvas.height = Math.max(1, Math.ceil(height * scale));
-        const context = canvas.getContext("2d");
-        if (!context) throw new Error("تعذر تجهيز اسم العميل");
-
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        context.font = `700 ${fontSize * scale}px "${canvasFontName}"`;
-        context.direction = "rtl";
-        context.textAlign = "right";
-        context.textBaseline = "middle";
-        context.fillStyle = TEXT;
-        context.fillText(
-          value,
-          canvas.width - 7 * scale,
-          (height * scale) / 2,
-        );
-
-        doc.addImage(
-          canvas.toDataURL("image/png"),
-          "PNG",
-          x,
-          y,
-          width,
-          height,
-        );
-      };
-
-      const drawInfo = async () => {
+      const drawInfo = () => {
         // Exact geometry measured from the supplied official invoice PDF (A4: 595 x 842 pt).
         // The first information row starts directly below the official blue header band.
         const top = 132;
@@ -844,26 +805,15 @@ function Quotes() {
           ["العنوان", customer.address ?? ""],
         ];
 
-        for (const [i, [label, value]] of customerRows.entries()) {
+        customerRows.forEach(([label, value], i) => {
           const y = top + i * row;
           doc.setDrawColor(GRID);
           doc.setLineWidth(0.55);
           doc.setFillColor("#FFFFFF");
           doc.rect(rightX, y, rightW, row, "FD");
           drawLabelCell(rightX, y, rightW, label);
-          if (i === 0 && String(value).trim()) {
-            await drawArabicCellValue(
-              String(value),
-              rightX,
-              y,
-              rightW - 72,
-              row,
-              9.2,
-            );
-          } else {
-            drawText(String(value), rightX + rightW - 82, y + 19, 9.2, "right", true);
-          }
-        }
+          drawText(String(value), rightX + rightW - 82, y + 19, 9.2, "right", true);
+        });
 
         // The last official row contains the transaction term plus the currency cell.
         const lastY = top + 3 * row;
@@ -1057,7 +1007,7 @@ function Quotes() {
       // Keep the item table clearly below the blue header band and the invoice/customer information block.
       let y = 279;
       await drawHeader();
-      await drawInfo();
+      drawInfo();
       y = drawTableHeader(y);
       const items = quote.quotation_items ?? [];
 
@@ -1270,16 +1220,7 @@ function Quotes() {
                         className="h-4 w-4"
                       />
                     </TableCell>
-                    <TableCell className="num font-bold">
-                      <button
-                        type="button"
-                        className="cursor-pointer underline-offset-4 hover:underline focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                        onClick={() => setOpen(q)}
-                        aria-label={`معاينة عرض السعر ${q.reference}`}
-                      >
-                        {q.reference}
-                      </button>
-                    </TableCell>
+                    <TableCell className="num font-bold">{q.reference}</TableCell>
                     <TableCell>{getCustomerName(q.customers)}</TableCell>
                     <TableCell className="num">{q.issue_date}</TableCell>
                     <TableCell className="num">{q.expiry_date}</TableCell>
@@ -1318,3 +1259,44 @@ function Quotes() {
 
       <Dialog open={!!open} onOpenChange={(o) => !o && setOpen(null)}>
         <DialogContent dir="rtl" className="w-[calc(100vw-1rem)] max-w-[900px] max-h-[92vh] overflow-y-auto p-3 text-right sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="num">{open?.reference}</DialogTitle>
+            <DialogDescription>{getCustomerName(open?.customers)}</DialogDescription>
+          </DialogHeader>
+          {open && (
+            <div className="space-y-3">
+               <div className="flex flex-wrap gap-2">
+                 <Button size="sm" onClick={() => openQuoteForEditing(open)}>
+                   <FolderOpen className="ml-1 h-4 w-4" /> فتح للتعديل
+                 </Button>
+                 <Button size="sm" onClick={() => void downloadPdf(open)}>PDF</Button>
+                 <Button size="sm" variant="outline" onClick={() => downloadExcel(open)}>
+                   <FileSpreadsheet className="ml-1 h-4 w-4" /> Excel
+                 </Button>
+                 <Button size="sm" variant="secondary" onClick={() => void openWhatsApp(open)}>
+                   <MessageCircle className="ml-1 h-4 w-4" /> واتساب
+                 </Button>
+                 <Button size="sm" variant="destructive" onClick={() => void handleDeleteQuote(open)} disabled={loading}>
+                   <Trash2 className="ml-1 h-4 w-4" /> حذف العرض
+                 </Button>
+               </div>
+              <div className="max-h-[70vh] overflow-y-auto overflow-x-hidden rounded-xl border border-border bg-muted/30">
+                {pdfPreviewLoading ? (
+                  <div className="flex min-h-[70vh] items-center justify-center p-6 text-sm text-muted-foreground">
+                    جارٍ تجهيز الفاتورة...
+                  </div>
+                ) : pdfPreviewUrl ? (
+                  <PdfCanvasPreview pdfUrl={pdfPreviewUrl} />
+                ) : (
+                  <div className="flex min-h-[70vh] items-center justify-center p-6 text-sm text-destructive">
+                    تعذر عرض الفاتورة. استخدم زر PDF لتنزيلها.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </AppShell>
+  );
+}
