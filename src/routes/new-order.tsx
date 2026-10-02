@@ -2178,6 +2178,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           [
             item.normalized_description_ar,
             item.description,
+            productQuery,
             effectiveRawText,
             item.raw_text,
             [item.description, item.color, item.specification, item.brand].filter(Boolean).join(" "),
