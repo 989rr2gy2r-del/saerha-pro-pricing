@@ -19,7 +19,12 @@ export type MatchCandidate<T> = {
 };
 
 const MARKET_SYNONYMS: Array<[RegExp, string]> = [
-  [/\bamps?\b/gi, "امبير"], [/\bfisher\b/gi, "فيوشر"], [/\bamperes?\b/gi, "امبير"], [/\bmeters?\b/gi, "متر"], [/\brolls?\b|\bcoils?\b/gi, "رول"], [/(?:^|\s)(?:لفه|لفة|لف)(?=\s|$)/gi, "رول"], [/\bpcs?\b|\bpieces?\b/gi, "حبة"],
+  // Observed English/OCR spellings from customer orders; keep these as
+  // deterministic market aliases so matching can use the catalog's Arabic name.
+  [/\bfisher\s+screw\b/gi, "فيوشر برغي"], [/\bfisher\b/gi, "فيوشر"],
+  [/\bscrew\s+sn\s+saj\b/gi, "مسمار سن ساج"], [/\bbungee\b/gi, "مسمار سن ساج"],
+  [/\bsilicon\s+clear\b/gi, "سليكون شفاف"], [/\bsuper\s+glue\b/gi, "سوبر جلو"],
+  [/\bamps?\b/gi, "امبير"], [/\bamperes?\b/gi, "امبير"], [/\bmeters?\b/gi, "متر"], [/\brolls?\b|\bcoils?\b/gi, "رول"], [/(?:^|\s)(?:لفه|لفة|لف)(?=\s|$)/gi, "رول"], [/\bpcs?\b|\bpieces?\b/gi, "حبة"],
   [/\bgangs?\b/gi, "دقمة"], [/\b1[-\s]?way\b/gi, "1 دقمة"], [/\b2[-\s]?way\b/gi, "2 دقمة"], [/\b3[-\s]?way\b/gi, "3 دقمة"], [/\b4[-\s]?way\b/gi, "4 دقمة"], [/\b5[-\s]?way\b/gi, "5 دقمة"], [/\b6[-\s]?way\b/gi, "6 دقمة"], [/\bround[-\s]?pin\b/gi, "دائري"],
 
   [/\bpvc\b/gi, "بلاستيك"], [/\bcircular\b/gi, "دائري"],
