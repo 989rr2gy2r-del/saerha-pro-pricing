@@ -607,7 +607,9 @@ function Quotes() {
             const dateWidth = dateWidths.reduce((sum, partWidth) => sum + partWidth, 0);
             let dateX = valueX - dateWidth / 2;
             dateParts.forEach((part, partIndex) => {
+              if (part === "/") doc.setFont("helvetica", "normal");
               doc.text(part, dateX, y + 19);
+              if (part === "/") doc.setFont(arabicBoldFontName, "normal");
               dateX += dateWidths[partIndex];
             });
           } else {
