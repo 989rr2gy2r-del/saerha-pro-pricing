@@ -1207,8 +1207,8 @@ function Quotes() {
                 ) : pdfPreviewUrl ? (
                   <iframe
                     title={`معاينة الفاتورة ${open.reference}`}
-                    src={pdfPreviewUrl}
-                    className="h-[70vh] w-full bg-white"
+                    src={`${pdfPreviewUrl}#view=FitH&zoom=page-width`}
+                    className="block h-[70vh] min-h-[520px] w-full max-w-full border-0 bg-white"
                   />
                 ) : (
                   <div className="flex min-h-[70vh] items-center justify-center p-6 text-sm text-destructive">
