@@ -844,7 +844,7 @@ function Quotes() {
           ["العنوان", customer.address ?? ""],
         ];
 
-        customerRows.forEach(([label, value], i) => {
+        for (const [i, [label, value]] of customerRows.entries()) {
           const y = top + i * row;
           doc.setDrawColor(GRID);
           doc.setLineWidth(0.55);
@@ -863,7 +863,7 @@ function Quotes() {
           } else {
             drawText(String(value), rightX + rightW - 82, y + 19, 9.2, "right", true);
           }
-        });
+        }
 
         // The last official row contains the transaction term plus the currency cell.
         const lastY = top + 3 * row;
@@ -1318,44 +1318,3 @@ function Quotes() {
 
       <Dialog open={!!open} onOpenChange={(o) => !o && setOpen(null)}>
         <DialogContent dir="rtl" className="w-[calc(100vw-1rem)] max-w-[900px] max-h-[92vh] overflow-y-auto p-3 text-right sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="num">{open?.reference}</DialogTitle>
-            <DialogDescription>{getCustomerName(open?.customers)}</DialogDescription>
-          </DialogHeader>
-          {open && (
-            <div className="space-y-3">
-               <div className="flex flex-wrap gap-2">
-                 <Button size="sm" onClick={() => openQuoteForEditing(open)}>
-                   <FolderOpen className="ml-1 h-4 w-4" /> فتح للتعديل
-                 </Button>
-                 <Button size="sm" onClick={() => void downloadPdf(open)}>PDF</Button>
-                 <Button size="sm" variant="outline" onClick={() => downloadExcel(open)}>
-                   <FileSpreadsheet className="ml-1 h-4 w-4" /> Excel
-                 </Button>
-                 <Button size="sm" variant="secondary" onClick={() => void openWhatsApp(open)}>
-                   <MessageCircle className="ml-1 h-4 w-4" /> واتساب
-                 </Button>
-                 <Button size="sm" variant="destructive" onClick={() => void handleDeleteQuote(open)} disabled={loading}>
-                   <Trash2 className="ml-1 h-4 w-4" /> حذف العرض
-                 </Button>
-               </div>
-              <div className="max-h-[70vh] overflow-y-auto overflow-x-hidden rounded-xl border border-border bg-muted/30">
-                {pdfPreviewLoading ? (
-                  <div className="flex min-h-[70vh] items-center justify-center p-6 text-sm text-muted-foreground">
-                    جارٍ تجهيز الفاتورة...
-                  </div>
-                ) : pdfPreviewUrl ? (
-                  <PdfCanvasPreview pdfUrl={pdfPreviewUrl} />
-                ) : (
-                  <div className="flex min-h-[70vh] items-center justify-center p-6 text-sm text-destructive">
-                    تعذر عرض الفاتورة. استخدم زر PDF لتنزيلها.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </AppShell>
-  );
-}
