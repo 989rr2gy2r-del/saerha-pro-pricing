@@ -1177,7 +1177,7 @@ function Quotes() {
       </div>
 
       <Dialog open={!!open} onOpenChange={(o) => !o && setOpen(null)}>
-        <DialogContent dir="rtl" className="max-h-[85vh] overflow-y-auto text-right">
+        <DialogContent dir="rtl" className="w-[calc(100vw-1rem)] max-w-[900px] max-h-[92vh] overflow-y-auto p-3 text-right sm:p-6">
           <DialogHeader>
             <DialogTitle className="num">{open?.reference}</DialogTitle>
             <DialogDescription>{getCustomerName(open?.customers)}</DialogDescription>
@@ -1208,7 +1208,7 @@ function Quotes() {
                   <iframe
                     title={`معاينة الفاتورة ${open.reference}`}
                     src={`${pdfPreviewUrl}#view=FitH&zoom=page-width`}
-                    className="block h-[70vh] min-h-[520px] w-full max-w-full border-0 bg-white"
+                    className="block h-[calc(92vh-180px)] min-h-[420px] w-full max-w-full border-0 bg-white [aspect-ratio:210/297]"
                   />
                 ) : (
                   <div className="flex min-h-[70vh] items-center justify-center p-6 text-sm text-destructive">
