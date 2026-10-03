@@ -1866,6 +1866,9 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
       if (!image && !text.trim()) {
         throw new Error("الملف فارغ أو لم نتمكن من استخراج محتواه.");
       }
+      // Preserve the exact extracted source text for the order record. This is
+      // separate from parsed line data so the original request can be audited later.
+      if (text.trim()) setOrderRawText(text.trim());
 
 
       const { data: authSession } = await (supabase as any).auth.getSession();
