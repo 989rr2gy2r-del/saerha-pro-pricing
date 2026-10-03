@@ -2640,137 +2640,120 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         return;
       }
 
-      // Persist the reviewed customer request before creating the quotation.
-      // The order remains "in_review" until the quotation and its lines are saved.
-      let orderId = persistedOrderId;
-      if (!orderId) {
-        const orderReference = `O-${Date.now()}`;
-        const { data: order, error: orderError } = await (supabase as any)
-          .from("orders")
-          .insert({
-            reference: orderReference,
-            customer_id: customerId,
-            source: orderSource,
-            status: "in_review",
-            raw_text: orderRawText.trim() || validItems.map((item) => item.raw_text || item.description).filter(Boolean).join("\n"),
-            notes: [
-              "تم حفظ الطلب بعد مراجعة المنتجات وقبل إنشاء عرض السعر.",
-              analysisResult.notes?.trim() || "",
-            ].filter(Boolean).join(" — "),
-          })
-          .select("id")
-          .single();
-        if (orderError) throw orderError;
-        orderId = order.id;
-        setPersistedOrderId(orderId);
+      // Save the order, its items, the quotation, its items, and the final
+      // priced status in one database transaction. This prevents partial saves
+      // (for example an order without a quotation) when any later insert fails.
+      const orderId = persistedOrderId;
+      const orderRawTextToSave =
+        orderRawText.trim() ||
+        validItems.map((item) => item.raw_text || item.description).filter(Boolean).join("\n");
 
-        const orderItemRows = validItems.map((line, index) => ({
-          order_id: orderId,
-          product_id: line.product!.id,
+      const orderPayload = {
+        reference: orderId ? undefined : "O-" + Date.now(),
+        customer_id: customerId || null,
+        source: orderSource,
+        raw_text: orderRawTextToSave || null,
+        notes: [
+          "تم حفظ الطلب بعد مراجعة المنتجات وقبل إنشاء عرض السعر.",
+          analysisResult.notes?.trim() || "",
+        ].filter(Boolean).join(" — "),
+      };
+
+      const orderItemRows = validItems.map((line, index) => ({
+        product_id: line.product!.id,
+        line_no: index + 1,
+        raw_name: line.raw_text || line.description,
+        matched_sku: line.product!.sku,
+        quantity: Number(line.quantity || 0),
+        unit: line.unit || line.product!.unit || "حبة",
+        notes: line.notes || line.matchReason || null,
+        brand: line.product!.brand || null,
+        unit_price: Number(line.priceAmount ?? 0),
+        line_total: getLineDiscountDetails(line).lineTotal,
+        extra: {
+          confidence: line.confidence,
+          extraction_confidence: line.extractionConfidence ?? null,
+          match_score: line.matchScore ?? line.confidence ?? null,
+          match_status: line.status,
+          match_reason: line.matchReason || null,
+          selected_product_id: line.product!.id,
+          accepted: line.accepted,
+          source_sku: line.sourceSku || null,
+          source_unit_price: line.sourceUnitPrice ?? null,
+          source_line_total: line.sourceLineTotal ?? null,
+          match_candidates: line.matchCandidates ?? [],
+          source_trace: line.sourceTrace ?? null,
+        },
+      }));
+
+      const quoteReference = "Q-" + Date.now();
+      const quotePayload = {
+        reference: quoteReference,
+        customer_id: customerId || null,
+        issue_date: new Date().toISOString().slice(0, 10),
+        expiry_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+        price_type: quoteLines[0]?.priceType ?? "retail",
+        discount_amount: orderTotals.totalDiscount,
+        tax_amount: 0,
+        subtotal: orderTotals.rawSubtotal,
+        total: orderTotals.finalTotal,
+        currency: "KWD",
+        status: "draft",
+        notes: [
+          "تم إنشاء العرض من الطلبية بعد مراجعة المنتج وسعره.",
+          orderTotals.lineDiscountTotal > 0
+            ? "خصم الأصناف: " + orderTotals.lineDiscountTotal.toFixed(3) + " د.ك"
+            : "",
+          orderTotals.invoiceDiscountAmount > 0
+            ? "خصم الفاتورة: " + (invoiceDiscountType === "percent"
+              ? Number(invoiceDiscountPercentDraft || 0).toFixed(3) + "%"
+              : invoiceDiscountType === "amount"
+                ? Number(invoiceDiscountAmountDraft || 0).toFixed(3) + " د.ك"
+                : Number(invoiceDiscountPercentDraft || 0).toFixed(3) + "% + " + Number(invoiceDiscountAmountDraft || 0).toFixed(3) + " د.ك")
+            : "",
+        ].filter(Boolean).join(" — "),
+      };
+
+      const quoteItemRows = quoteLines.flatMap((line, index) => {
+        if (!line.product) return [];
+        return [{
           line_no: index + 1,
-          raw_name: line.raw_text || line.description,
-          matched_sku: line.product!.sku,
+          product_id: line.product.id,
+          product_name: line.quoteName?.trim() || line.product.name_ar,
+          sku: line.product.sku,
           quantity: Number(line.quantity || 0),
-          unit: line.unit || line.product!.unit || "حبة",
-          notes: line.notes || line.matchReason || null,
-          brand: line.product!.brand || null,
+          unit: line.unit || line.product.unit || "حبة",
           unit_price: Number(line.priceAmount ?? 0),
+          discount_amount: getLineDiscountDetails(line).discountAmount,
           line_total: getLineDiscountDetails(line).lineTotal,
-          extra: {
-            confidence: line.confidence,
-            extraction_confidence: line.extractionConfidence ?? null,
-            match_score: line.matchScore ?? line.confidence ?? null,
-            match_status: line.status,
-            match_reason: line.matchReason || null,
-            selected_product_id: line.product!.id,
-            accepted: line.accepted,
-            source_sku: line.sourceSku || null,
-            source_unit_price: line.sourceUnitPrice ?? null,
-            source_line_total: line.sourceLineTotal ?? null,
-            match_candidates: line.matchCandidates ?? [],
-            source_trace: line.sourceTrace ?? null,
-          },
-        }));
+          applied_price_type: line.priceType ?? "retail",
+          is_manual_price: line.priceType === "manual_quote",
+          notes: "سعر " + line.priceLabel,
+        }];
+      });
 
-        const { error: orderItemsError } = await (supabase as any)
-          .from("order_items")
-          .insert(orderItemRows);
-        if (orderItemsError) throw orderItemsError;
+      const { data: savedOrder, error: saveOrderError } = await (supabase as any).rpc(
+        "save_order_with_quotation",
+        {
+          p_order_id: orderId,
+          p_order: orderPayload,
+          p_order_items: orderItemRows,
+          p_quotation: quotePayload,
+          p_quotation_items: quoteItemRows,
+        },
+      );
+      if (saveOrderError) throw saveOrderError;
+
+      const savedOrderId = String(savedOrder?.order_id ?? "");
+      const savedQuoteReference = String(savedOrder?.quotation_reference ?? quoteReference);
+      if (!savedOrderId || savedOrder?.status !== "priced") {
+        throw new Error("لم يؤكد الخادم اكتمال حفظ الطلب وعرض السعر.");
       }
-
-      const { data: quote, error: quoteError } = await supabase
-        .from("quotations")
-        .insert({
-          reference: `Q-${Date.now()}`,
-          customer_id: customerId,
-          order_id: orderId,
-          issue_date: new Date().toISOString().slice(0, 10),
-          expiry_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-          price_type: quoteLines[0]?.priceType ?? "retail",
-          discount_amount: orderTotals.totalDiscount,
-          tax_amount: 0,
-          subtotal: orderTotals.rawSubtotal,
-          total: orderTotals.finalTotal,
-          currency: "KWD",
-          status: "draft",
-          notes: [
-            "تم إنشاء العرض من الطلبية بعد مراجعة المنتج وسعره.",
-            orderTotals.lineDiscountTotal > 0
-              ? `خصم الأصناف: ${orderTotals.lineDiscountTotal.toFixed(3)} د.ك`
-              : "",
-            orderTotals.invoiceDiscountAmount > 0
-              ? `خصم الفاتورة: ${invoiceDiscountType === "percent"
-                ? `${Number(invoiceDiscountPercentDraft || 0).toFixed(3)}%`
-                : invoiceDiscountType === "amount"
-                  ? `${Number(invoiceDiscountAmountDraft || 0).toFixed(3)} د.ك`
-                  : `${Number(invoiceDiscountPercentDraft || 0).toFixed(3)}% + ${Number(invoiceDiscountAmountDraft || 0).toFixed(3)} د.ك`}`
-              : "",
-          ].filter(Boolean).join(" — "),
-        })
-        .select()
-        .single();
-
-      if (quoteError) throw quoteError;
-
-      const itemRows: Array<Database["public"]["Tables"]["quotation_items"]["Insert"]> =
-        quoteLines.flatMap((line, index) => {
-          if (!line.product) return [];
-          return [
-            {
-              quotation_id: quote.id,
-              line_no: index + 1,
-              product_id: line.product.id,
-              product_name: line.quoteName?.trim() || line.product.name_ar,
-              sku: line.product.sku,
-              quantity: Number(line.quantity || 0),
-              unit: line.unit || line.product.unit || "حبة",
-              unit_price: Number(line.priceAmount ?? 0),
-              discount_amount: getLineDiscountDetails(line).discountAmount,
-              line_total: getLineDiscountDetails(line).lineTotal,
-              applied_price_type: (line.priceType ?? "retail") as
-                "retail" | "reseller" | "customer_special" | "manual_quote",
-              is_manual_price: line.priceType === "manual_quote",
-              notes: `سعر ${line.priceLabel}`,
-            },
-          ];
-        });
-
-      const { error: itemsError } = await (supabase as any).from("quotation_items").insert(itemRows);
-      if (itemsError) throw itemsError;
-
-      const { error: orderStatusError } = await (supabase as any)
-        .from("orders")
-        .update({
-          status: "priced",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", orderId);
-      if (orderStatusError) throw orderStatusError;
 
       setPersistedOrderId(null);
       setAnalysisError("");
-      alert("تم حفظ عرض السعر " + quote.reference + " وربطه بالطلب بنجاح.");
-      window.location.assign(`${import.meta.env.BASE_URL}quotes`);
+      alert("تم حفظ الطلب وعرض السعر " + savedQuoteReference + " وربطهما بنجاح.");
+      window.location.assign(String(import.meta.env.BASE_URL) + "quotes");
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : "تعذّر إنشاء عرض السعر.");
     }
