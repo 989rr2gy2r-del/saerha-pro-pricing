@@ -189,8 +189,75 @@ function Quotes() {
         "id, reference, issue_date, created_at, expiry_date, price_type, discount_amount, tax_amount, subtotal, total, currency, status, notes, customers(name, company, phone), quotation_items(id, product_name, sku, quantity, unit, unit_price, discount_amount, line_total)",
       )
       .order("issue_date", { ascending: false });
-    if (!error) setQuotes((data ?? []) as unknown as Quote[]);
+
+    if (!error) {
+      const loadedQuotes = (data ?? []) as unknown as Quote[];
+      const today = new Date().toISOString().slice(0, 10);
+      const expiredIds = loadedQuotes
+        .filter(
+          (quote) =>
+            quote.expiry_date &&
+            quote.expiry_date < today &&
+            quote.status !== "accepted" &&
+            quote.status !== "expired",
+        )
+        .map((quote) => quote.id);
+
+      if (expiredIds.length > 0) {
+        const { error: expiryError } = await supabase
+          .from("quotations")
+          .update({ status: "expired" })
+          .in("id", expiredIds);
+
+        if (expiryError) {
+          console.error("Failed to mark expired quotations", expiryError);
+        } else {
+          for (const quote of loadedQuotes) {
+            if (expiredIds.includes(quote.id)) quote.status = "expired";
+          }
+        }
+      }
+
+      setQuotes(loadedQuotes);
+    }
     setLoading(false);
+  };
+
+  const updateQuoteStatus = async (
+    quote: Quote,
+    nextStatus: "sent" | "accepted",
+  ) => {
+    const allowedTransition =
+      (quote.status === "draft" && nextStatus === "sent") ||
+      (quote.status === "sent" && nextStatus === "accepted");
+
+    if (!allowedTransition) {
+      alert("لا يمكن الانتقال إلى هذه الحالة من الحالة الحالية.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from("quotations")
+        .update({ status: nextStatus })
+        .eq("id", quote.id);
+
+      if (error) throw error;
+
+      setQuotes((current) =>
+        current.map((item) =>
+          item.id === quote.id ? { ...item, status: nextStatus } : item,
+        ),
+      );
+      setOpen((current) =>
+        current?.id === quote.id ? { ...current, status: nextStatus } : current,
+      );
+    } catch (statusError) {
+      alert(statusError instanceof Error ? statusError.message : "تعذر تحديث حالة عرض السعر");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -1241,6 +1308,15 @@ function Quotes() {
                          <Button variant="ghost" size="sm" onClick={() => downloadExcel(q)}>
                            <FileSpreadsheet className="ml-1 h-4 w-4" /> Excel
                          </Button>
+                         {q.status === "draft" ? (
+                           <Button variant="ghost" size="sm" onClick={() => void updateQuoteStatus(q, "sent")}>
+                             إرسال
+                           </Button>
+                         ) : q.status === "sent" ? (
+                           <Button variant="ghost" size="sm" onClick={() => void updateQuoteStatus(q, "accepted")}>
+                             قبول
+                           </Button>
+                         ) : null}
                          <Button variant="ghost" size="sm" onClick={() => void openWhatsApp(q)}>
                            <MessageCircle className="ml-1 h-4 w-4" /> واتساب
                          </Button>
@@ -1273,6 +1349,15 @@ function Quotes() {
                  <Button size="sm" variant="outline" onClick={() => downloadExcel(open)}>
                    <FileSpreadsheet className="ml-1 h-4 w-4" /> Excel
                  </Button>
+                 {open.status === "draft" ? (
+                   <Button size="sm" onClick={() => void updateQuoteStatus(open, "sent")}>
+                     إرسال العرض
+                   </Button>
+                 ) : open.status === "sent" ? (
+                   <Button size="sm" onClick={() => void updateQuoteStatus(open, "accepted")}>
+                     قبول العرض
+                   </Button>
+                 ) : null}
                  <Button size="sm" variant="secondary" onClick={() => void openWhatsApp(open)}>
                    <MessageCircle className="ml-1 h-4 w-4" /> واتساب
                  </Button>

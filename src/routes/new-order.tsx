@@ -2556,7 +2556,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
       if (editingQuoteId) {
         const { data: existingQuote, error: existingQuoteError } = await (supabase as any)
           .from("quotations")
-          .select("id, order_id")
+          .select("id, order_id, status")
           .eq("id", editingQuoteId)
           .maybeSingle();
         if (existingQuoteError) throw existingQuoteError;
@@ -2572,7 +2572,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             subtotal: orderTotals.rawSubtotal,
             total: orderTotals.finalTotal,
             currency: "KWD",
-            status: "draft",
+            status: existingQuote.status,
             notes: [
               "تم تعديل عرض السعر بعد مراجعة المنتج والسعر.",
               orderTotals.lineDiscountTotal > 0
