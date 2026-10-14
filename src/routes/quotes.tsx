@@ -166,7 +166,7 @@ function PdfCanvasPreview({ pdfUrl }: { pdfUrl: string }) {
   return <div ref={containerRef} className="w-full overflow-hidden bg-white" />;
 }
 
-function Quotes() {
+// CI verification for quote export flow.\nfunction Quotes() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [open, setOpen] = useState<Quote | null>(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
