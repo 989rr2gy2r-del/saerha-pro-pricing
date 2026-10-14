@@ -21,6 +21,9 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as ApiAnalyzeOrderRouteImport } from './routes/api/analyze-order'
 import { Route as ApiImportProductsRouteImport } from './routes/api/import-products'
+import { Route as ApiMatchOrderRouteImport } from './routes/api/match-order'
+import { Route as ApiPriceOrderRouteImport } from './routes/api/price-order'
+import { Route as ApiRecordCorrectionRouteImport } from './routes/api/record-correction'
 import { Route as ApiSupabaseWriteRouteImport } from './routes/api/supabase-write'
 
 const IndexRoute = IndexRouteImport.update({
@@ -83,6 +86,21 @@ const ApiImportProductsRoute = ApiImportProductsRouteImport.update({
   path: '/api/import-products',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMatchOrderRoute = ApiMatchOrderRouteImport.update({
+  id: '/api/match-order',
+  path: '/api/match-order',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPriceOrderRoute = ApiPriceOrderRouteImport.update({
+  id: '/api/price-order',
+  path: '/api/price-order',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRecordCorrectionRoute = ApiRecordCorrectionRouteImport.update({
+  id: '/api/record-correction',
+  path: '/api/record-correction',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSupabaseWriteRoute = ApiSupabaseWriteRouteImport.update({
   id: '/api/supabase-write',
   path: '/api/supabase-write',
@@ -102,6 +120,9 @@ export interface FileRoutesByFullPath {
   '/users': typeof UsersRoute
   '/api/analyze-order': typeof ApiAnalyzeOrderRoute
   '/api/import-products': typeof ApiImportProductsRoute
+  '/api/match-order': typeof ApiMatchOrderRoute
+  '/api/price-order': typeof ApiPriceOrderRoute
+  '/api/record-correction': typeof ApiRecordCorrectionRoute
   '/api/supabase-write': typeof ApiSupabaseWriteRoute
 }
 export interface FileRoutesByTo {
@@ -117,6 +138,9 @@ export interface FileRoutesByTo {
   '/users': typeof UsersRoute
   '/api/analyze-order': typeof ApiAnalyzeOrderRoute
   '/api/import-products': typeof ApiImportProductsRoute
+  '/api/match-order': typeof ApiMatchOrderRoute
+  '/api/price-order': typeof ApiPriceOrderRoute
+  '/api/record-correction': typeof ApiRecordCorrectionRoute
   '/api/supabase-write': typeof ApiSupabaseWriteRoute
 }
 export interface FileRoutesById {
@@ -133,6 +157,9 @@ export interface FileRoutesById {
   '/users': typeof UsersRoute
   '/api/analyze-order': typeof ApiAnalyzeOrderRoute
   '/api/import-products': typeof ApiImportProductsRoute
+  '/api/match-order': typeof ApiMatchOrderRoute
+  '/api/price-order': typeof ApiPriceOrderRoute
+  '/api/record-correction': typeof ApiRecordCorrectionRoute
   '/api/supabase-write': typeof ApiSupabaseWriteRoute
 }
 export interface FileRouteTypes {
@@ -150,6 +177,9 @@ export interface FileRouteTypes {
     | '/users'
     | '/api/analyze-order'
     | '/api/import-products'
+    | '/api/match-order'
+    | '/api/price-order'
+    | '/api/record-correction'
     | '/api/supabase-write'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -162,8 +192,12 @@ export interface FileRouteTypes {
     | '/products'
     | '/quotes'
     | '/settings'
+    | '/users'
     | '/api/analyze-order'
     | '/api/import-products'
+    | '/api/match-order'
+    | '/api/price-order'
+    | '/api/record-correction'
     | '/api/supabase-write'
   id:
     | '__root__'
@@ -176,8 +210,12 @@ export interface FileRouteTypes {
     | '/products'
     | '/quotes'
     | '/settings'
+    | '/users'
     | '/api/analyze-order'
     | '/api/import-products'
+    | '/api/match-order'
+    | '/api/price-order'
+    | '/api/record-correction'
     | '/api/supabase-write'
   fileRoutesById: FileRoutesById
 }
@@ -194,6 +232,9 @@ export interface RootRouteChildren {
   UsersRoute: typeof UsersRoute
   ApiAnalyzeOrderRoute: typeof ApiAnalyzeOrderRoute
   ApiImportProductsRoute: typeof ApiImportProductsRoute
+  ApiMatchOrderRoute: typeof ApiMatchOrderRoute
+  ApiPriceOrderRoute: typeof ApiPriceOrderRoute
+  ApiRecordCorrectionRoute: typeof ApiRecordCorrectionRoute
   ApiSupabaseWriteRoute: typeof ApiSupabaseWriteRoute
 }
 
@@ -283,6 +324,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImportProductsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/match-order': {
+      id: '/api/match-order'
+      path: '/api/match-order'
+      fullPath: '/api/match-order'
+      preLoaderRoute: typeof ApiMatchOrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/price-order': {
+      id: '/api/price-order'
+      path: '/api/price-order'
+      fullPath: '/api/price-order'
+      preLoaderRoute: typeof ApiPriceOrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/record-correction': {
+      id: '/api/record-correction'
+      path: '/api/record-correction'
+      fullPath: '/api/record-correction'
+      preLoaderRoute: typeof ApiRecordCorrectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/supabase-write': {
       id: '/api/supabase-write'
       path: '/api/supabase-write'
@@ -306,6 +368,9 @@ const rootRouteChildren: RootRouteChildren = {
   UsersRoute: UsersRoute,
   ApiAnalyzeOrderRoute: ApiAnalyzeOrderRoute,
   ApiImportProductsRoute: ApiImportProductsRoute,
+  ApiMatchOrderRoute: ApiMatchOrderRoute,
+  ApiPriceOrderRoute: ApiPriceOrderRoute,
+  ApiRecordCorrectionRoute: ApiRecordCorrectionRoute,
   ApiSupabaseWriteRoute: ApiSupabaseWriteRoute,
 }
 export const routeTree = rootRouteImport

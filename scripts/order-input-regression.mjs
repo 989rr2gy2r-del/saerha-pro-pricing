@@ -11,7 +11,8 @@ const transpiled = ts.transpileModule(source, {
   },
 }).outputText;
 
-const moduleUrl = "data:text/javascript;base64," + Buffer.from(transpiled, "utf8").toString("base64");
+const moduleUrl =
+  "data:text/javascript;base64," + Buffer.from(transpiled, "utf8").toString("base64");
 const orderInput = await import(moduleUrl);
 
 const {
@@ -48,8 +49,36 @@ const whatsappOrder = `1. PVC Circular Socket Box – 15 pcs
 24. Pvc band 5/8inch 15 pcs
 25. pvc choket 5/8 inch 1pcs`;
 
-const expectedQuantities = [15,500,5,3,12,4,3,7,1,12,30,30,2,2,1,1,1,1,1,15,10,16,20,15,1];
-const expectedUnits = ["حبة","مل","حبة","حبة","حبة","حبة","حبة","حبة","حبة","حبة","حبة","متر","رول","رول","رول","رول","رول","رول","رول","حبة","حبة","حبة","","حبة","حبة"];
+const expectedQuantities = [
+  15, 500, 5, 3, 12, 4, 3, 7, 1, 12, 30, 30, 2, 2, 1, 1, 1, 1, 1, 15, 10, 16, 20, 15, 1,
+];
+const expectedUnits = [
+  "حبة",
+  "مل",
+  "حبة",
+  "حبة",
+  "حبة",
+  "حبة",
+  "حبة",
+  "حبة",
+  "حبة",
+  "حبة",
+  "حبة",
+  "متر",
+  "رول",
+  "رول",
+  "رول",
+  "رول",
+  "رول",
+  "رول",
+  "رول",
+  "حبة",
+  "حبة",
+  "حبة",
+  "",
+  "حبة",
+  "حبة",
+];
 
 const equalsOrder = `فيوشر برغي 6 ملي = 2 باكت
 مسمار سن ساج 1.5 انش = 150 حبة
@@ -58,21 +87,33 @@ const equalsOrder = `فيوشر برغي 6 ملي = 2 باكت
 سوبر جلو = 1 حبة`;
 const equalsParsed = parseTextOrderFallback(equalsOrder);
 assert.equal(equalsParsed.items.length, 5, "equals-separated order must preserve all 5 rows");
-assert.deepEqual(equalsParsed.items.map((item) => item.description), [
-  "فيوشر برغي 6 ملي",
-  "مسمار سن ساج 1.5 انش",
-  "مسمار سن ساج 2 انش",
-  "سليكون شفاف",
-  "سوبر جلو",
-]);
-assert.deepEqual(equalsParsed.items.map((item) => item.quantity), [2, 150, 100, 3, 1]);
-assert.deepEqual(equalsParsed.items.map((item) => item.unit), ["باكيت", "حبة", "حبة", "حبة", "حبة"]);
+assert.deepEqual(
+  equalsParsed.items.map((item) => item.description),
+  ["فيوشر برغي 6 ملي", "مسمار سن ساج 1.5 انش", "مسمار سن ساج 2 انش", "سليكون شفاف", "سوبر جلو"],
+);
+assert.deepEqual(
+  equalsParsed.items.map((item) => item.quantity),
+  [2, 150, 100, 3, 1],
+);
+assert.deepEqual(
+  equalsParsed.items.map((item) => item.unit),
+  ["باكيت", "حبة", "حبة", "حبة", "حبة"],
+);
 
 const parsed = parseTextOrderFallback(whatsappOrder);
 assert.equal(parsed.items.length, 25, "WhatsApp order must preserve all 25 rows");
-assert.deepEqual(parsed.items.map((item) => item.quantity), expectedQuantities);
-assert.deepEqual(parsed.items.map((item) => item.unit), expectedUnits);
-assert.ok(parsed.items.every((item) => !/^\d+[.)\-:]/.test(item.description)), "line numbers must not leak into descriptions");
+assert.deepEqual(
+  parsed.items.map((item) => item.quantity),
+  expectedQuantities,
+);
+assert.deepEqual(
+  parsed.items.map((item) => item.unit),
+  expectedUnits,
+);
+assert.ok(
+  parsed.items.every((item) => !/^\d+[.)\-:]/.test(item.description)),
+  "line numbers must not leak into descriptions",
+);
 assert.equal(parsed.items[0].raw_text, "1. PVC Circular Socket Box – 15 pcs");
 assert.equal(parsed.items[23].raw_text, "24. Pvc band 5/8inch 15 pcs");
 
@@ -94,7 +135,11 @@ for (const [line, quantity, unit] of handwrittenOcrLines) {
 assert.equal(normalizeOrderUnit("coil"), "رول");
 assert.equal(normalizeOrderUnit("لف"), "رول");
 assert.equal(normalizeOrderUnit("dozen"), "دزينة");
-assert.equal(isOrderFooterNoise("1329270 SUBTOTAL"), true, "subtotal with a leading amount must be footer noise");
+assert.equal(
+  isOrderFooterNoise("1329270 SUBTOTAL"),
+  true,
+  "subtotal with a leading amount must be footer noise",
+);
 assert.equal(isOrderFooterNoise("DISCOUNT 43.270"), true, "discount row must be footer noise");
 assert.equal(isOrderFooterNoise("TOTAL : 1286.000"), true, "total row must be footer noise");
 
@@ -107,6 +152,12 @@ assert.ok(footerOcr.every((item) => !/subtotal|discount|total/i.test(item.raw_te
 assert.equal(normalizeQuantity(0.5), 0.5, "decimal quantities must not be rounded");
 const decimal = parseTextOrderFallback("PVC Pipe - 0.5 meter");
 assert.equal(decimal.items[0]?.quantity, 0.5);
+
+const leadingBareQuantity = parseTextOrderFallback("٢ سلك كهربائي أحمر");
+assert.equal(leadingBareQuantity.items.length, 1);
+assert.equal(leadingBareQuantity.items[0]?.quantity, 2);
+assert.equal(leadingBareQuantity.items[0]?.unit, "");
+assert.equal(leadingBareQuantity.items[0]?.description, "سلك كهربائي أحمر");
 
 console.log("order-input regression: PASS");
 console.log(`validated pasted rows: ${parsed.items.length}`);

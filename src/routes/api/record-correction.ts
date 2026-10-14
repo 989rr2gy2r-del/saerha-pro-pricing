@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { authenticateStaffRequest } from "@/lib/server-auth";
 
-// @ts-expect-error TanStack's generated route map does not include server-only API routes during standalone typecheck.
 export const Route = createFileRoute("/api/record-correction")({
   server: {
     handlers: {

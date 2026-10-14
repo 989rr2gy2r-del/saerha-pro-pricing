@@ -41,6 +41,7 @@ import {
   type ProductImportRow,
   updateProduct,
 } from "@/lib/db/saerha-data";
+import { mapProductImportRows } from "@/lib/db/product-import-mapping";
 import { supabase } from "@/integrations/supabase/client";
 import type { Product } from "@/lib/mock-data";
 
@@ -411,158 +412,6 @@ function ProductForm({
     }
   }, [selected, open]);
 
-  const readImportRows = (rows: Record<string, unknown>[]): ProductImportRow[] => {
-    const readValue = (row: Record<string, unknown>, field?: string) => {
-      if (!field) return "";
-      const direct = row[field];
-      if (direct !== undefined && direct !== null) return direct;
-      return "";
-    };
-
-    const toStringOrNull = (value: unknown): string | null => {
-      if (value === null || value === undefined || value === "") return null;
-      return String(value);
-    };
-
-    const normalizeOptionalPrice = (value: unknown): string | number | null => {
-      if (value === null || value === undefined || value === "") return null;
-      return typeof value === "number" ? value : String(value);
-    };
-
-    return rows
-      .map((row): ProductImportRow => ({
-        sku: String(
-          readValue(row, "sku") ||
-            readValue(row, "SKU") ||
-            readValue(row, "كود الصنف") ||
-            readValue(row, "Code") ||
-            readValue(row, "sku_code") ||
-            "",
-        ),
-        nameAr: String(
-          readValue(row, "name_ar") ||
-            readValue(row, "nameAr") ||
-            readValue(row, "الاسم العربي") ||
-            readValue(row, "اسم عربي") ||
-            readValue(row, "arabic_name") ||
-            "",
-        ),
-        nameEn: String(
-          readValue(row, "name_en") ||
-            readValue(row, "nameEn") ||
-            readValue(row, "الاسم الإنجليزي") ||
-            readValue(row, "اسم انجليزي") ||
-            readValue(row, "english_name") ||
-            "",
-        ),
-        shortName: String(
-          readValue(row, "short_name") ||
-            readValue(row, "shortName") ||
-            readValue(row, "اسم مختصر") ||
-            readValue(row, "الاسم المختصر") ||
-            readValue(row, "short_name") ||
-            "",
-        ),
-        brand: String(
-          readValue(row, "brand") ||
-            readValue(row, "الماركة") ||
-            readValue(row, "brand_name") ||
-            "",
-        ),
-        category1: String(
-          readValue(row, "category_main") ||
-            readValue(row, "category1") ||
-            readValue(row, "التصنيف الرئيسي") ||
-            readValue(row, "main_category") ||
-            "",
-        ),
-        category2: String(
-          readValue(row, "category_sub") ||
-            readValue(row, "category2") ||
-            readValue(row, "التصنيف الفرعي") ||
-            readValue(row, "sub_category") ||
-            "",
-        ),
-        category3: String(
-          readValue(row, "category_third") ||
-            readValue(row, "category3") ||
-            readValue(row, "التصنيف الثالث") ||
-            readValue(row, "third_category") ||
-            "",
-        ),
-        group: String(
-          readValue(row, "product_group") ||
-            readValue(row, "group") ||
-            readValue(row, "المجموعة") ||
-            readValue(row, "group_name") ||
-            "",
-        ),
-        model: String(
-          readValue(row, "model") ||
-            readValue(row, "الموديل") ||
-            readValue(row, "model_name") ||
-            "",
-        ),
-        size: String(
-          readValue(row, "size") || readValue(row, "المقاس") || readValue(row, "size_name") || "",
-        ),
-        color: String(
-          readValue(row, "color") || readValue(row, "اللون") || readValue(row, "color_name") || "",
-        ),
-        unit: String(
-          readValue(row, "unit") ||
-            readValue(row, "الوحدة") ||
-            readValue(row, "unit_name") ||
-            "حبة",
-        ),
-        description: String(
-          readValue(row, "description") ||
-            readValue(row, "الوصف") ||
-            readValue(row, "description_text") ||
-            "",
-        ),
-        status:
-          String(readValue(row, "status") || "active").toLowerCase() === "inactive"
-            ? "inactive"
-            : "active",
-        retailPrice: normalizeOptionalPrice(
-          readValue(row, "retail_price") ||
-            readValue(row, "سعر التجزئة") ||
-            readValue(row, "Retail Price") ||
-            readValue(row, "retail") ||
-            null,
-        ),
-        resellerPrice: normalizeOptionalPrice(
-          readValue(row, "reseller_price") ||
-            readValue(row, "سعر الموزع") ||
-            readValue(row, "Reseller Price") ||
-            readValue(row, "reseller") ||
-            null,
-        ),
-        customerSpecialPrice: normalizeOptionalPrice(
-          readValue(row, "customer_special_price") ||
-            readValue(row, "سعر خاص") ||
-            readValue(row, "Customer Special Price") ||
-            readValue(row, "special_price") ||
-            null,
-        ),
-        customerName: toStringOrNull(
-          readValue(row, "customer_name") ||
-            readValue(row, "اسم العميل") ||
-            readValue(row, "Customer Name") ||
-            readValue(row, "customer_name") ||
-            "",
-        ),
-        currency: String(
-          readValue(row, "currency") ||
-            readValue(row, "العملة") ||
-            readValue(row, "Currency") ||
-            "KWD",
-        ),
-      }))
-      .filter((row) => row.sku || row.nameAr || row.nameEn);
-  };
-
   const defaultColumnMap = (headers: string[]) => {
     const find = (...keys: string[]) =>
       headers.find((header) =>
@@ -570,21 +419,48 @@ function ProductForm({
       ) ?? "";
     return {
       sku: find("sku", "كود الصنف", "code"),
-      nameAr: find("name_ar", "namear", "اسم عربي", "الاسم العربي", "arabic_name"),
-      nameEn: find("name_en", "nameen", "اسم انجليزي", "الاسم الإنجليزي", "english_name"),
+      nameAr: find("name_ar", "namear", "اسم عربي", "الاسم العربي", "arabic_name", "Arabic Name"),
+      nameEn: find(
+        "name_en",
+        "nameen",
+        "اسم انجليزي",
+        "الاسم الإنجليزي",
+        "english_name",
+        "English Name",
+      ),
       shortName: find("short_name", "shortname", "اسم مختصر", "الاسم المختصر"),
       brand: find("brand", "الماركة", "brand_name"),
-      category1: find("category_main", "category1", "التصنيف الرئيسي", "main_category"),
-      category2: find("category_sub", "category2", "التصنيف الفرعي", "sub_category"),
+      category1: find(
+        "category_main",
+        "category1",
+        "التصنيف الرئيسي",
+        "main_category",
+        "Category EN",
+        "Category AR",
+      ),
+      category2: find(
+        "category_sub",
+        "category2",
+        "التصنيف الفرعي",
+        "sub_category",
+        "Subcategory EN",
+        "Subcategory AR",
+      ),
       category3: find("category_third", "category3", "التصنيف الثالث", "third_category"),
       group: find("product_group", "group", "المجموعة", "group_name"),
       model: find("model", "الموديل", "model_name"),
       size: find("size", "المقاس", "size_name"),
       color: find("color", "اللون", "color_name"),
-      unit: find("unit", "الوحدة", "unit_name"),
+      unit: find("unit", "الوحدة", "unit_name", "UoM"),
       description: find("description", "الوصف", "description_text"),
       retailPrice: find("retail_price", "سعر التجزئة", "retail", "retail price"),
-      resellerPrice: find("reseller_price", "سعر الموزع", "reseller", "reseller price"),
+      resellerPrice: find(
+        "reseller_price",
+        "سعر الموزع",
+        "reseller",
+        "reseller price",
+        "wholesale price",
+      ),
       customerSpecialPrice: find(
         "customer_special_price",
         "سعر خاص",
@@ -609,7 +485,7 @@ function ProductForm({
       const sheet = workbook.Sheets[firstSheetName];
       if (!sheet) throw new Error("تعذر قراءة الورقة الأولى من الملف.");
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-      const imported = readImportRows(rows as Record<string, unknown>[]);
+      const imported = mapProductImportRows(rows as Record<string, unknown>[]);
       const headers = Object.keys((rows as Record<string, unknown>[])[0] ?? {});
       setPreviewRows(imported);
       setColumnMap(defaultColumnMap(headers));
@@ -749,7 +625,12 @@ function ProductForm({
 
   const removeProduct = async () => {
     if (!selected) return;
-    if (!window.confirm(`هل تريد حذف المنتج "${selected.nameAr}" (SKU: ${selected.sku}) نهائيًا؟ سيتم حذف أسعاره والاختصارات المرتبطة به.`)) return;
+    if (
+      !window.confirm(
+        `هل تريد حذف المنتج "${selected.nameAr}" (SKU: ${selected.sku}) نهائيًا؟ سيتم حذف أسعاره والاختصارات المرتبطة به.`,
+      )
+    )
+      return;
     try {
       setSaving(true);
       await deleteProduct(selected.id);
