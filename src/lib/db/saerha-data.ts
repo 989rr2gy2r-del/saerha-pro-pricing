@@ -448,6 +448,23 @@ export type ProductImportRow = {
   customerSpecialPrice?: number | string | null;
   customerName?: string | null;
   currency?: string;
+  prices?: Array<{
+    amount?: number | string | null;
+    priceType: string;
+    sourceField?: string | null;
+    sourcePriceType?: string | null;
+    source?: string | null;
+    amountExact?: string | number | null;
+    extra?: Record<string, unknown> | null;
+    customerName?: string | null;
+  }>;
+  supplier?: string | null;
+  warranty?: string | null;
+  countryOfOrigin?: string | null;
+  categoryMainEn?: string | null;
+  categorySubEn?: string | null;
+  source?: string | null;
+  extra?: Record<string, unknown> | null;
 };
 
 export type ProductImportSummary = {

@@ -108,45 +108,87 @@ async function fetchGeminiWithRetry(
 }
 
 type AnalysisItem = {
-  description: string;
-  quantity: number;
-  unit: string;
   raw_text: string;
+  normalized_text: string;
+  sku: string | null;
+  product_name: string | null;
+  brand: string | null;
+  quantity: number;
+  unit: string | null;
+  description: string | null;
   confidence: number;
+  status: "matched" | "review" | "unmatched";
   notes?: string;
 };
 
 type AnalysisResult = {
   items: AnalysisItem[];
-  notes: string;
+  notes: string[];
+  overall_confidence: number;
 };
 
 function getGeminiApiKey(): string | null {
   return getServerEnv("GEMINI_API_KEY");
 }
 
+function normalizeText(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\s_\-/\\]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 function normalizeAnalysisResult(value: unknown): AnalysisResult {
   const source = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const rawItems = Array.isArray(source["items"]) ? source["items"] : [];
+  const items = rawItems
+    .map((item): AnalysisItem => {
+      const row = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      const quantity = Number(row["quantity"]);
+      const confidence = Number(row["confidence"]);
+      const rawText = typeof row["raw_text"] === "string" ? row["raw_text"].trim() : "";
+      const description = typeof row["description"] === "string" ? row["description"].trim() : rawText;
+      const normalizedText = normalizeText(rawText || description || "");
+      return {
+        raw_text: rawText || description,
+        normalized_text: normalizedText,
+        sku: typeof row["sku"] === "string" && row["sku"] ? row["sku"].trim() : null,
+        product_name:
+          typeof row["product_name"] === "string" && row["product_name"]
+            ? row["product_name"].trim()
+            : null,
+        brand:
+          typeof row["brand"] === "string" && row["brand"] ? row["brand"].trim() : null,
+        quantity: Number.isFinite(quantity) && quantity >= 0 ? quantity : 0,
+        unit: typeof row["unit"] === "string" && row["unit"].trim() ? row["unit"].trim() : null,
+        description: description || null,
+        confidence: Number.isFinite(confidence) ? Math.min(1, Math.max(0, confidence)) : 0,
+        status: (() => {
+          const status = String(row["status"] ?? "unmatched").trim();
+          return status === "matched" || status === "review" || status === "unmatched"
+            ? status
+            : "unmatched";
+        })(),
+        notes: typeof row["notes"] === "string" ? row["notes"].trim() : undefined,
+      };
+    })
+    .filter((item) => item.raw_text || item.description);
+
+  const notesValues = Array.isArray(source["notes"]) ? source["notes"] : [];
+  const notes = notesValues
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter(Boolean);
+  const overallConfidence = items.length
+    ? items.reduce((sum, item) => sum + item.confidence, 0) / items.length
+    : 0;
 
   return {
-    items: rawItems
-      .map((item): AnalysisItem => {
-        const row = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
-        const quantity = Number(row["quantity"]);
-        const confidence = Number(row["confidence"]);
-
-        return {
-          description: typeof row["description"] === "string" ? row["description"].trim() : "",
-          quantity: Number.isFinite(quantity) && quantity >= 0 ? quantity : 0,
-          unit: typeof row["unit"] === "string" ? row["unit"].trim() : "",
-          raw_text: typeof row["raw_text"] === "string" ? row["raw_text"].trim() : "",
-          confidence: Number.isFinite(confidence) ? Math.min(1, Math.max(0, confidence)) : 0,
-          notes: typeof row["notes"] === "string" ? row["notes"].trim() : "",
-        };
-      })
-      .filter((item) => item.description || item.raw_text),
-    notes: typeof source["notes"] === "string" ? source["notes"].trim() : "",
+    items,
+    notes,
+    overall_confidence: Number(Math.min(1, Math.max(0, overallConfidence)).toFixed(2)),
   };
 }
 

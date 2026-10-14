@@ -671,6 +671,22 @@ function ProductForm({
           customerSpecialPrice: normalizeOptionalPrice(
             read(columnMap["customerSpecialPrice"] ?? "") || read("customerSpecialPrice") || null,
           ),
+          sourceRetailPrice: normalizeOptionalPrice(
+            read("Retail Price") || read("retail_price") || null,
+          ),
+          sourceWholesalePrice: normalizeOptionalPrice(
+            read("Wholesale Price") || read("wholesale_price") || null,
+          ),
+          sourceUnitPrice: normalizeOptionalPrice(
+            read("Unit Price") || read("unit_price") || null,
+          ),
+          sourcePriceAfterDiscount: normalizeOptionalPrice(
+            read("Price After Discount") || read("price_after_discount") || null,
+          ),
+          sourceRetailMin: normalizeOptionalPrice(
+            read("Retail Min") || read("retail_min") || null,
+          ),
+          source: toStringOrNull(read("Source") || read("source") || ""),
           customerName: toStringOrNull(
             read(columnMap["customerName"] ?? "") || read("customerName") || "",
           ),
