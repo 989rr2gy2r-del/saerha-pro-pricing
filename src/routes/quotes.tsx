@@ -204,16 +204,30 @@ function Quotes() {
         .map((quote) => quote.id);
 
       if (expiredIds.length > 0) {
-        const { error: expiryError } = await supabase
+        const { data: expiredRows, error: expiryError } = await supabase
           .from("quotations")
           .update({ status: "expired" })
-          .in("id", expiredIds);
+          .in("id", expiredIds)
+          .select("id, status");
 
         if (expiryError) {
           console.error("Failed to mark expired quotations", expiryError);
         } else {
+          const confirmedExpiredIds = new Set(
+            (expiredRows ?? [])
+              .filter((row) => row.status === "expired")
+              .map((row) => row.id),
+          );
+
           for (const quote of loadedQuotes) {
-            if (expiredIds.includes(quote.id)) quote.status = "expired";
+            if (confirmedExpiredIds.has(quote.id)) quote.status = "expired";
+          }
+
+          if (confirmedExpiredIds.size !== expiredIds.length) {
+            console.error("Not all expired quotations were confirmed by the database", {
+              expected: expiredIds.length,
+              confirmed: confirmedExpiredIds.size,
+            });
           }
         }
       }
@@ -238,12 +252,17 @@ function Quotes() {
 
     try {
       setLoading(true);
-      const { error } = await supabase
+      const { data: updatedQuote, error } = await supabase
         .from("quotations")
         .update({ status: nextStatus })
-        .eq("id", quote.id);
+        .eq("id", quote.id)
+        .select("id, status")
+        .maybeSingle();
 
       if (error) throw error;
+      if (!updatedQuote || updatedQuote.status !== nextStatus) {
+        throw new Error("لم يؤكد النظام حفظ حالة عرض السعر؛ أعد تحميل الصفحة وتحقق من الحالة المحفوظة.");
+      }
 
       setQuotes((current) =>
         current.map((item) =>
