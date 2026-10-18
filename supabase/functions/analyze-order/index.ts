@@ -8,9 +8,10 @@ const corsHeaders = {
 };
 
 const MODELS = [
-  // Dense invoice images can need more than a few seconds. Keep both multimodal paths parallel, but give them enough time to finish before the server retry.
-  { id: "gemini-3.1-flash-lite", timeoutMs: 15000, thinkingLevel: "minimal" },
-  { id: "gemini-3.6-flash", timeoutMs: 22000, thinkingLevel: "low" },
+  // Keep the whole function comfortably below the Edge runtime limit:
+  // two parallel attempts, a short backoff, then one bounded retry round.
+  { id: "gemini-3.1-flash-lite", timeoutMs: 11000, thinkingLevel: "minimal" },
+  { id: "gemini-3.6-flash", timeoutMs: 13000, thinkingLevel: "low" },
 ];
 
 const MAX_IMAGE_BASE64 = 12_000_000;
@@ -167,7 +168,7 @@ async function callGemini(
               },
               required: ["items", "notes"],
             },
-            thinkingConfig: { thinkingLevel: model === "gemini-3.5-flash-lite" ? "minimal" : "low" },
+            thinkingConfig: { thinkingLevel: model === "gemini-3.1-flash-lite" ? "minimal" : "low" },
             maxOutputTokens: 8192,
           },
         }),
@@ -449,7 +450,7 @@ ${textInput
       // This keeps the UI responsive and follows the provider's transient-error
       // retry pattern while putting a hard upper bound on the request time.
       if (errors.some((entry) => isRetryableGeminiError(entry instanceof Error ? entry.message : String(entry ?? "")))) {
-        await sleep(1200);
+        await sleep(700);
         const retryController = new AbortController();
         const retryCalls = MODELS.map((model, index) => {
           const retryPrompt =
