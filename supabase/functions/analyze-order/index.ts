@@ -8,10 +8,10 @@ const corsHeaders = {
 };
 
 const MODELS = [
-  // Keep the whole function comfortably below the Edge runtime limit:
-  // two parallel attempts, a short backoff, then one bounded retry round.
-  { id: "gemini-3.1-flash-lite", timeoutMs: 11000, thinkingLevel: "minimal" },
-  { id: "gemini-3.6-flash", timeoutMs: 13000, thinkingLevel: "low" },
+  // Race a current stable high-accuracy model against a lightweight fallback.
+  // Keep both bounded so a provider slowdown cannot stall order entry indefinitely.
+  { id: "gemini-3.8-flash", timeoutMs: 15000, thinkingLevel: "low" },
+  { id: "gemini-3.5-flash-lite", timeoutMs: 15000, thinkingLevel: "minimal" },
 ];
 
 const MAX_IMAGE_BASE64 = 12_000_000;
@@ -168,7 +168,7 @@ async function callGemini(
               },
               required: ["items", "notes"],
             },
-            thinkingConfig: { thinkingLevel: model === "gemini-3.1-flash-lite" ? "minimal" : "low" },
+            thinkingConfig: { thinkingLevel: model === "gemini-3.5-flash-lite" ? "minimal" : "low" },
             maxOutputTokens: 8192,
           },
         }),
