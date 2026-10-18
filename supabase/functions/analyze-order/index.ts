@@ -384,7 +384,7 @@ ${textInput
       const modelPrompt =
         index === 0
           ? prompt
-          : prompt + "\\n\\nهذه محاولة احتياطية موازية. لا تخترع أي معلومة؛ ركز على قراءة كل الصفوف والكمية والوحدة بدقة.";
+          : prompt + "\n\nهذه محاولة احتياطية موازية. لا تخترع أي معلومة؛ ركز على قراءة كل الصفوف والكمية والوحدة بدقة.";
       return callGemini(
         apiKey,
         model.id,
@@ -408,7 +408,7 @@ ${textInput
 
       const expectedLines = textInput
         ? textInput
-            .split(/\\r?\\n/)
+            .split(/\r?\n/)
             .map((line) => line.trim())
             .filter((line) => line.length >= 3)
             .filter((line) => !/^(?:الصنف|الكمية|الطلبية|البيان|item|product|quantity)$/i.test(line))
@@ -437,7 +437,7 @@ ${textInput
         const model = MODELS[index] ?? MODELS[0];
         const modelError = errors[index];
         const message = modelError instanceof Error ? modelError.message : String(modelError ?? "unknown");
-        const statusMatch = message.match(/HTTP (\\d{3})/);
+        const statusMatch = message.match(/HTTP (\d{3})/);
         attempts.push({
           model: model.id,
           error: message.slice(0, 800),
@@ -484,7 +484,7 @@ ${textInput
             const model = MODELS[index] ?? MODELS[0];
             const modelError = retryErrors[index];
             const message = modelError instanceof Error ? modelError.message : String(modelError ?? "unknown");
-            const statusMatch = message.match(/HTTP (\\d{3})/);
+            const statusMatch = message.match(/HTTP (\d{3})/);
             attempts.push({
               model: model.id + " (retry)",
               error: message.slice(0, 800),
