@@ -304,11 +304,9 @@ const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
 ];
 
 function normalizeSkuForMatch(value: string): string {
-  const normalized = normalizeForMatch(value).replace(/\s+/g, "");
-  // Treat numeric SKUs with or without leading zeros as the same lookup key.
-  // Keep the original SKU string for display; this is matching-only.
-  if (/^\d+$/.test(normalized)) return normalized.replace(/^0+(?=\d)/, "");
-  return normalized;
+  // SKU formatting is meaningful: leading zeros must be preserved because
+  // imported catalog codes such as 07315 can be distinct from 7315.
+  return normalizeForMatch(value).replace(/\s+/g, "");
 }
 
 function normalizeForMatch(value: string): string {
