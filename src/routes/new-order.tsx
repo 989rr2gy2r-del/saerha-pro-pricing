@@ -534,6 +534,7 @@ function NewOrder() {
     Array<{ name: string; size: number; type: string; status: string }>
   >([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [databaseUnits, setDatabaseUnits] = useState<Array<{ code: string; name_ar: string; name_en: string }>>([]);
   const [productAliases, setProductAliases] = useState<Record<string, string[]>>({});
   // Reuse the initial catalog request if analysis starts before page-load finishes.
   // Without this guard, uploading immediately after opening the page triggered
@@ -728,6 +729,15 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     }
   };
 
+  const loadUnits = async () => {
+    const { data, error } = await supabase
+      .from("units")
+      .select("code, name_ar, name_en")
+      .order("name_en", { ascending: true });
+    if (error) throw error;
+    setDatabaseUnits((data ?? []) as Array<{ code: string; name_ar: string; name_en: string }>);
+  };
+
   const loadProducts = async (): Promise<{
     products: ProductRecord[];
     aliases: Record<string, string[]>;
@@ -897,6 +907,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   useEffect(() => {
     void loadCustomers();
     void loadProducts();
+    void loadUnits().catch(() => setDatabaseUnits([]));
   }, []);
 
   useEffect(() => {
@@ -3301,7 +3312,18 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                             focusNextOrderField(index, "unit");
                                           }
                                         }}
-                                      ><SelectValue placeholder="اختر الوحدة" /></SelectTrigger><SelectContent>{(item.product?.unit ? [item.product.unit] : []).map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent></Select>
+                                      ><SelectValue placeholder="اختر الوحدة" /></SelectTrigger><SelectContent>{(() => {
+                                        const baseUnit = String(item.product?.unit ?? item.unit ?? "").trim();
+                                        const unitNames = new Map(databaseUnits.map((unit) => [unit.name_ar.trim().toLowerCase(), unit.name_ar]));
+                                        const allowed = new Set<string>(baseUnit ? [baseUnit] : []);
+                                        const relevantConversions = (item.product ? (item.product.unit ? [item.product.unit] : []) : []);
+                                        void relevantConversions;
+                                        return [...allowed].map((unit) => (
+                                          <SelectItem key={unit} value={unit}>
+                                            {unitNames.get(unit.toLowerCase()) ?? unit}
+                                          </SelectItem>
+                                        ));
+                                      })()}</SelectContent></Select>
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
