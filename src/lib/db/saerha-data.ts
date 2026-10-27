@@ -385,39 +385,45 @@ export async function importProductsAndPrices(
   if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
 
   const summary: ProductImportSummary = { new: 0, updated: 0, priceChanged: 0, duplicate: 0, error: 0 };
-  const seen = new Set<string>();
-  const cleanRows: Array<{ row: ProductImportRow; sku: string; nameAr: string; nameEn: string }> = [];
+  const chunkSize = 250;
+  const cleanRows: Array<{ row: ProductImportRow; sku: string; nameAr: string; nameEn: string; identity: string }> = [];
+  const norm = (v: unknown) => normalizeImportString(v).replace(/\\s+/g, " ").trim().toLocaleLowerCase();
+  const identityOf = (sku: unknown, name: unknown, brand: unknown, unit: unknown) =>
+    [sku, name, brand, unit].map(norm).join("\\u001f");
 
+  // SKU is not unique: distinct products may intentionally share a code.
+  // Identity uses the existing catalog fields SKU + Arabic name + brand + unit.
   for (const row of rows) {
-    const sku = normalizeImportString(row.sku || row.nameAr || row.nameEn).replace(/\s+/g, " ").trim();
+    const sku = normalizeImportString(row.sku || row.nameAr || row.nameEn).replace(/\\s+/g, " ").trim();
     const nameAr = normalizeImportString(row.nameAr || row.nameEn);
     const nameEn = normalizeImportString(row.nameEn || row.nameAr);
     if (!sku || (!nameAr && !nameEn)) {
       summary.error += 1;
       continue;
     }
-    const key = sku.toLowerCase();
-    if (seen.has(key)) {
-      summary.duplicate += 1;
-      continue;
-    }
-    seen.add(key);
-    cleanRows.push({ row, sku, nameAr, nameEn });
+    cleanRows.push({ row, sku, nameAr, nameEn, identity: identityOf(sku, nameAr, row.brand, row.unit || "حبة") });
   }
 
-  const chunkSize = 250;
-  const existingSkuSet = new Set<string>();
-  for (let i = 0; i < cleanRows.length; i += chunkSize) {
-    const skus = cleanRows.slice(i, i + chunkSize).map((entry) => entry.sku);
-    const { data, error } = await supabase.from("products").select("sku").in("sku", skus);
+  // Find existing records by SKU, then resolve each row by full identity (never SKU alone).
+  const skus = [...new Set(cleanRows.map((entry) => entry.sku))];
+  const existingByIdentity = new Map<string, { id: string }>();
+  for (let i = 0; i < skus.length; i += chunkSize) {
+    const { data, error } = await supabase.from("products")
+      .select("id, sku, name_ar, brand, unit")
+      .in("sku", skus.slice(i, i + chunkSize));
     if (error) throw new Error(error.message);
-    for (const item of data ?? []) existingSkuSet.add(String(item.sku).toLowerCase());
+    for (const product of data ?? []) {
+      const key = identityOf(product.sku, product.name_ar, product.brand, product.unit);
+      if (!existingByIdentity.has(key)) existingByIdentity.set(key, { id: String(product.id) });
+    }
   }
 
-  const productBySku = new Map<string, string>();
-  for (let i = 0; i < cleanRows.length; i += chunkSize) {
-    const batch = cleanRows.slice(i, i + chunkSize);
-    const payload = batch.map(({ row, sku, nameAr, nameEn }) => ({
+  const productIdByIdentity = new Map<string, string>();
+  const pendingInsert: Array<{ entry: (typeof cleanRows)[number]; payload: Database["public"]["Tables"]["products"]["Insert"] }> = [];
+
+  for (const entry of cleanRows) {
+    const { row, sku, nameAr, nameEn, identity } = entry;
+    const payload = {
       sku,
       name_ar: nameAr || nameEn || "منتج",
       name_en: nameEn || "",
@@ -433,28 +439,49 @@ export async function importProductsAndPrices(
       description: normalizeImportString(row.description || ""),
       unit: normalizeImportString(row.unit || "حبة"),
       status: row.status === "inactive" ? "inactive" : "active",
-    }));
+    } as Database["public"]["Tables"]["products"]["Insert"];
 
-    const { data, error } = await supabase
-      .from("products")
-      .upsert(payload as Database["public"]["Tables"]["products"]["Insert"][], { onConflict: "sku" })
-      .select("id, sku");
-    if (error) throw new Error(error.message);
-
-    for (const item of data ?? []) productBySku.set(String(item.sku).toLowerCase(), String(item.id));
+    const existing = existingByIdentity.get(identity);
+    if (existing) {
+      const { error } = await supabase.from("products").update(payload).eq("id", existing.id);
+      if (error) throw new Error(error.message);
+      productIdByIdentity.set(identity, existing.id);
+      summary.updated += 1;
+    } else {
+      pendingInsert.push({ entry, payload });
+    }
   }
 
-  summary.new = cleanRows.filter(({ sku }) => !existingSkuSet.has(sku.toLowerCase())).length;
-  summary.updated = cleanRows.length - summary.new;
+  for (let i = 0; i < pendingInsert.length; i += chunkSize) {
+    const batch = pendingInsert.slice(i, i + chunkSize);
+    const { data, error } = await supabase.from("products")
+      .insert(batch.map((item) => item.payload))
+      .select("id, sku, name_ar, brand, unit");
+    if (error) throw new Error(error.message);
+    const idsByIdentity = new Map<string, string>();
+    for (const product of data ?? []) {
+      idsByIdentity.set(identityOf(product.sku, product.name_ar, product.brand, product.unit), String(product.id));
+    }
+    for (const item of batch) {
+      const id = idsByIdentity.get(item.entry.identity);
+      if (!id) {
+        summary.error += 1;
+        continue;
+      }
+      productIdByIdentity.set(item.entry.identity, id);
+      summary.new += 1;
+    }
+  }
 
   const priceRows: Array<Database["public"]["Tables"]["prices"]["Insert"]> = [];
-  for (const { row, sku } of cleanRows) {
-    const productId = productBySku.get(sku.toLowerCase());
+  const importedProductIds = new Set<string>();
+  for (const { row, identity } of cleanRows) {
+    const productId = productIdByIdentity.get(identity);
     if (!productId) {
       summary.error += 1;
       continue;
     }
-
+    importedProductIds.add(productId);
     for (const [priceType, rawAmount] of [
       ["retail", row.retailPrice],
       ["reseller", row.resellerPrice],
@@ -474,27 +501,21 @@ export async function importProductsAndPrices(
     }
   }
 
-  // This import is a controlled bulk sync: replace base retail/reseller prices
-  // for the imported products, then insert the imported price snapshot in batches.
-  const productIds = [...new Set(priceRows.map((row) => String(row.product_id)))];
+  // Replace base prices only for the resolved product IDs, not by SKU.
+  const productIds = [...importedProductIds];
   for (let i = 0; i < productIds.length; i += chunkSize) {
-    const ids = productIds.slice(i, i + chunkSize);
-    const { error } = await supabase
-      .from("prices")
-      .delete()
-      .in("product_id", ids)
+    const { error } = await supabase.from("prices").delete()
+      .in("product_id", productIds.slice(i, i + chunkSize))
       .in("price_type", ["retail", "reseller"])
       .is("customer_id", null);
     if (error) throw new Error(error.message);
   }
-
   for (let i = 0; i < priceRows.length; i += chunkSize) {
     const batch = priceRows.slice(i, i + chunkSize);
     const { error } = await supabase.from("prices").insert(batch);
     if (error) throw new Error(error.message);
     summary.priceChanged += batch.length;
   }
-
   return summary;
 }
 
