@@ -2988,10 +2988,13 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                         event.currentTarget.select();
                                       }}
                                       onChange={(event) => {
+                                        const value = event.target.value;
                                         setSkuDrafts((previous) => ({
                                           ...previous,
-                                          [item.id]: event.target.value,
+                                          [item.id]: value,
                                         }));
+                                        setProductSearches((previous) => ({ ...previous, [item.id]: value }));
+                                        setOpenProductPickerId(value.trim() ? item.id : null);
                                         setSkuErrors((previous) => {
                                           if (!previous[item.id]) return previous;
                                           const next = { ...previous };
