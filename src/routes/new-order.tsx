@@ -3286,7 +3286,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <Select value={item.unit || ""} onValueChange={(value) => handleUnitChange(index, value)}><SelectTrigger
+                                    <Select value={item.unit || item.product?.unit || ""} onValueChange={(value) => handleUnitChange(index, value)}><SelectTrigger
                                         ref={(node) => { keyboardFieldRefs.current[`${item.id}:unit`] = node; }}
                                         className="h-10 w-32 cursor-pointer font-bold"
                                         title="اختيار الوحدة — Enter للانتقال للسعر"
