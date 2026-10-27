@@ -303,6 +303,14 @@ const PRODUCT_SYNONYMS: Array<[RegExp, string]> = [
   [/\binch(?:es)?\b/gi, "انش"],
 ];
 
+function normalizeSkuForMatch(value: string): string {
+  const normalized = normalizeForMatch(value).replace(/\s+/g, "");
+  // Treat numeric SKUs with or without leading zeros as the same lookup key.
+  // Keep the original SKU string for display; this is matching-only.
+  if (/^\d+$/.test(normalized)) return normalized.replace(/^0+(?=\d)/, "");
+  return normalized;
+}
+
 function normalizeForMatch(value: string): string {
   let normalized = String(value ?? "")
     .normalize("NFKD")
@@ -635,7 +643,16 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         const matches = queryTokens.every((token) => {
           // Filter numeric tokens incrementally too (including partial SKUs/sizes).
           // Exact matching is only used when the user confirms a selection.
-          return haystack.includes(token);
+          if (haystack.includes(token)) return true;
+          if (/^\d+$/.test(token)) {
+            const normalizedCodeQuery = normalizeSkuForMatch(token);
+            return fields.some((field) =>
+              field.split(/\s+/).some((part) =>
+                /^\d+$/.test(part) && normalizeSkuForMatch(part).includes(normalizedCodeQuery),
+              ),
+            );
+          }
+          return false;
         });
         if (!matches) return null;
 
@@ -1079,8 +1096,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       return false;
     }
 
-    const normalized = normalizeForMatch(draft);
-    const exactMatches = products.filter((product) => normalizeForMatch(product.sku) === normalized);
+    const normalized = normalizeSkuForMatch(draft);
+    const exactMatches = products.filter((product) => normalizeSkuForMatch(product.sku) === normalized);
 
     if (exactMatches.length === 1) {
       setSkuErrors((previous) => {
@@ -3001,8 +3018,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                           ...previous,
                                           [item.id]: value,
                                         }));
-                                        setProductSearches((previous) => ({ ...previous, [item.id]: value }));
-                                        setOpenProductPickerId(value.trim() ? item.id : null);
+                                        // Keep code lookup in the code field; do not redirect focus to the product-name picker.
                                         setSkuErrors((previous) => {
                                           if (!previous[item.id]) return previous;
                                           const next = { ...previous };
