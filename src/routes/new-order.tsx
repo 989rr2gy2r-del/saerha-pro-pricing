@@ -643,9 +643,17 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         const startsField = fields.some((field) => field.startsWith(normalizedQuery));
         const containsField = fields.some((field) => field.includes(normalizedQuery));
 
+        // Rank direct identity fields (SKU and product names) above descriptive
+        // fields and aliases so a search for "واير" shows actual wire products first.
+        const primaryFields = fields.slice(0, 4);
+        const primaryExact = primaryFields.some((field) => field === normalizedQuery);
+        const primaryStarts = primaryFields.some((field) => field.startsWith(normalizedQuery));
+        const primaryContains = primaryFields.some((field) => field.includes(normalizedQuery));
+
         return {
           option,
-          score: exactField ? 3 : startsField ? 2 : containsField ? 1 : 0,
+          score: primaryExact ? 100 : primaryStarts ? 80 : primaryContains ? 60
+            : exactField ? 30 : startsField ? 20 : containsField ? 10 : 0,
         };
       })
       .filter((entry): entry is { option: (typeof productOptions)[number]; score: number } => Boolean(entry))
