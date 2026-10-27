@@ -387,14 +387,14 @@ export async function importProductsAndPrices(
   const summary: ProductImportSummary = { new: 0, updated: 0, priceChanged: 0, duplicate: 0, error: 0 };
   const chunkSize = 250;
   const cleanRows: Array<{ row: ProductImportRow; sku: string; nameAr: string; nameEn: string; identity: string }> = [];
-  const norm = (v: unknown) => normalizeImportString(v).replace(/\\s+/g, " ").trim().toLocaleLowerCase();
+  const norm = (v: unknown) => normalizeImportString(v).replace(/\s+/g, " ").trim().toLocaleLowerCase();
   const identityOf = (sku: unknown, name: unknown, brand: unknown, unit: unknown) =>
-    [sku, name, brand, unit].map(norm).join("\\u001f");
+    [sku, name, brand, unit].map(norm).join("\u001f");
 
   // SKU is not unique: distinct products may intentionally share a code.
   // Identity uses the existing catalog fields SKU + Arabic name + brand + unit.
   for (const row of rows) {
-    const sku = normalizeImportString(row.sku || row.nameAr || row.nameEn).replace(/\\s+/g, " ").trim();
+    const sku = normalizeImportString(row.sku || row.nameAr || row.nameEn).replace(/\s+/g, " ").trim();
     const nameAr = normalizeImportString(row.nameAr || row.nameEn);
     const nameEn = normalizeImportString(row.nameEn || row.nameAr);
     if (!sku || (!nameAr && !nameEn)) {
