@@ -3285,7 +3285,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                             focusNextOrderField(index, "unit");
                                           }
                                         }}
-                                      ><SelectValue placeholder="اختر الوحدة" /></SelectTrigger><SelectContent>{["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent></Select>
+                                      ><SelectValue placeholder="اختر الوحدة" /></SelectTrigger><SelectContent>{(item.product?.unit ? [item.product.unit] : []).map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent></Select>
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
