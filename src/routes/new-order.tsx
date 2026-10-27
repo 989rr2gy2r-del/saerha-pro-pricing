@@ -633,9 +633,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         if (!haystack) return null;
 
         const matches = queryTokens.every((token) => {
-          if (/^\d+(?:\.\d+)?$/.test(token)) {
-            return fields.some((field) => field.split(/\s+/).includes(token));
-          }
+          // Filter numeric tokens incrementally too (including partial SKUs/sizes).
+          // Exact matching is only used when the user confirms a selection.
           return haystack.includes(token);
         });
         if (!matches) return null;
@@ -1073,30 +1072,32 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     }
 
     const normalized = normalizeForMatch(draft);
-    const exact = products.find((product) => normalizeForMatch(product.sku) === normalized);
+    const exactMatches = products.filter((product) => normalizeForMatch(product.sku) === normalized);
 
-    if (!exact) {
-      setSkuErrors((previous) => ({
-        ...previous,
-        [item.id]: "الكود غير موجود في قاعدة البيانات.",
-      }));
-      return;
+    if (exactMatches.length === 1) {
+      setSkuErrors((previous) => {
+        const next = { ...previous };
+        delete next[item.id];
+        return next;
+      });
+      void handleProductSelect(index, exactMatches[0].id);
+      setSkuDrafts((previous) => {
+        const next = { ...previous };
+        delete next[item.id];
+        return next;
+      });
+      return true;
     }
 
+    // SKUs are not unique in this catalog. Let the user choose by product ID.
     setSkuErrors((previous) => {
       const next = { ...previous };
       delete next[item.id];
       return next;
     });
-
-    void handleProductSelect(index, exact.id);
-    setSkuDrafts((previous) => {
-      const next = { ...previous };
-      delete next[item.id];
-      return next;
-    });
-
-    return true;
+    setProductSearches((previous) => ({ ...previous, [item.id]: draft }));
+    setOpenProductPickerId(item.id);
+    return false;
   };
 
   const handleAddProductLine = () => {
