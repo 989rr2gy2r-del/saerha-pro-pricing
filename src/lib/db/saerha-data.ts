@@ -411,6 +411,19 @@ export async function importProductsAndPrices(
     cleanRows.push({ row, sku, nameAr, nameEn, identity: identityOf(sku, nameAr, row.brand, row.unit || "حبة") });
   }
 
+  // Keep the first occurrence of each full product identity. Repeated spreadsheet
+  // rows must not create duplicate products or duplicate prices with ambiguous values.
+  const seenIdentities = new Set<string>();
+  for (let i = cleanRows.length - 1; i >= 0; i--) {
+    const entry = cleanRows[i];
+    if (seenIdentities.has(entry.identity)) {
+      cleanRows.splice(i, 1);
+      summary.duplicate += 1;
+    } else {
+      seenIdentities.add(entry.identity);
+    }
+  }
+
   // Find existing records by SKU, then resolve each row by full identity (never SKU alone).
   const skus = [...new Set(cleanRows.map((entry) => entry.sku))];
   const existingByIdentity = new Map<string, { id: string }>();
