@@ -774,6 +774,7 @@ function ProductForm({
           color: form.color,
           unit: form.unit,
           description: form.description,
+          image: form.image || null,
           status: form.status,
         });
       } else {
@@ -1011,7 +1012,7 @@ function ProductForm({
                 ["retailPrice", "سعر التجزئة للوحدة الأساسية"],
                 ["resellerPrice", "سعر الجملة للوحدة الأساسية"],
                 ["secondaryUnit", "الوحدة الثانوية (مثل متر)"],
-                ["unitsPerPrimary", "عدد الوحدات الثانوية في الوحدة الأساسية"],
+                ["unitsPerPrimary", "عدد القطع في الوحدة الكبرى"],
                 ["secondaryRetailPrice", "سعر التجزئة للوحدة الثانوية"],
                 ["secondaryResellerPrice", "سعر الجملة للوحدة الثانوية"],
               ] as const).map(([key, label]) => (
