@@ -369,6 +369,12 @@ function ProductForm({
     description: string;
     image: string;
     status: Product["status"];
+    retailPrice: string;
+    resellerPrice: string;
+    secondaryUnit: string;
+    unitsPerPrimary: string;
+    secondaryRetailPrice: string;
+    secondaryResellerPrice: string;
   }>({
     sku: selected?.sku ?? "",
     nameAr: selected?.nameAr ?? "",
@@ -386,6 +392,12 @@ function ProductForm({
     description: selected?.description ?? "",
     image: selected?.image ?? "",
     status: selected?.status ?? "active",
+    retailPrice: "",
+    resellerPrice: "",
+    secondaryUnit: "",
+    unitsPerPrimary: "",
+    secondaryRetailPrice: "",
+    secondaryResellerPrice: "",
   });
 
   useEffect(() => {
@@ -407,6 +419,12 @@ function ProductForm({
         description: selected.description,
         image: selected.image ?? "",
         status: selected.status,
+        retailPrice: "",
+        resellerPrice: "",
+        secondaryUnit: "",
+        unitsPerPrimary: "",
+        secondaryRetailPrice: "",
+        secondaryResellerPrice: "",
       });
     }
   }, [selected, open]);
@@ -734,6 +752,12 @@ function ProductForm({
   const submit = async () => {
     try {
       setSaving(true);
+      if (form.secondaryUnit.trim() && (!form.unitsPerPrimary.trim() || !Number.isFinite(Number(form.unitsPerPrimary)) || Number(form.unitsPerPrimary) <= 0)) {
+        throw new Error("أدخل معامل تحويل صحيحًا أكبر من صفر للوحدة الثانوية.");
+      }
+      if (!form.secondaryUnit.trim() && (form.unitsPerPrimary.trim() || form.secondaryRetailPrice.trim() || form.secondaryResellerPrice.trim())) {
+        throw new Error("حدد الوحدة الثانوية أولًا قبل إدخال معامل التحويل أو أسعارها.");
+      }
       if (selected) {
         await updateProduct(selected.id, {
           sku: form.sku,
@@ -771,6 +795,35 @@ function ProductForm({
           image: form.image || null,
           status: form.status,
         });
+      }
+      if (
+        form.retailPrice.trim() || form.resellerPrice.trim() || form.secondaryUnit.trim() ||
+        form.secondaryRetailPrice.trim() || form.secondaryResellerPrice.trim()
+      ) {
+        await importProductsAndPrices([{
+          sku: form.sku,
+          nameAr: form.nameAr,
+          nameEn: form.nameEn,
+          shortName: form.shortName,
+          brand: form.brand,
+          category1: form.category1,
+          category2: form.category2,
+          category3: form.category3,
+          group: form.group,
+          model: form.model,
+          size: form.size,
+          color: form.color,
+          unit: form.unit || "حبة",
+          description: form.description,
+          status: form.status,
+          retailPrice: form.retailPrice.trim() || null,
+          resellerPrice: form.resellerPrice.trim() || null,
+          secondaryUnit: form.secondaryUnit.trim() || null,
+          unitsPerPrimary: form.unitsPerPrimary.trim() || null,
+          secondaryRetailPrice: form.secondaryRetailPrice.trim() || null,
+          secondaryResellerPrice: form.secondaryResellerPrice.trim() || null,
+          currency: "KWD",
+        }]);
       }
       setOpen(false);
       if (onSaved) await onSaved();
@@ -951,6 +1004,31 @@ function ProductForm({
               />
             </div>
           ))}
+          <div className="sm:col-span-2 rounded-lg border border-border p-3">
+            <p className="mb-3 text-sm font-bold">الوحدات والأسعار</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {([
+                ["retailPrice", "سعر التجزئة للوحدة الأساسية"],
+                ["resellerPrice", "سعر الجملة للوحدة الأساسية"],
+                ["secondaryUnit", "الوحدة الثانوية (مثل متر)"],
+                ["unitsPerPrimary", "عدد الوحدات الثانوية في الوحدة الأساسية"],
+                ["secondaryRetailPrice", "سعر التجزئة للوحدة الثانوية"],
+                ["secondaryResellerPrice", "سعر الجملة للوحدة الثانوية"],
+              ] as const).map(([key, label]) => (
+                <div key={key} className="space-y-1.5">
+                  <Label className="text-xs">{label}</Label>
+                  <Input
+                    className="h-11"
+                    inputMode={key === "secondaryUnit" ? "text" : "decimal"}
+                    value={form[key]}
+                    onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                    placeholder={label}
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">مثال: الوحدة الأساسية رول، الثانوية متر، ومعامل التحويل 100.</p>
+          </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label className="text-xs">الوصف</Label>
             <Textarea
