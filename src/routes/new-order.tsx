@@ -1229,7 +1229,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       const uniqueProductIds = [...new Set(productIds)];
       const { data: priceRows, error: priceError } = await supabase
         .from("prices")
-        .select("product_id, price_type, customer_id, amount, valid_from, valid_to, is_active")
+        .select("product_id, price_type, customer_id, amount, valid_from, valid_to, is_active, source_field, source_price_type")
         .in("product_id", uniqueProductIds);
       if (priceError) throw priceError;
 
@@ -1295,7 +1295,14 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
               })
               .sort((a, b) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime());
 
+            const requestedUnit = (item.unit || item.product!.unit || "حبة").trim();
             const chosen =
+              rows.find((row) =>
+                row.price_type === "unit_price" &&
+                !row.customer_id &&
+                String(row.source_field ?? "").trim().toLowerCase() === requestedUnit.toLowerCase() &&
+                String(row.source_price_type ?? "") === preferredType
+              ) ??
               rows.find((row) => row.price_type === "customer_special" && row.customer_id === selectedCustomerId) ??
               rows.find((row) => row.price_type === preferredType && !row.customer_id) ??
               rows.find((row) => row.price_type === "retail" && !row.customer_id) ??
@@ -1313,18 +1320,20 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
             }
 
             const basePrice = Number(chosen.amount);
-            const requestedUnit = (item.unit || item.product!.unit || "حبة").trim();
             const baseUnit = (item.product!.unit || requestedUnit).trim();
             const sameUnit = requestedUnit.toLowerCase() === baseUnit.toLowerCase();
+            const isDirectSecondaryPrice =
+              chosen.price_type === "unit_price" &&
+              String(chosen.source_field ?? "").trim().toLowerCase() === requestedUnit.toLowerCase();
 
-            if (sameUnit) {
+            if (sameUnit || isDirectSecondaryPrice) {
               return {
                 ...item,
                 priceAmount: Number.isFinite(basePrice) ? basePrice : null,
                 basePriceAmount: Number.isFinite(basePrice) ? basePrice : null,
-                basePriceUnit: baseUnit,
+                basePriceUnit: isDirectSecondaryPrice ? requestedUnit : baseUnit,
                 priceType: chosen.price_type,
-                priceLabel: getPriceLookupKey(chosen.price_type),
+                priceLabel: isDirectSecondaryPrice ? `سعر الوحدة ${requestedUnit}` : getPriceLookupKey(chosen.price_type),
               };
             }
 
@@ -2456,7 +2465,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         await Promise.all([
           (supabase as any)
             .from("prices")
-            .select("id, product_id, price_type, customer_id, amount, currency, source, valid_from, valid_to")
+            .select("id, product_id, price_type, customer_id, amount, currency, source, valid_from, valid_to, is_active, source_field, source_price_type")
             .in("product_id", productIds)
             .order("valid_from", { ascending: false }),
           (supabase as any)
@@ -2482,6 +2491,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           const validTo = row.valid_to ? new Date(row.valid_to) : null;
           return (
             row.product_id === productId &&
+            row.is_active !== false &&
             !Number.isNaN(validFrom.getTime()) &&
             validFrom.getTime() <= now.getTime() &&
             (!validTo ||
@@ -2505,8 +2515,16 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           item.priceType === "manual_quote" && Number.isFinite(Number(item.priceAmount)) && Number(item.priceAmount) >= 0
             ? Number(item.priceAmount)
             : null;
-        const chosen = customerSpecial ?? preferred ?? retail ?? reseller ?? null;
-        const requestedUnit = item.unit || item.product!.unit || "حبة";
+        const requestedUnit = (item.unit || item.product!.unit || "حبة").trim();
+        const directSecondary = rows
+          .filter((row) =>
+            row.price_type === "unit_price" &&
+            !row.customer_id &&
+            String(row.source_field ?? "").trim().toLowerCase() === requestedUnit.toLowerCase() &&
+            String(row.source_price_type ?? "") === preferredType
+          )
+          .sort((a, b) => String(b.valid_from).localeCompare(String(a.valid_from)))[0];
+        const chosen = directSecondary ?? customerSpecial ?? preferred ?? retail ?? reseller ?? null;
 
         // When editing an existing quotation, preserve its saved quantity, unit,
         // and price unless the user explicitly changed them in the table.
@@ -2534,18 +2552,21 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           };
         }
 
-        const conversion = convertQuantity(
-          Number(item.quantity),
-          requestedUnit,
-          item.product!.unit || requestedUnit,
-          (conversionRows ?? []) as unknown as Array<{
-            from_unit: string;
-            to_unit: string;
-            multiplier: number;
-            product_id: string | null;
-          }>,
-          productId,
-        );
+        const isDirectSecondaryPrice = Boolean(directSecondary && chosen?.id === directSecondary.id);
+        const conversion = isDirectSecondaryPrice
+          ? { quantity: normalizeQuantity(Number(item.quantity)), multiplier: 1, converted: true }
+          : convertQuantity(
+              Number(item.quantity),
+              requestedUnit,
+              item.product!.unit || requestedUnit,
+              (conversionRows ?? []) as unknown as Array<{
+                from_unit: string;
+                to_unit: string;
+                multiplier: number;
+                product_id: string | null;
+              }>,
+              productId,
+            );
         if (!chosen) {
           return {
             ...item,
@@ -2561,9 +2582,11 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         // display unit has no conversion. The preview uses this same database
         // price, so saving must not incorrectly report "no price".
         const hasUnitConversion = conversion.converted;
-        const savedUnitPrice = hasUnitConversion
-          ? Number(chosen.amount) * conversion.multiplier
-          : Number(chosen.amount);
+        const savedUnitPrice = isDirectSecondaryPrice
+          ? Number(chosen.amount)
+          : hasUnitConversion
+            ? Number(chosen.amount) * conversion.multiplier
+            : Number(chosen.amount);
 
         return {
           ...item,
@@ -2571,8 +2594,8 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           unit: requestedUnit,
           priceAmount: Number.isFinite(savedUnitPrice) ? savedUnitPrice : null,
           priceType: chosen.price_type,
-          priceLabel: getPriceLookupKey(chosen.price_type) + (hasUnitConversion ? "" : " / " + (item.product!.unit || requestedUnit)),
-          notes: !hasUnitConversion && requestedUnit !== (item.product!.unit || requestedUnit)
+          priceLabel: isDirectSecondaryPrice ? `سعر الوحدة ${requestedUnit}` : getPriceLookupKey(chosen.price_type) + (hasUnitConversion ? "" : " / " + (item.product!.unit || requestedUnit)),
+          notes: !isDirectSecondaryPrice && !hasUnitConversion && requestedUnit !== (item.product!.unit || requestedUnit)
             ? [item.notes, "السعر من قاعدة الأسعار بوحدة " + (item.product!.unit || requestedUnit) + " — لا توجد تحويلة للوحدة المطلوبة"].filter(Boolean).join(" ")
             : item.notes,
         };
@@ -3313,9 +3336,12 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                       ><SelectValue placeholder="اختر الوحدة" /></SelectTrigger><SelectContent>{(() => {
                                         const baseUnit = String(item.product?.unit ?? item.unit ?? "").trim();
                                         const unitNames = new Map(databaseUnits.map((unit) => [unit.name_ar.trim().toLowerCase(), unit.name_ar]));
-                                        const allowed = new Set<string>(baseUnit ? [baseUnit] : []);
-                                        const relevantConversions = (item.product ? (item.product.unit ? [item.product.unit] : []) : []);
-                                        void relevantConversions;
+                                        const allowed = new Set<string>([
+                                          ...databaseUnits.map((unit) => unit.name_ar.trim()).filter(Boolean),
+                                          ...["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"],
+                                          ...(baseUnit ? [baseUnit] : []),
+                                          ...(item.unit ? [item.unit] : []),
+                                        ]);
                                         return [...allowed].map((unit) => (
                                           <SelectItem key={unit} value={unit}>
                                             {unitNames.get(unit.toLowerCase()) ?? unit}
@@ -3732,7 +3758,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                   <Label className="text-xs">الوحدة</Label>
                                   <Select value={item.unit || ""} onValueChange={(value) => handleUnitChange(index, value)}>
                                     <SelectTrigger><SelectValue placeholder="اختر الوحدة" /></SelectTrigger>
-                                    <SelectContent>{["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent>
+                                    <SelectContent>{[...new Set(["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج", ...(item.unit ? [item.unit] : []), ...(item.product?.unit ? [item.product.unit] : [])])].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent>
                                   </Select>
                                 </div>
                                 <div className="space-y-1">

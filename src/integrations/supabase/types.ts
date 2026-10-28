@@ -677,6 +677,7 @@ export type Database = {
         Returns: boolean
       }
       is_staff: { Args: { _user_id: string }; Returns: boolean }
+      saerha_import_products_atomic: { Args: { payload: Json }; Returns: Json }
     }
     Enums: {
       alias_source: "manual" | "import" | "learned"

@@ -539,6 +539,32 @@ function ProductForm({
             readValue(row, "reseller") ||
             null,
         ),
+        secondaryUnit: toStringOrNull(
+          readValue(row, "الوحدة الثانوية المصدر") ||
+            readValue(row, "الوحدة الثانوية") ||
+            readValue(row, "secondary_unit") ||
+            readValue(row, "unit_secondary") ||
+            "",
+        ),
+        unitsPerPrimary: normalizeOptionalPrice(
+          readValue(row, "عدد قطع الكبرى المصدر") ||
+            readValue(row, "عدد الوحدات في الوحدة الكبرى") ||
+            readValue(row, "units_per_primary") ||
+            readValue(row, "units_per_unit") ||
+            null,
+        ),
+        secondaryRetailPrice: normalizeOptionalPrice(
+          readValue(row, "بيع / ص المصدر") ||
+            readValue(row, "سعر بيع الوحدة الثانوية") ||
+            readValue(row, "secondary_retail_price") ||
+            null,
+        ),
+        secondaryResellerPrice: normalizeOptionalPrice(
+          readValue(row, "بيع / ك المصدر") ||
+            readValue(row, "سعر جملة الوحدة الثانوية") ||
+            readValue(row, "secondary_reseller_price") ||
+            null,
+        ),
         customerSpecialPrice: normalizeOptionalPrice(
           readValue(row, "customer_special_price") ||
             readValue(row, "سعر خاص") ||
@@ -585,6 +611,10 @@ function ProductForm({
       description: find("description", "الوصف", "description_text"),
       retailPrice: find("retail_price", "سعر التجزئة", "retail", "retail price"),
       resellerPrice: find("reseller_price", "سعر الموزع", "reseller", "reseller price"),
+      secondaryUnit: find("الوحدة الثانوية المصدر", "الوحدة الثانوية", "secondary_unit", "unit_secondary"),
+      unitsPerPrimary: find("عدد قطع الكبرى المصدر", "عدد الوحدات في الوحدة الكبرى", "units_per_primary", "units_per_unit"),
+      secondaryRetailPrice: find("بيع / ص المصدر", "سعر بيع الوحدة الثانوية", "secondary_retail_price"),
+      secondaryResellerPrice: find("بيع / ك المصدر", "سعر جملة الوحدة الثانوية", "secondary_reseller_price"),
       customerSpecialPrice: find(
         "customer_special_price",
         "سعر خاص",
@@ -669,6 +699,10 @@ function ProductForm({
           resellerPrice: normalizeOptionalPrice(
             read(columnMap["resellerPrice"] ?? "") || read("resellerPrice") || null,
           ),
+          secondaryUnit: toStringOrNull(read(columnMap["secondaryUnit"] ?? "") || read("secondaryUnit") || null),
+          unitsPerPrimary: normalizeOptionalPrice(read(columnMap["unitsPerPrimary"] ?? "") || read("unitsPerPrimary") || null),
+          secondaryRetailPrice: normalizeOptionalPrice(read(columnMap["secondaryRetailPrice"] ?? "") || read("secondaryRetailPrice") || null),
+          secondaryResellerPrice: normalizeOptionalPrice(read(columnMap["secondaryResellerPrice"] ?? "") || read("secondaryResellerPrice") || null),
           customerSpecialPrice: normalizeOptionalPrice(
             read(columnMap["customerSpecialPrice"] ?? "") || read("customerSpecialPrice") || null,
           ),
