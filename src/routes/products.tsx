@@ -871,20 +871,14 @@ function ProductForm({
     }
   };
 
+  // Visible add-product fields only; other attributes remain in the data model.
   const labels = [
-    { key: "sku", label: "SKU / كود الصنف" },
+    { key: "sku", label: "كود الصنف (SKU)" },
     { key: "nameAr", label: "الاسم العربي" },
     { key: "nameEn", label: "الاسم الإنجليزي" },
-    { key: "shortName", label: "الاسم المختصر" },
+    { key: "unit", label: "الوحدة الأساسية" },
+    { key: "category1", label: "التصنيف" },
     { key: "brand", label: "الماركة" },
-    { key: "category1", label: "التصنيف الرئيسي" },
-    { key: "category2", label: "التصنيف الفرعي" },
-    { key: "category3", label: "التصنيف الثالث" },
-    { key: "group", label: "المجموعة" },
-    { key: "model", label: "الموديل" },
-    { key: "size", label: "المقاس" },
-    { key: "color", label: "اللون" },
-    { key: "unit", label: "الوحدة" },
   ] as const;
 
   return (
@@ -1018,12 +1012,13 @@ function ProductForm({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {labels.map((field) => (
             <div key={field.key} className="space-y-1.5">
-              <Label className="text-xs">{field.label}</Label>
+              <Label className="text-sm font-semibold">{field.label}</Label>
               <Input
-                className="h-11"
+                className="h-12 rounded-xl border-slate-300 bg-white text-base"
                 value={form[field.key] as string}
                 onChange={(e) => setForm((prev) => ({ ...prev, [field.key]: e.target.value }))}
                 placeholder={field.label}
+                required={field.key === "sku" || field.key === "nameAr"}
               />
             </div>
           ))}
@@ -1031,17 +1026,17 @@ function ProductForm({
             <p className="mb-4 text-base font-extrabold text-slate-900">الوحدات والأسعار</p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {([
-                ["retailPrice", "سعر التجزئة للوحدة الأساسية"],
+                ["retailPrice", "سعر البيع للوحدة الأساسية"],
                 ["resellerPrice", "سعر الجملة للوحدة الأساسية"],
-                ["secondaryUnit", "الوحدة الثانوية (مثل متر)"],
-                ["unitsPerPrimary", "عدد القطع في الوحدة الكبرى"],
-                ["secondaryRetailPrice", "سعر التجزئة للوحدة الثانوية"],
+                ["secondaryUnit", "الوحدة الثانوية"],
+                ["unitsPerPrimary", "عدد الوحدات الثانوية في الوحدة الأساسية"],
+                ["secondaryRetailPrice", "سعر البيع للوحدة الثانوية"],
                 ["secondaryResellerPrice", "سعر الجملة للوحدة الثانوية"],
               ] as const).map(([key, label]) => (
                 <div key={key} className="space-y-1.5">
-                  <Label className="text-xs">{label}</Label>
+                  <Label className="text-sm font-semibold">{label}</Label>
                   <Input
-                    className="h-11"
+                    className="h-12 rounded-xl border-slate-300 bg-white text-base"
                     inputMode={key === "secondaryUnit" ? "text" : "decimal"}
                     value={form[key]}
                     onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
@@ -1050,51 +1045,7 @@ function ProductForm({
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">مثال: الوحدة الأساسية رول، الثانوية متر، ومعامل التحويل 100.</p>
-          </div>
-          <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
-            <Label className="text-xs">الوصف</Label>
-            <Textarea
-              rows={3}
-              value={form.description}
-              onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-1.5 rounded-xl border border-slate-200 bg-white p-3">
-            <Label className="text-xs">صورة المنتج</Label>
-            <Input
-              type="file"
-              className="h-11"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  const reader = new FileReader();
-                  reader.onload = () =>
-                    setForm((prev) => ({
-                      ...prev,
-                      image: typeof reader.result === "string" ? reader.result : "",
-                    }));
-                  reader.readAsDataURL(file);
-                }
-              }}
-            />
-          </div>
-          <div className="space-y-1.5 rounded-xl border border-slate-200 bg-white p-3">
-            <Label className="text-xs">الحالة</Label>
-            <Select
-              value={form.status}
-              onValueChange={(value) =>
-                setForm((prev) => ({ ...prev, status: value as "active" | "inactive" }))
-              }
-            >
-              <SelectTrigger className="h-11">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">مفعّل</SelectItem>
-                <SelectItem value="inactive">غير مفعّل</SelectItem>
-              </SelectContent>
-            </Select>
+            <p className="mt-3 text-xs text-muted-foreground">مثال: الوحدة الأساسية رول، والثانوية متر، ومعامل التحويل 100 متر لكل رول.</p>
           </div>
           <Button
             className="h-14 w-full rounded-xl bg-orange-500 text-base font-extrabold text-white hover:bg-orange-600 sm:col-span-2 lg:col-span-3"
