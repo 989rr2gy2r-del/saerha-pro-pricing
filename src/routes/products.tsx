@@ -871,12 +871,12 @@ function ProductForm({
     }
   };
 
-  // Visible add-product fields only; other attributes remain in the data model.
+  // ترتيب الحقول مطابق للصورة المرجعية، مع إبقاء SKU ضرورياً للصنف.
   const labels = [
-    { key: "sku", label: "كود الصنف (SKU)" },
     { key: "nameAr", label: "الاسم العربي" },
     { key: "nameEn", label: "الاسم الإنجليزي" },
-    { key: "unit", label: "الوحدة الأساسية" },
+    { key: "sku", label: "كود الصنف (SKU)" },
+    { key: "unit", label: "الوحدة/ص" },
   ] as const;
 
   return (
@@ -1020,48 +1020,48 @@ function ProductForm({
               />
             </div>
           ))}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 sm:col-span-2 lg:col-span-3">
-            <p className="mb-4 text-base font-extrabold text-slate-900">الوحدات والأسعار</p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {([
-                ["retailPrice", "سعر البيع للوحدة الأساسية"],
-                ["resellerPrice", "سعر الجملة للوحدة الأساسية"],
-                ["secondaryUnit", "الوحدة الثانوية"],
-                ["unitsPerPrimary", "معامل التحويل: عدد الوحدات الثانوية في الوحدة الأساسية"],
-                ["secondaryRetailPrice", "سعر البيع للوحدة الثانوية"],
-                ["secondaryResellerPrice", "سعر الجملة للوحدة الثانوية"],
-              ] as const).map(([key, label]) => (
-                <div key={key} className="space-y-1.5">
-                  <Label className="text-sm font-semibold">{label}</Label>
-                  <Input
-                    className="h-12 rounded-xl border-slate-300 bg-white text-base"
-                    inputMode={key === "secondaryUnit" ? "text" : "decimal"}
-                    value={form[key]}
-                    onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
-                    placeholder={label}
-                  />
-                </div>
-              ))}
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">مثال: إذا كان الرول 60 مترًا، اختر الرول وحدة أساسية والمتر وحدة ثانوية وأدخل معامل التحويل 60.</p>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-semibold">العدد</Label>
+            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" inputMode="decimal" value={form.unitsPerPrimary} onChange={(e) => setForm((prev) => ({ ...prev, unitsPerPrimary: e.target.value }))} placeholder="العدد" />
           </div>
-          <Button
-            className="h-14 w-full rounded-xl bg-orange-500 text-base font-extrabold text-white hover:bg-orange-600 sm:col-span-2 lg:col-span-3"
-            onClick={submit}
-            disabled={saving}
-          >
+          <div className="space-y-1.5">
+            <Label className="text-sm font-semibold">شراء/ص</Label>
+            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" inputMode="decimal" value={form.resellerPrice} onChange={(e) => setForm((prev) => ({ ...prev, resellerPrice: e.target.value }))} placeholder="شراء/ص" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-semibold">بيع/ص</Label>
+            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" inputMode="decimal" value={form.retailPrice} onChange={(e) => setForm((prev) => ({ ...prev, retailPrice: e.target.value }))} placeholder="بيع/ص" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-semibold">الوحدة/ك</Label>
+            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" value={form.secondaryUnit} onChange={(e) => setForm((prev) => ({ ...prev, secondaryUnit: e.target.value }))} placeholder="الوحدة/ك" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-semibold">شراء/ك</Label>
+            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" inputMode="decimal" value={form.secondaryResellerPrice} onChange={(e) => setForm((prev) => ({ ...prev, secondaryResellerPrice: e.target.value }))} placeholder="شراء/ك" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-semibold">بيع/ك</Label>
+            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" inputMode="decimal" value={form.secondaryRetailPrice} onChange={(e) => setForm((prev) => ({ ...prev, secondaryRetailPrice: e.target.value }))} placeholder="بيع/ك" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-semibold">عدد قطع الكرتون</Label>
+            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" inputMode="numeric" placeholder="عدد قطع الكرتون" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-semibold">التصنيف</Label>
+            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" value={form.category1} onChange={(e) => setForm((prev) => ({ ...prev, category1: e.target.value }))} placeholder="التصنيف" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-semibold">الماركة</Label>
+            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" value={form.brand} onChange={(e) => setForm((prev) => ({ ...prev, brand: e.target.value }))} placeholder="الماركة" />
+          </div>
+          <Button className="h-14 w-full rounded-xl bg-orange-500 text-base font-extrabold text-white hover:bg-orange-600 sm:col-span-2 lg:col-span-3" onClick={submit} disabled={saving}>
             {saving ? "جارٍ الحفظ..." : selected ? "تحديث المنتج" : "حفظ المنتج"}
           </Button>
           {selected && (
-            <Button
-              type="button"
-              variant="destructive"
-              className="h-12 w-full font-extrabold sm:col-span-2 lg:col-span-3"
-              onClick={() => void removeProduct()}
-              disabled={saving}
-            >
-              <Trash2 className="ml-2 h-4 w-4" />
-              حذف المنتج نهائيًا
+            <Button type="button" variant="destructive" className="h-12 w-full font-extrabold sm:col-span-2 lg:col-span-3" onClick={() => void removeProduct()} disabled={saving}>
+              <Trash2 className="ml-2 h-4 w-4" /> حذف المنتج نهائيًا
             </Button>
           )}
         </div>
