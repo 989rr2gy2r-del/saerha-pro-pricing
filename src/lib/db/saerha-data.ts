@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import type { Customer, Product } from "@/lib/mock-data";
 
 export function supabaseConfigured() {
@@ -452,7 +452,7 @@ export async function importProductsAndPrices(
   // One RPC call = one PostgreSQL transaction for products, prices and conversions.
   // Any database error aborts the whole function; no partial import is committed.
   const { data, error } = await supabase.rpc("saerha_import_products_atomic", {
-    payload: atomicRows,
+    payload: atomicRows as unknown as Json,
   });
   if (error) throw new Error(error.message);
 
