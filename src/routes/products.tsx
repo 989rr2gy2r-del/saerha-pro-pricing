@@ -297,7 +297,7 @@ function Products() {
       </div>
 
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent dir="rtl" className="w-[min(96vw,1200px)] max-w-[1200px] max-h-[92vh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-6 text-right shadow-xl sm:p-8">
+        <DialogContent dir="rtl" className="max-h-[85vh] overflow-y-auto text-right">
           <DialogHeader>
             <DialogTitle>{selected?.nameAr}</DialogTitle>
             <DialogDescription className="num">{selected?.sku}</DialogDescription>
@@ -873,7 +873,7 @@ function ProductForm({
           <Plus className="h-4 w-4" /> {selected ? "تعديل المنتج" : "إضافة منتج"}
         </Button>
       </DialogTrigger>
-      <DialogContent dir="rtl" className="max-h-[85vh] overflow-y-auto text-right">
+      <DialogContent dir="rtl" className="w-[min(96vw,1200px)] max-w-[1200px] max-h-[92vh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-6 text-right shadow-xl sm:p-8">
         <DialogHeader>
           <DialogTitle>{selected ? "تعديل المنتج" : "إضافة منتج"}</DialogTitle>
           <DialogDescription>الحقول الأساسية لصنف في قاعدة منتجات شركة الأواب.</DialogDescription>
@@ -1085,7 +1085,7 @@ function ProductForm({
             <Button
               type="button"
               variant="destructive"
-              className="h-14 w-full rounded-xl bg-orange-500 text-base font-extrabold text-white hover:bg-orange-600 sm:col-span-2 lg:col-span-3"
+              className="h-12 w-full font-extrabold sm:col-span-2 lg:col-span-3"
               onClick={() => void removeProduct()}
               disabled={saving}
             >
