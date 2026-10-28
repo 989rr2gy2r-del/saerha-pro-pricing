@@ -352,6 +352,27 @@ function ProductForm({
     duplicate: number;
     error: number;
   } | null>(null);
+  const downloadProductTemplate = () => {
+    const headers = [
+      "sku", "name_ar", "name_en", "short_name", "brand",
+      "category_main", "category_sub", "category_third", "product_group",
+      "model", "size", "color", "unit", "description", "status",
+      "retailPrice", "resellerPrice", "secondaryUnit", "unitsPerPrimary",
+      "secondaryRetailPrice", "secondaryResellerPrice", "currency",
+    ];
+    const example = [
+      "AW-001", "مثال: سلك كهربائي", "Example: Electrical Wire", "سلك",
+      "الخليج", "الكهرباء", "الأسلاك", "", "الوايرات", "", "2.5 ملم", "أحمر",
+      "رول", "مثال توضيحي — استبدله ببيانات الصنف الفعلية", "active",
+      "", "", "متر", 100, "", "", "KWD",
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, example]);
+    worksheet["!cols"] = headers.map((header) => ({ wch: Math.max(16, header.length + 3) }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
+    XLSX.writeFile(workbook, "saerha_products_template.xlsx");
+  };
+
   const [form, setForm] = useState<{
     sku: string;
     nameAr: string;
@@ -889,13 +910,14 @@ function ProductForm({
             />
             {importing ? "جارٍ قراءة الملف..." : "استيراد المنتجات"}
           </label>
-          <a
-            href="data:text/csv;charset=utf-8,%EF%BB%BFsku,name_ar,name_en,brand,category_main,category_sub,unit%0AABB-001,%D9%82%D8%A7%D8%B9%D8%A9%20%D8%AA%D8%AC%D8%B1%D9%8A%D8%A9,%D9%81%82%D9%81%D8%A7%D9%84%20%D8%A7%D9%84%D8%AA%D8%AC%D8%B1%D9%8A%D8%A9,AL-AWAB,%D9%83%D9%95%D8%A7%D8%AF,%,%D8%AD%D8%A8%D8%A9"
-            download="saerha_products_template.csv"
+          <Button
+            type="button"
+            variant="default"
             className="inline-flex items-center rounded-md bg-accent px-3 py-2 text-sm font-bold text-accent-foreground"
+            onClick={downloadProductTemplate}
           >
             قالب Excel
-          </a>
+          </Button>
         </div>
 
         {previewRows.length > 0 && (
