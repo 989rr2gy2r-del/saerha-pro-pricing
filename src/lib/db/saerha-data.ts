@@ -575,12 +575,12 @@ export async function importProductsAndPrices(
     // Replace only the exact product/unit pairs imported here; preserve unrelated
     // manually configured conversions for the same product.
     for (const conversion of conversionRows) {
-      const { error } = await supabase.from("unit_conversions").delete()
+      const { error } = await (supabase as any).from("unit_conversions").delete()
         .eq("product_id", conversion.product_id)
         .eq("from_unit", conversion.from_unit)
         .eq("to_unit", conversion.to_unit);
       if (error) throw new Error(error.message);
-      const { error: insertError } = await supabase.from("unit_conversions").insert(conversion);
+      const { error: insertError } = await (supabase as any).from("unit_conversions").insert(conversion);
       if (insertError) throw new Error(insertError.message);
     }
   }
