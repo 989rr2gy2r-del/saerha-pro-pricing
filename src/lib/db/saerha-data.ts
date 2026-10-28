@@ -572,15 +572,16 @@ export async function importProductsAndPrices(
     });
   }
   if (conversionRows.length) {
-    const conversionProductIds = [...new Set(conversionRows.map((row) => row.product_id))];
-    for (let i = 0; i < conversionProductIds.length; i += chunkSize) {
+    // Replace only the exact product/unit pairs imported here; preserve unrelated
+    // manually configured conversions for the same product.
+    for (const conversion of conversionRows) {
       const { error } = await supabase.from("unit_conversions").delete()
-        .in("product_id", conversionProductIds.slice(i, i + chunkSize));
+        .eq("product_id", conversion.product_id)
+        .eq("from_unit", conversion.from_unit)
+        .eq("to_unit", conversion.to_unit);
       if (error) throw new Error(error.message);
-    }
-    for (let i = 0; i < conversionRows.length; i += chunkSize) {
-      const { error } = await supabase.from("unit_conversions").insert(conversionRows.slice(i, i + chunkSize));
-      if (error) throw new Error(error.message);
+      const { error: insertError } = await supabase.from("unit_conversions").insert(conversion);
+      if (insertError) throw new Error(insertError.message);
     }
   }
   return summary;
