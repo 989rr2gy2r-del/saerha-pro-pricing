@@ -414,15 +414,16 @@ export async function importProductsAndPrices(
   // Keep the first occurrence of each full product identity. Repeated spreadsheet
   // rows must not create duplicate products or duplicate prices with ambiguous values.
   const seenIdentities = new Set<string>();
-  for (let i = cleanRows.length - 1; i >= 0; i--) {
-    const entry = cleanRows[i];
+  const uniqueRows = [] as typeof cleanRows;
+  for (const entry of cleanRows) {
     if (seenIdentities.has(entry.identity)) {
-      cleanRows.splice(i, 1);
       summary.duplicate += 1;
-    } else {
-      seenIdentities.add(entry.identity);
+      continue;
     }
+    seenIdentities.add(entry.identity);
+    uniqueRows.push(entry);
   }
+  cleanRows.splice(0, cleanRows.length, ...uniqueRows);
 
   // Find existing records by SKU, then resolve each row by full identity (never SKU alone).
   const skus = [...new Set(cleanRows.map((entry) => entry.sku))];
