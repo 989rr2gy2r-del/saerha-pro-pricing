@@ -389,226 +389,77 @@ export async function importProductsAndPrices(
   if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
 
   const summary: ProductImportSummary = { new: 0, updated: 0, priceChanged: 0, duplicate: 0, error: 0 };
-  // Shared import timestamp lets the importer deactivate stale rows only after
-  // every replacement row was inserted successfully.
-  const importStartedAt = new Date().toISOString();
-  const chunkSize = 250;
-  const cleanRows: Array<{ row: ProductImportRow; sku: string; nameAr: string; nameEn: string; identity: string }> = [];
-  const norm = (v: unknown) => normalizeImportString(v).replace(/\s+/g, " ").trim().toLocaleLowerCase();
+  const normalize = (value: unknown) => normalizeImportString(value).replace(/\s+/g, " ").trim();
   const identityOf = (sku: unknown, name: unknown, brand: unknown, unit: unknown) =>
-    [sku, name, brand, unit].map(norm).join("\u001f");
+    [sku, name, brand, unit].map((value) => normalize(value).toLocaleLowerCase()).join("\u001f");
 
-  // SKU is not unique: distinct products may intentionally share a code.
-  // Identity uses the existing catalog fields SKU + Arabic name + brand + unit.
+  const cleanRows: Array<{ row: ProductImportRow; sku: string; nameAr: string; nameEn: string; identity: string }> = [];
   for (const row of rows) {
-    const sku = normalizeImportString(row.sku || row.nameAr || row.nameEn).replace(/\s+/g, " ").trim();
-    const nameAr = normalizeImportString(row.nameAr || row.nameEn);
-    const nameEn = normalizeImportString(row.nameEn || row.nameAr);
+    const sku = normalize(row.sku || row.nameAr || row.nameEn);
+    const nameAr = normalize(row.nameAr || row.nameEn);
+    const nameEn = normalize(row.nameEn || row.nameAr);
     if (!sku || (!nameAr && !nameEn)) {
       summary.error += 1;
       continue;
     }
-    cleanRows.push({ row, sku, nameAr, nameEn, identity: identityOf(sku, nameAr, row.brand, row.unit || "حبة") });
+    cleanRows.push({
+      row,
+      sku,
+      nameAr,
+      nameEn,
+      identity: identityOf(sku, nameAr, row.brand, row.unit || "حبة"),
+    });
   }
 
-  // Keep the first occurrence of each full product identity. Repeated spreadsheet
-  // rows must not create duplicate products or duplicate prices with ambiguous values.
+  // Keep the first occurrence of each complete product identity; a SKU alone is not unique.
   const seenIdentities = new Set<string>();
-  const uniqueRows = [] as typeof cleanRows;
+  const atomicRows: Array<Record<string, unknown>> = [];
   for (const entry of cleanRows) {
     if (seenIdentities.has(entry.identity)) {
       summary.duplicate += 1;
       continue;
     }
     seenIdentities.add(entry.identity);
-    uniqueRows.push(entry);
-  }
-  cleanRows.splice(0, cleanRows.length, ...uniqueRows);
-
-  // Find existing records by SKU, then resolve each row by full identity (never SKU alone).
-  const skus = [...new Set(cleanRows.map((entry) => entry.sku))];
-  const existingByIdentity = new Map<string, { id: string }>();
-  for (let i = 0; i < skus.length; i += chunkSize) {
-    const { data, error } = await supabase.from("products")
-      .select("id, sku, name_ar, brand, unit")
-      .in("sku", skus.slice(i, i + chunkSize));
-    if (error) throw new Error(error.message);
-    for (const product of data ?? []) {
-      const key = identityOf(product.sku, product.name_ar, product.brand, product.unit);
-      if (!existingByIdentity.has(key)) existingByIdentity.set(key, { id: String(product.id) });
-    }
-  }
-
-  const productIdByIdentity = new Map<string, string>();
-  const pendingInsert: Array<{ entry: (typeof cleanRows)[number]; payload: Database["public"]["Tables"]["products"]["Insert"] }> = [];
-
-  for (const entry of cleanRows) {
-    const { row, sku, nameAr, nameEn, identity } = entry;
-    const payload = {
+    const { row, sku, nameAr, nameEn } = entry;
+    atomicRows.push({
       sku,
-      name_ar: nameAr || nameEn || "منتج",
-      name_en: nameEn || "",
-      short_name: normalizeImportString(row.shortName || row.nameAr || row.nameEn || ""),
-      brand: normalizeImportString(row.brand || ""),
-      category_main: normalizeImportString(row.category1 || ""),
-      category_sub: normalizeImportString(row.category2 || ""),
-      category_third: normalizeImportString(row.category3 || ""),
-      product_group: normalizeImportString(row.group || ""),
-      model: normalizeImportString(row.model || ""),
-      size: normalizeImportString(row.size || ""),
-      color: normalizeImportString(row.color || ""),
-      description: normalizeImportString(row.description || ""),
-      unit: normalizeImportString(row.unit || "حبة"),
+      nameAr,
+      nameEn,
+      shortName: normalize(row.shortName || row.nameAr || row.nameEn),
+      brand: normalize(row.brand),
+      category1: normalize(row.category1),
+      category2: normalize(row.category2),
+      category3: normalize(row.category3),
+      group: normalize(row.group),
+      model: normalize(row.model),
+      size: normalize(row.size),
+      color: normalize(row.color),
+      description: normalize(row.description),
+      unit: normalize(row.unit || "حبة"),
       status: row.status === "inactive" ? "inactive" : "active",
-    } as Database["public"]["Tables"]["products"]["Insert"];
-
-    const existing = existingByIdentity.get(identity);
-    if (existing) {
-      const { error } = await supabase.from("products").update(payload).eq("id", existing.id);
-      if (error) throw new Error(error.message);
-      productIdByIdentity.set(identity, existing.id);
-      summary.updated += 1;
-    } else {
-      pendingInsert.push({ entry, payload });
-    }
-  }
-
-  for (let i = 0; i < pendingInsert.length; i += chunkSize) {
-    const batch = pendingInsert.slice(i, i + chunkSize);
-    const { data, error } = await supabase.from("products")
-      .insert(batch.map((item) => item.payload))
-      .select("id, sku, name_ar, brand, unit");
-    if (error) throw new Error(error.message);
-    const idsByIdentity = new Map<string, string>();
-    for (const product of data ?? []) {
-      idsByIdentity.set(identityOf(product.sku, product.name_ar, product.brand, product.unit), String(product.id));
-    }
-    for (const item of batch) {
-      const id = idsByIdentity.get(item.entry.identity);
-      if (!id) {
-        summary.error += 1;
-        continue;
-      }
-      productIdByIdentity.set(item.entry.identity, id);
-      summary.new += 1;
-    }
-  }
-
-  const priceRows: Array<Database["public"]["Tables"]["prices"]["Insert"]> = [];
-  const importedProductIds = new Set<string>();
-  for (const { row, identity } of cleanRows) {
-    const productId = productIdByIdentity.get(identity);
-    if (!productId) {
-      summary.error += 1;
-      continue;
-    }
-    importedProductIds.add(productId);
-    for (const [priceType, rawAmount] of [
-      ["retail", row.retailPrice],
-      ["reseller", row.resellerPrice],
-    ] as const) {
-      const amount = normalizePrice(rawAmount);
-      if (amount === null) continue;
-      priceRows.push({
-        product_id: productId,
-        price_type: priceType,
-        customer_id: null,
-        amount,
-        currency: normalizeImportString(row.currency || "KWD") || "KWD",
-        source: "excel_import",
-        is_active: true,
-        valid_from: new Date().toISOString(),
-      });
-    }
-
-    // Secondary-unit prices are kept distinct from base-unit prices.
-    // source_field stores the exact imported secondary unit; no conversion is inferred.
-    const secondaryUnit = normalizeImportString(row.secondaryUnit);
-    if (secondaryUnit) {
-      for (const [sourcePriceType, rawAmount] of [
-        ["retail", row.secondaryRetailPrice],
-        ["reseller", row.secondaryResellerPrice],
-      ] as const) {
-        const amount = normalizePrice(rawAmount);
-        if (amount === null) continue;
-        priceRows.push({
-          product_id: productId,
-          price_type: "unit_price",
-          customer_id: null,
-          amount,
-          currency: normalizeImportString(row.currency || "KWD") || "KWD",
-          source: "excel_import_secondary_unit",
-          source_field: secondaryUnit,
-          source_price_type: sourcePriceType,
-          is_active: true,
-          valid_from: new Date().toISOString(),
-        } as Database["public"]["Tables"]["prices"]["Insert"]);
-      }
-    }
-  }
-
-  // Insert replacements before retiring old imported prices. DELETE is admin-only
-  // under the live RLS policies; staff may INSERT/UPDATE, so do not DELETE here.
-  const productIds = [...importedProductIds];
-  for (let i = 0; i < priceRows.length; i += chunkSize) {
-    const batch = priceRows.slice(i, i + chunkSize).map((price) => ({
-      ...price,
-      valid_from: importStartedAt,
-    }));
-    const { error } = await supabase.from("prices").insert(batch);
-    if (error) throw new Error(error.message);
-    summary.priceChanged += batch.length;
-  }
-  // Only after all new rows are present, deactivate superseded imported prices.
-  // Manual prices and customer-specific prices are never touched.
-  for (let i = 0; i < productIds.length; i += chunkSize) {
-    const { error } = await supabase.from("prices").update({ is_active: false })
-      .in("product_id", productIds.slice(i, i + chunkSize))
-      .in("price_type", ["retail", "reseller", "unit_price"])
-      .is("customer_id", null)
-      .in("source", ["excel_import", "excel_import_secondary_unit"])
-      .lt("valid_from", importStartedAt);
-    if (error) throw new Error(error.message);
-  }
-
-  // Add product-specific conversions only when the source explicitly provides
-  // the number of secondary units contained in one primary unit.
-  const conversionRows: Array<{ product_id: string; from_unit: string; to_unit: string; multiplier: number; notes: string }> = [];
-  for (const { row, identity } of cleanRows) {
-    const productId = productIdByIdentity.get(identity);
-    const secondaryUnit = normalizeImportString(row.secondaryUnit);
-    const primaryUnit = normalizeImportString(row.unit);
-    const unitsPerPrimary = normalizePrice(row.unitsPerPrimary);
-    if (!productId || !primaryUnit || !secondaryUnit || !unitsPerPrimary || unitsPerPrimary <= 0) continue;
-    conversionRows.push({
-      product_id: productId,
-      from_unit: secondaryUnit,
-      to_unit: primaryUnit,
-      multiplier: 1 / unitsPerPrimary,
-      notes: "Excel import: secondary unit to primary unit",
-    });
-    conversionRows.push({
-      product_id: productId,
-      from_unit: primaryUnit,
-      to_unit: secondaryUnit,
-      multiplier: unitsPerPrimary,
-      notes: "Excel import: primary unit to secondary unit",
+      retailPrice: normalizePrice(row.retailPrice),
+      resellerPrice: normalizePrice(row.resellerPrice),
+      secondaryUnit: normalize(row.secondaryUnit),
+      unitsPerPrimary: normalizePrice(row.unitsPerPrimary),
+      secondaryRetailPrice: normalizePrice(row.secondaryRetailPrice),
+      secondaryResellerPrice: normalizePrice(row.secondaryResellerPrice),
+      currency: normalize(row.currency || "KWD") || "KWD",
     });
   }
-  // Clear only prior conversions created by this importer for products in this
-  // import. This also removes stale imported conversions when a later row omits
-  // its secondary unit or conversion quantity; manual conversions are preserved.
-  for (let i = 0; i < productIds.length; i += chunkSize) {
-    const { error } = await (supabase as any).from("unit_conversions").delete()
-      .in("product_id", productIds.slice(i, i + chunkSize))
-      .like("notes", "Excel import:%");
-    if (error) throw new Error(error.message);
-  }
-  for (let i = 0; i < conversionRows.length; i += chunkSize) {
-    const batch = conversionRows.slice(i, i + chunkSize);
-    const { error } = await (supabase as any).from("unit_conversions").insert(batch);
-    if (error) throw new Error(error.message);
-  }
+
+  if (atomicRows.length === 0) return summary;
+
+  // One RPC call = one PostgreSQL transaction for products, prices and conversions.
+  // Any database error aborts the whole function; no partial import is committed.
+  const { data, error } = await supabase.rpc("saerha_import_products_atomic", {
+    payload: atomicRows,
+  });
+  if (error) throw new Error(error.message);
+
+  const result = data as { new?: number; updated?: number; priceChanged?: number } | null;
+  summary.new = Number(result?.new ?? 0);
+  summary.updated = Number(result?.updated ?? 0);
+  summary.priceChanged = Number(result?.priceChanged ?? 0);
   return summary;
 }
 
