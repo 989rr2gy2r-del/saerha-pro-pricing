@@ -1229,7 +1229,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       const uniqueProductIds = [...new Set(productIds)];
       const { data: priceRows, error: priceError } = await supabase
         .from("prices")
-        .select("product_id, price_type, customer_id, amount, valid_from, valid_to, is_active")
+        .select("product_id, price_type, customer_id, amount, valid_from, valid_to, is_active, source_field, source_price_type")
         .in("product_id", uniqueProductIds);
       if (priceError) throw priceError;
 
@@ -1295,7 +1295,14 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
               })
               .sort((a, b) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime());
 
+            const requestedUnit = (item.unit || item.product!.unit || "حبة").trim();
             const chosen =
+              rows.find((row) =>
+                row.price_type === "unit_price" &&
+                !row.customer_id &&
+                String(row.source_field ?? "").trim().toLowerCase() === requestedUnit.toLowerCase() &&
+                String(row.source_price_type ?? "") === preferredType
+              ) ??
               rows.find((row) => row.price_type === "customer_special" && row.customer_id === selectedCustomerId) ??
               rows.find((row) => row.price_type === preferredType && !row.customer_id) ??
               rows.find((row) => row.price_type === "retail" && !row.customer_id) ??
@@ -1313,18 +1320,20 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
             }
 
             const basePrice = Number(chosen.amount);
-            const requestedUnit = (item.unit || item.product!.unit || "حبة").trim();
             const baseUnit = (item.product!.unit || requestedUnit).trim();
             const sameUnit = requestedUnit.toLowerCase() === baseUnit.toLowerCase();
+            const isDirectSecondaryPrice =
+              chosen.price_type === "unit_price" &&
+              String(chosen.source_field ?? "").trim().toLowerCase() === requestedUnit.toLowerCase();
 
-            if (sameUnit) {
+            if (sameUnit || isDirectSecondaryPrice) {
               return {
                 ...item,
                 priceAmount: Number.isFinite(basePrice) ? basePrice : null,
                 basePriceAmount: Number.isFinite(basePrice) ? basePrice : null,
-                basePriceUnit: baseUnit,
+                basePriceUnit: isDirectSecondaryPrice ? requestedUnit : baseUnit,
                 priceType: chosen.price_type,
-                priceLabel: getPriceLookupKey(chosen.price_type),
+                priceLabel: isDirectSecondaryPrice ? `سعر الوحدة ${requestedUnit}` : getPriceLookupKey(chosen.price_type),
               };
             }
 
