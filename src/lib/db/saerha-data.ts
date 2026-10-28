@@ -389,6 +389,9 @@ export async function importProductsAndPrices(
   if (!supabaseConfigured()) throw new Error("لم يتم تهيئة Supabase في بيئة المشروع.");
 
   const summary: ProductImportSummary = { new: 0, updated: 0, priceChanged: 0, duplicate: 0, error: 0 };
+  // Shared import timestamp lets the importer deactivate stale rows only after
+  // every replacement row was inserted successfully.
+  const importStartedAt = new Date().toISOString();
   const chunkSize = 250;
   const cleanRows: Array<{ row: ProductImportRow; sku: string; nameAr: string; nameEn: string; identity: string }> = [];
   const norm = (v: unknown) => normalizeImportString(v).replace(/\s+/g, " ").trim().toLocaleLowerCase();
@@ -530,21 +533,28 @@ export async function importProductsAndPrices(
     }
   }
 
-  // Replace imported price rows for the same products, including secondary-unit prices.
+  // Insert replacements before retiring old imported prices. DELETE is admin-only
+  // under the live RLS policies; staff may INSERT/UPDATE, so do not DELETE here.
   const productIds = [...importedProductIds];
-  for (let i = 0; i < productIds.length; i += chunkSize) {
-    const { error } = await supabase.from("prices").delete()
-      .in("product_id", productIds.slice(i, i + chunkSize))
-      .in("price_type", ["retail", "reseller", "unit_price"])
-      .is("customer_id", null)
-      .in("source", ["excel_import", "excel_import_secondary_unit"]);
-    if (error) throw new Error(error.message);
-  }
   for (let i = 0; i < priceRows.length; i += chunkSize) {
-    const batch = priceRows.slice(i, i + chunkSize);
+    const batch = priceRows.slice(i, i + chunkSize).map((price) => ({
+      ...price,
+      valid_from: importStartedAt,
+    }));
     const { error } = await supabase.from("prices").insert(batch);
     if (error) throw new Error(error.message);
     summary.priceChanged += batch.length;
+  }
+  // Only after all new rows are present, deactivate superseded imported prices.
+  // Manual prices and customer-specific prices are never touched.
+  for (let i = 0; i < productIds.length; i += chunkSize) {
+    const { error } = await supabase.from("prices").update({ is_active: false })
+      .in("product_id", productIds.slice(i, i + chunkSize))
+      .in("price_type", ["retail", "reseller", "unit_price"])
+      .is("customer_id", null)
+      .in("source", ["excel_import", "excel_import_secondary_unit"])
+      .lt("valid_from", importStartedAt);
+    if (error) throw new Error(error.message);
   }
 
   // Add product-specific conversions only when the source explicitly provides
@@ -571,18 +581,19 @@ export async function importProductsAndPrices(
       notes: "Excel import: primary unit to secondary unit",
     });
   }
-  if (conversionRows.length) {
-    // Replace only the exact product/unit pairs imported here; preserve unrelated
-    // manually configured conversions for the same product.
-    for (const conversion of conversionRows) {
-      const { error } = await (supabase as any).from("unit_conversions").delete()
-        .eq("product_id", conversion.product_id)
-        .eq("from_unit", conversion.from_unit)
-        .eq("to_unit", conversion.to_unit);
-      if (error) throw new Error(error.message);
-      const { error: insertError } = await (supabase as any).from("unit_conversions").insert(conversion);
-      if (insertError) throw new Error(insertError.message);
-    }
+  // Clear only prior conversions created by this importer for products in this
+  // import. This also removes stale imported conversions when a later row omits
+  // its secondary unit or conversion quantity; manual conversions are preserved.
+  for (let i = 0; i < productIds.length; i += chunkSize) {
+    const { error } = await (supabase as any).from("unit_conversions").delete()
+      .in("product_id", productIds.slice(i, i + chunkSize))
+      .like("notes", "Excel import:%");
+    if (error) throw new Error(error.message);
+  }
+  for (let i = 0; i < conversionRows.length; i += chunkSize) {
+    const batch = conversionRows.slice(i, i + chunkSize);
+    const { error } = await (supabase as any).from("unit_conversions").insert(batch);
+    if (error) throw new Error(error.message);
   }
   return summary;
 }
