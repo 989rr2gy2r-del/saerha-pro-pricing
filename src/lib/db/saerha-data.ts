@@ -335,6 +335,10 @@ export type ProductImportRow = {
   status?: "active" | "inactive";
   retailPrice?: number | string | null;
   resellerPrice?: number | string | null;
+  secondaryUnit?: string | null;
+  unitsPerPrimary?: number | string | null;
+  secondaryRetailPrice?: number | string | null;
+  secondaryResellerPrice?: number | string | null;
   customerSpecialPrice?: number | string | null;
   customerName?: string | null;
   currency?: string;
@@ -499,15 +503,41 @@ export async function importProductsAndPrices(
         valid_from: new Date().toISOString(),
       });
     }
+
+    // Secondary-unit prices are kept distinct from base-unit prices.
+    // source_field stores the exact imported secondary unit; no conversion is inferred.
+    const secondaryUnit = normalizeImportString(row.secondaryUnit);
+    if (secondaryUnit) {
+      for (const [sourcePriceType, rawAmount] of [
+        ["retail", row.secondaryRetailPrice],
+        ["reseller", row.secondaryResellerPrice],
+      ] as const) {
+        const amount = normalizePrice(rawAmount);
+        if (amount === null) continue;
+        priceRows.push({
+          product_id: productId,
+          price_type: "unit_price",
+          customer_id: null,
+          amount,
+          currency: normalizeImportString(row.currency || "KWD") || "KWD",
+          source: "excel_import_secondary_unit",
+          source_field: secondaryUnit,
+          source_price_type: sourcePriceType,
+          is_active: true,
+          valid_from: new Date().toISOString(),
+        } as Database["public"]["Tables"]["prices"]["Insert"]);
+      }
+    }
   }
 
-  // Replace base prices only for the resolved product IDs, not by SKU.
+  // Replace imported price rows for the same products, including secondary-unit prices.
   const productIds = [...importedProductIds];
   for (let i = 0; i < productIds.length; i += chunkSize) {
     const { error } = await supabase.from("prices").delete()
       .in("product_id", productIds.slice(i, i + chunkSize))
-      .in("price_type", ["retail", "reseller"])
-      .is("customer_id", null);
+      .in("price_type", ["retail", "reseller", "unit_price"])
+      .is("customer_id", null)
+      .in("source", ["excel_import", "excel_import_secondary_unit"]);
     if (error) throw new Error(error.message);
   }
   for (let i = 0; i < priceRows.length; i += chunkSize) {
@@ -515,6 +545,43 @@ export async function importProductsAndPrices(
     const { error } = await supabase.from("prices").insert(batch);
     if (error) throw new Error(error.message);
     summary.priceChanged += batch.length;
+  }
+
+  // Add product-specific conversions only when the source explicitly provides
+  // the number of secondary units contained in one primary unit.
+  const conversionRows: Array<{ product_id: string; from_unit: string; to_unit: string; multiplier: number; notes: string }> = [];
+  for (const { row, identity } of cleanRows) {
+    const productId = productIdByIdentity.get(identity);
+    const secondaryUnit = normalizeImportString(row.secondaryUnit);
+    const primaryUnit = normalizeImportString(row.unit);
+    const unitsPerPrimary = normalizePrice(row.unitsPerPrimary);
+    if (!productId || !primaryUnit || !secondaryUnit || !unitsPerPrimary || unitsPerPrimary <= 0) continue;
+    conversionRows.push({
+      product_id: productId,
+      from_unit: secondaryUnit,
+      to_unit: primaryUnit,
+      multiplier: 1 / unitsPerPrimary,
+      notes: "Excel import: secondary unit to primary unit",
+    });
+    conversionRows.push({
+      product_id: productId,
+      from_unit: primaryUnit,
+      to_unit: secondaryUnit,
+      multiplier: unitsPerPrimary,
+      notes: "Excel import: primary unit to secondary unit",
+    });
+  }
+  if (conversionRows.length) {
+    const conversionProductIds = [...new Set(conversionRows.map((row) => row.product_id))];
+    for (let i = 0; i < conversionProductIds.length; i += chunkSize) {
+      const { error } = await supabase.from("unit_conversions").delete()
+        .in("product_id", conversionProductIds.slice(i, i + chunkSize));
+      if (error) throw new Error(error.message);
+    }
+    for (let i = 0; i < conversionRows.length; i += chunkSize) {
+      const { error } = await supabase.from("unit_conversions").insert(conversionRows.slice(i, i + chunkSize));
+      if (error) throw new Error(error.message);
+    }
   }
   return summary;
 }
