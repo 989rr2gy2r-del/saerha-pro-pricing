@@ -456,7 +456,7 @@ export async function importProductsAndPrices(
   });
   if (error) throw new Error(error.message);
 
-  const result = data as { new?: number; updated?: number; priceChanged?: number } | null;
+  const result = data as unknown as { new?: number; updated?: number; priceChanged?: number } | null;
   summary.new = Number(result?.new ?? 0);
   summary.updated = Number(result?.updated ?? 0);
   summary.priceChanged = Number(result?.priceChanged ?? 0);
