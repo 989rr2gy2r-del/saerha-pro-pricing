@@ -877,8 +877,6 @@ function ProductForm({
     { key: "nameAr", label: "الاسم العربي" },
     { key: "nameEn", label: "الاسم الإنجليزي" },
     { key: "unit", label: "الوحدة الأساسية" },
-    { key: "category1", label: "التصنيف" },
-    { key: "brand", label: "الماركة" },
   ] as const;
 
   return (
@@ -1029,7 +1027,7 @@ function ProductForm({
                 ["retailPrice", "سعر البيع للوحدة الأساسية"],
                 ["resellerPrice", "سعر الجملة للوحدة الأساسية"],
                 ["secondaryUnit", "الوحدة الثانوية"],
-                ["unitsPerPrimary", "عدد الوحدات الثانوية في الوحدة الأساسية"],
+                ["unitsPerPrimary", "معامل التحويل: عدد الوحدات الثانوية في الوحدة الأساسية"],
                 ["secondaryRetailPrice", "سعر البيع للوحدة الثانوية"],
                 ["secondaryResellerPrice", "سعر الجملة للوحدة الثانوية"],
               ] as const).map(([key, label]) => (
@@ -1045,7 +1043,7 @@ function ProductForm({
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">مثال: الوحدة الأساسية رول، والثانوية متر، ومعامل التحويل 100 متر لكل رول.</p>
+            <p className="mt-3 text-xs text-muted-foreground">مثال: إذا كان الرول 60 مترًا، اختر الرول وحدة أساسية والمتر وحدة ثانوية وأدخل معامل التحويل 60.</p>
           </div>
           <Button
             className="h-14 w-full rounded-xl bg-orange-500 text-base font-extrabold text-white hover:bg-orange-600 sm:col-span-2 lg:col-span-3"
