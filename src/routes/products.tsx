@@ -297,7 +297,7 @@ function Products() {
       </div>
 
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent dir="rtl" className="max-h-[85vh] overflow-y-auto text-right">
+        <DialogContent dir="rtl" className="w-[min(96vw,1200px)] max-w-[1200px] max-h-[92vh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-6 text-right shadow-xl sm:p-8">
           <DialogHeader>
             <DialogTitle>{selected?.nameAr}</DialogTitle>
             <DialogDescription className="num">{selected?.sku}</DialogDescription>
@@ -993,7 +993,7 @@ function ProductForm({
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {labels.map((field) => (
             <div key={field.key} className="space-y-1.5">
               <Label className="text-xs">{field.label}</Label>
@@ -1005,9 +1005,9 @@ function ProductForm({
               />
             </div>
           ))}
-          <div className="sm:col-span-2 rounded-lg border border-border p-3">
-            <p className="mb-3 text-sm font-bold">الوحدات والأسعار</p>
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 sm:col-span-2 lg:col-span-3">
+            <p className="mb-4 text-base font-extrabold text-slate-900">الوحدات والأسعار</p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {([
                 ["retailPrice", "سعر التجزئة للوحدة الأساسية"],
                 ["resellerPrice", "سعر الجملة للوحدة الأساسية"],
@@ -1030,7 +1030,7 @@ function ProductForm({
             </div>
             <p className="mt-2 text-xs text-muted-foreground">مثال: الوحدة الأساسية رول، الثانوية متر، ومعامل التحويل 100.</p>
           </div>
-          <div className="space-y-1.5 sm:col-span-2">
+          <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
             <Label className="text-xs">الوصف</Label>
             <Textarea
               rows={3}
@@ -1038,7 +1038,7 @@ function ProductForm({
               onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 rounded-xl border border-slate-200 bg-white p-3">
             <Label className="text-xs">صورة المنتج</Label>
             <Input
               type="file"
@@ -1057,7 +1057,7 @@ function ProductForm({
               }}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 rounded-xl border border-slate-200 bg-white p-3">
             <Label className="text-xs">الحالة</Label>
             <Select
               value={form.status}
@@ -1075,7 +1075,7 @@ function ProductForm({
             </Select>
           </div>
           <Button
-            className="h-12 w-full font-extrabold sm:col-span-2"
+            className="h-14 w-full rounded-xl bg-orange-500 text-base font-extrabold text-white hover:bg-orange-600 sm:col-span-2 lg:col-span-3"
             onClick={submit}
             disabled={saving}
           >
@@ -1085,7 +1085,7 @@ function ProductForm({
             <Button
               type="button"
               variant="destructive"
-              className="h-12 w-full font-extrabold sm:col-span-2"
+              className="h-14 w-full rounded-xl bg-orange-500 text-base font-extrabold text-white hover:bg-orange-600 sm:col-span-2 lg:col-span-3"
               onClick={() => void removeProduct()}
               disabled={saving}
             >
