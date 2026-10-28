@@ -3322,9 +3322,12 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                       ><SelectValue placeholder="اختر الوحدة" /></SelectTrigger><SelectContent>{(() => {
                                         const baseUnit = String(item.product?.unit ?? item.unit ?? "").trim();
                                         const unitNames = new Map(databaseUnits.map((unit) => [unit.name_ar.trim().toLowerCase(), unit.name_ar]));
-                                        const allowed = new Set<string>(baseUnit ? [baseUnit] : []);
-                                        const relevantConversions = (item.product ? (item.product.unit ? [item.product.unit] : []) : []);
-                                        void relevantConversions;
+                                        const allowed = new Set<string>([
+                                          ...databaseUnits.map((unit) => unit.name_ar.trim()).filter(Boolean),
+                                          ...["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"],
+                                          ...(baseUnit ? [baseUnit] : []),
+                                          ...(item.unit ? [item.unit] : []),
+                                        ]);
                                         return [...allowed].map((unit) => (
                                           <SelectItem key={unit} value={unit}>
                                             {unitNames.get(unit.toLowerCase()) ?? unit}
@@ -3741,7 +3744,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                   <Label className="text-xs">الوحدة</Label>
                                   <Select value={item.unit || ""} onValueChange={(value) => handleUnitChange(index, value)}>
                                     <SelectTrigger><SelectValue placeholder="اختر الوحدة" /></SelectTrigger>
-                                    <SelectContent>{["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent>
+                                    <SelectContent>{[...new Set(["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج", ...(item.unit ? [item.unit] : []), ...(item.product?.unit ? [item.product.unit] : [])])].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent>
                                   </Select>
                                 </div>
                                 <div className="space-y-1">
