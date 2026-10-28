@@ -2465,7 +2465,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         await Promise.all([
           (supabase as any)
             .from("prices")
-            .select("id, product_id, price_type, customer_id, amount, currency, source, valid_from, valid_to, source_field, source_price_type")
+            .select("id, product_id, price_type, customer_id, amount, currency, source, valid_from, valid_to, is_active, source_field, source_price_type")
             .in("product_id", productIds)
             .order("valid_from", { ascending: false }),
           (supabase as any)
@@ -2491,6 +2491,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           const validTo = row.valid_to ? new Date(row.valid_to) : null;
           return (
             row.product_id === productId &&
+            row.is_active !== false &&
             !Number.isNaN(validFrom.getTime()) &&
             validFrom.getTime() <= now.getTime() &&
             (!validTo ||
