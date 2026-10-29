@@ -1003,7 +1003,11 @@ function Quotes() {
         await ensureCanvasFont();
         const widths = [104, 60, 52, 42, 188, 54, 23];
         const tableWidth = widths.reduce((a, b) => a + b, 0);
-        const description = String(item.product_name ?? "");
+        const arabicDescription = String(item.product_name ?? "");
+        const englishDescription = showEnglishName ? String(item.product_name_en ?? "").trim() : "";
+        const description = englishDescription
+          ? `${arabicDescription}\n${englishDescription}`
+          : arabicDescription;
         const descriptionLines = wrapDescriptionForCanvas(
           description,
           widths[4] - 10,
@@ -1189,7 +1193,7 @@ function Quotes() {
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, showEnglishName]);
 
   return (
     <AppShell
