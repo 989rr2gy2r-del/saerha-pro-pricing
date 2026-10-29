@@ -397,10 +397,10 @@ export async function importProductsAndPrices(
   const cleanRows: Array<{ row: ProductImportRow; sku: string; nameAr: string; nameEn: string; identity: string }> = [];
   for (const row of rows) {
     const sku = normalize(row.sku || row.nameAr || row.nameEn);
-    const nameAr = normalize(row.nameAr || row.nameEn);
-    const nameEn = normalize(row.nameEn || row.nameAr);
+    const nameAr = normalize(row.nameAr);
+    const nameEn = normalize(row.nameEn);
     // SKU must be supplied explicitly; never silently invent it from a product name.
-    if (!normalize(row.sku) || (!nameAr && !nameEn)) {
+    if (!normalize(row.sku) || !nameAr) {
       summary.error += 1;
       continue;
     }
