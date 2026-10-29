@@ -42,10 +42,10 @@ for (const [field, aliases] of Object.entries(expected)) {
 // A template header must not map to multiple fields through identical aliases.
 const mappingLines = route.split("\n").filter((line) => /^\s*[A-Za-z]+: find\(/.test(line));
 for (const header of headers) {
-  const normalized = header.toLowerCase().replace(/[\s_.\\-/：:]/g, "");
+  const normalized = header.toLowerCase().replace(/[\s_.:/：-]/g, "");
   const matches = mappingLines.filter((line) =>
     [...line.matchAll(/"([^"]+)"/g)].some((m) =>
-      m[1].toLowerCase().replace(/[\s_.\\-/：:]/g, "") === normalized,
+      m[1].toLowerCase().replace(/[\s_.:/：-]/g, "") === normalized,
     ),
   );
   assert.ok(matches.length <= 1, `Template header "${header}" maps to multiple fields`);
