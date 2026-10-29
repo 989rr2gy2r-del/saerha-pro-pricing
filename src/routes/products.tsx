@@ -427,7 +427,11 @@ function ProductForm({
   });
 
   useEffect(() => {
-    if (selected) {
+    let cancelled = false;
+
+    if (!selected) return () => { cancelled = true; };
+
+    const loadSelectedProduct = async () => {
       setForm({
         sku: selected.sku,
         nameAr: selected.nameAr,
@@ -452,7 +456,63 @@ function ProductForm({
         secondaryRetailPrice: "",
         secondaryResellerPrice: "",
       });
-    }
+
+      const [{ data: priceRows, error: priceError }, { data: conversions, error: conversionError }] = await Promise.all([
+        supabase
+          .from("prices")
+          .select("price_type, amount, customer_id, is_active, valid_from, source_price_type, source_field")
+          .eq("product_id", selected.id)
+          .eq("is_active", true)
+          .is("customer_id", null)
+          .order("valid_from", { ascending: false }),
+        supabase
+          .from("unit_conversions")
+          .select("from_unit, to_unit, multiplier")
+          .eq("product_id", selected.id),
+      ]);
+
+      if (cancelled) return;
+      if (priceError) console.error("Failed to load product prices for editing", priceError);
+      if (conversionError) console.error("Failed to load product unit conversions for editing", conversionError);
+
+      const rows = priceError ? [] : (priceRows ?? []);
+      const firstAmount = (predicate: (row: (typeof rows)[number]) => boolean) => {
+        const row = rows.find(predicate);
+        return row?.amount == null ? "" : String(row.amount);
+      };
+      const retailPrice = firstAmount((row) => row.price_type === "retail");
+      const resellerPrice = firstAmount((row) => row.price_type === "reseller");
+
+      const conversion = !conversionError
+        ? (conversions ?? []).find((item) => item.from_unit === selected.unit || item.to_unit === selected.unit)
+        : undefined;
+      const secondaryUnit = conversion
+        ? (conversion.from_unit === selected.unit ? conversion.to_unit : conversion.from_unit)
+        : "";
+      const unitsPerPrimary = conversion
+        ? String(conversion.from_unit === selected.unit ? conversion.multiplier : 1 / Number(conversion.multiplier))
+        : "";
+
+      const secondaryRetailPrice = secondaryUnit
+        ? firstAmount((row) => row.price_type === "unit_price" && row.source_price_type === "retail" && row.source_field === secondaryUnit)
+        : "";
+      const secondaryResellerPrice = secondaryUnit
+        ? firstAmount((row) => row.price_type === "unit_price" && row.source_price_type === "reseller" && row.source_field === secondaryUnit)
+        : "";
+
+      setForm((current) => ({
+        ...current,
+        retailPrice,
+        resellerPrice,
+        secondaryUnit,
+        unitsPerPrimary,
+        secondaryRetailPrice,
+        secondaryResellerPrice,
+      }));
+    };
+
+    void loadSelectedProduct();
+    return () => { cancelled = true; };
   }, [selected, open]);
 
   const normalizeHeader = (value: unknown) =>
