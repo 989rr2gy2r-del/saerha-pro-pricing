@@ -109,13 +109,28 @@ begin
 
     -- Retire all previously imported prices for this product (including future-dated
     -- rows) without DELETE, which is intentionally unavailable to non-admin staff.
+    -- Only retire a price type when that specific price was supplied.
+    -- Blank cells mean "not provided", not "delete the existing active price".
     update public.prices
     set is_active = false, updated_at = v_now
     where product_id = v_product_id
       and customer_id is null
-      and source in ('excel_import', 'excel_import_secondary_unit')
-      and price_type in ('retail'::public.price_type, 'reseller'::public.price_type, 'unit_price'::public.price_type)
-      and is_active = true;
+      and is_active = true
+      and (
+        (source = 'excel_import' and price_type = 'retail'::public.price_type
+          and nullif(trim(coalesce(v_row->>'retailPrice', '')), '') is not null)
+        or
+        (source = 'excel_import' and price_type = 'reseller'::public.price_type
+          and nullif(trim(coalesce(v_row->>'resellerPrice', '')), '') is not null)
+        or
+        (source = 'excel_import_secondary_unit' and price_type = 'unit_price'
+          and source_price_type = 'retail'
+          and nullif(trim(coalesce(v_row->>'secondaryRetailPrice', '')), '') is not null)
+        or
+        (source = 'excel_import_secondary_unit' and price_type = 'unit_price'
+          and source_price_type = 'reseller'
+          and nullif(trim(coalesce(v_row->>'secondaryResellerPrice', '')), '') is not null)
+      );
 
     v_amount := nullif(trim(coalesce(v_row->>'retailPrice', '')), '')::numeric;
     if v_amount is not null then
@@ -150,8 +165,13 @@ begin
 
     -- Remove only importer-owned conversions, so omitted/invalid secondary-unit data
     -- cannot leave stale conversions. Manual conversions are preserved.
-    delete from public.unit_conversions
-    where product_id = v_product_id and notes like 'Excel import:%';
+    -- Preserve imported conversions when both related cells are blank.
+    -- Replace them only when the row explicitly supplies secondary-unit data.
+    if nullif(trim(coalesce(v_row->>'secondaryUnit', '')), '') is not null
+      or nullif(trim(coalesce(v_row->>'unitsPerPrimary', '')), '') is not null then
+      delete from public.unit_conversions
+      where product_id = v_product_id and notes like 'Excel import:%';
+    end if;
 
     v_units_per_primary := nullif(trim(coalesce(v_row->>'unitsPerPrimary', '')), '')::numeric;
     if v_secondary_unit <> '' and v_units_per_primary is not null then
