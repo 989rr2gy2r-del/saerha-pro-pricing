@@ -952,6 +952,46 @@ function ProductForm({
           {selectField("category1", "التصنيف", categoryOptions)}
           {selectField("brand", "الماركة", brandOptions)}
           {textField("sku", "كود الصنف (SKU)")}
+          <div className="space-y-1.5">
+            <Label className="text-sm font-semibold">صورة المنتج</Label>
+            <Input
+              className={fieldClass}
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                if (!file.type.startsWith("image/")) {
+                  alert("اختر ملف صورة صالحًا.");
+                  event.target.value = "";
+                  return;
+                }
+                if (file.size > 2 * 1024 * 1024) {
+                  alert("حجم الصورة يجب ألا يتجاوز 2 ميجابايت.");
+                  event.target.value = "";
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (typeof reader.result === "string") {
+                    setForm((prev) => ({ ...prev, image: reader.result as string }));
+                  }
+                };
+                reader.readAsDataURL(file);
+              }}
+            />
+            {form.image && <img src={form.image} alt="معاينة صورة المنتج" className="h-16 w-16 rounded-lg border object-cover" />}
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-semibold">الحالة</Label>
+            <Select value={form.status} onValueChange={(value) => setForm((prev) => ({ ...prev, status: value as Product["status"] }))}>
+              <SelectTrigger className={fieldClass}><SelectValue placeholder="الحالة" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">مفعّل</SelectItem>
+                <SelectItem value="inactive">غير مفعّل</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Button className="h-14 w-full rounded-xl bg-orange-500 text-base font-extrabold text-white hover:bg-orange-600 sm:col-span-2 lg:col-span-3" onClick={submit} disabled={saving}>{saving ? "جارٍ الحفظ..." : selected ? "تحديث المنتج" : "حفظ المنتج"}</Button>
           {selected && <Button type="button" variant="destructive" className="h-12 w-full font-extrabold sm:col-span-2 lg:col-span-3" onClick={() => void removeProduct()} disabled={saving}><Trash2 className="ml-2 h-4 w-4" /> حذف المنتج نهائيًا</Button>}
         </div>
