@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const route = readFileSync("src/routes/products.tsx", "utf8");
 const data = readFileSync("src/lib/db/saerha-data.ts", "utf8");
 const migration = readFileSync(
-  "supabase/migrations/20261029120000_product_import_carton_count.sql",
+  "supabase/migrations/20261029140000_validate_secondary_unit_import.sql",
   "utf8",
 );
 const types = readFileSync("src/integrations/supabase/types.ts", "utf8");
@@ -73,5 +73,19 @@ for (const field of ["retailPrice", "resellerPrice", "secondaryRetailPrice", "se
   assert.ok(migration.includes("v_row->>'" + field + "'"), `Migration missing ${field}`);
 }
 assert.match(migration, /if nullif\(trim\(coalesce\(v_row->>'secondaryUnit'/);
+
+
+// The SQL RPC validates secondary-unit input before selecting/updating/inserting products,
+// prices, or conversions, so malformed direct RPC calls cannot retire old conversions.
+const validationStart = migration.indexOf("-- Validate all secondary-unit fields before touching product, price, or conversion rows.");
+assert.ok(validationStart >= 0, "SQL must preflight secondary-unit data");
+const firstProductWrite = migration.search(/select p\.id into v_product_id/);
+assert.ok(firstProductWrite > validationStart, "Secondary-unit validation must precede product lookup/writes");
+assert.match(migration, /secondaryUnit and unitsPerPrimary must both be supplied or both be blank/);
+assert.match(migration, /Secondary-unit prices require secondaryUnit/);
+assert.match(migration, /unitsPerPrimary must be greater than zero/);
+assert.match(data, /\(secondaryUnit && \(conversion === null \|\| conversion <= 0\)\)/);
+assert.match(data, /!secondaryUnit && conversion !== null && conversion !== 0/);
+assert.match(migration, /Blank cells mean "not provided"/);
 
 console.log("Excel import safety regression checks passed.");
