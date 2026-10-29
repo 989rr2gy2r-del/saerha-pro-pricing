@@ -14,7 +14,7 @@ const templateBlock = route.match(/const headers = \[([\s\S]*?)\];\s*const examp
 assert.ok(templateBlock, "Excel template headers/example block must exist");
 const headers = [...templateBlock[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
 const exampleSource = templateBlock[2];
-const exampleCells = exampleSource.split(",").length;
+const exampleCells = [...exampleSource.matchAll(/"(?:[^"\\\\]|\\\\.)*"|(?<![A-Za-z_])\\d+(?:\\.\\d+)?(?=\\s*(?:,|$))/g)].length;
 assert.equal(headers.length, 23, "Template must contain exactly the known 23 columns");
 assert.equal(exampleCells, headers.length, "Every template header must have exactly one example cell");
 
