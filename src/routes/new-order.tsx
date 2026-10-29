@@ -728,7 +728,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   };
 
   const loadUnits = async () => {
-    // Unit selectors must use only explicit product-specific conversions.
+    // Unit selectors must use only explicit product-specific conversions. The generated Supabase types may lag this table.
     const { data, error } = await (supabase as any)
       .from("unit_conversions")
       .select("product_id, from_unit, to_unit")
