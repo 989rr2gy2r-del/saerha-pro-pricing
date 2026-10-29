@@ -946,8 +946,8 @@ function ProductForm({
           {textField("secondaryResellerPrice", "شراء/ك", true)}
           {textField("secondaryRetailPrice", "بيع/ك", true)}
           <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">عدد قطع الكرتون</Label>
-            <Input className={fieldClass} inputMode="numeric" value={cartonCount} onChange={(e) => setCartonCount(e.target.value)} placeholder="عدد قطع الكرتون" />
+            <Label className="text-sm font-semibold">عدد قطع الكبرى</Label>
+            <Input className={fieldClass} inputMode="numeric" value={cartonCount} onChange={(e) => setCartonCount(e.target.value)} placeholder="عدد قطع الكبرى" />
           </div>
           {selectField("category1", "التصنيف", categoryOptions)}
           {selectField("brand", "الماركة", brandOptions)}
