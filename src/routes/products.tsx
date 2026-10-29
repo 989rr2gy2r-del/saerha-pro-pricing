@@ -361,7 +361,7 @@ function ProductForm({
       "category_main", "category_sub", "category_third", "product_group",
       "model", "size", "color", "unit", "description", "status",
       "retail_price", "reseller_price", "secondary_unit", "units_per_primary",
-      "secondary_retail_price", "secondary_reseller_price", "currency",
+      "secondary_retail_price", "secondary_reseller_price", "carton_count", "currency",
     ];
     const example = [
       "AW-001", "مثال: سلك كهربائي", "Example: Electrical Wire", "سلك",
