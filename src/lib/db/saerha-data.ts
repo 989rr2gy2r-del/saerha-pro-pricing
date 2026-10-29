@@ -473,17 +473,34 @@ export async function importProductsAndPrices(
 
   if (atomicRows.length === 0) return summary;
 
-  // One RPC call = one PostgreSQL transaction for products, prices and conversions.
-  // Any database error aborts the whole function; no partial import is committed.
-  const { data, error } = await supabase.rpc("saerha_import_products_atomic", {
-    payload: atomicRows as unknown as Json,
-  });
-  if (error) throw new Error(error.message);
+  // Keep each database transaction small enough to stay below PostgREST's
+  // statement timeout. The importer performs several writes and a locked product
+  // lookup per row, so a single RPC for hundreds of rows can time out.
+  // Batches are safe to retry: matching uses the complete product identity and
+  // blank price fields do not deactivate existing prices.
+  const batchSize = 25;
+  const batchCount = Math.ceil(atomicRows.length / batchSize);
 
-  const result = data as unknown as { new?: number; updated?: number; priceChanged?: number } | null;
-  summary.new = Number(result?.new ?? 0);
-  summary.updated = Number(result?.updated ?? 0);
-  summary.priceChanged = Number(result?.priceChanged ?? 0);
+  for (let offset = 0; offset < atomicRows.length; offset += batchSize) {
+    const batch = atomicRows.slice(offset, offset + batchSize);
+    const batchNumber = Math.floor(offset / batchSize) + 1;
+    const { data, error } = await supabase.rpc("saerha_import_products_atomic", {
+      payload: batch as unknown as Json,
+    });
+
+    if (error) {
+      const completedRows = Math.min(offset, atomicRows.length);
+      throw new Error(
+        `توقف الاستيراد عند الدفعة ${batchNumber} من ${batchCount} بعد معالجة ${completedRows} صفًا بنجاح. ${error.message} يمكنك إعادة استيراد الملف نفسه بأمان لاستكمال الصفوف؛ لن تُحذف الأسعار عند ترك خلاياها فارغة.`,
+      );
+    }
+
+    const result = data as unknown as { new?: number; updated?: number; priceChanged?: number } | null;
+    summary.new += Number(result?.new ?? 0);
+    summary.updated += Number(result?.updated ?? 0);
+    summary.priceChanged += Number(result?.priceChanged ?? 0);
+  }
+
   return summary;
 }
 
