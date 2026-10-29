@@ -458,7 +458,7 @@ function ProductForm({
       .normalize("NFKC")
       .trim()
       .toLowerCase()
-      .replace(/[\s_./\\-]+/g, "")
+      .replace(/[\s_.\\-]+/g, "").replace(/\//g, "")
       .replace(/[：:]/g, "");
 
   const defaultColumnMap = (headers: string[]) => {
