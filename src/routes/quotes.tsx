@@ -53,6 +53,8 @@ export const Route = createFileRoute("/quotes")({
 type QuoteItem = {
   id?: string;
   product_name?: string;
+  product_name_en?: string;
+  product_id?: string;
   sku?: string;
   quantity?: number;
   unit?: string;
@@ -173,6 +175,8 @@ function Quotes() {
   const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [showEnglishName, setShowEnglishName] = useState(() => { try { return window.localStorage.getItem("saerha.invoice.showEnglishName") === "true"; } catch { return false; } });
+  const toggleEnglishName = (checked: boolean) => { setShowEnglishName(checked); try { window.localStorage.setItem("saerha.invoice.showEnglishName", String(checked)); } catch { /* session-only preference */ } };
   const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
 
   const openQuoteForEditing = (quote: Quote) => {
@@ -186,12 +190,19 @@ function Quotes() {
     const { data, error } = await supabase
       .from("quotations")
       .select(
-        "id, reference, issue_date, created_at, expiry_date, price_type, discount_amount, tax_amount, subtotal, total, currency, status, notes, customers(name, company, phone), quotation_items(id, product_name, sku, quantity, unit, unit_price, discount_amount, line_total)",
+        "id, reference, issue_date, created_at, expiry_date, price_type, discount_amount, tax_amount, subtotal, total, currency, status, notes, customers(name, company, phone, address), quotation_items(id, product_id, product_name, sku, quantity, unit, unit_price, discount_amount, line_total)",
       )
       .order("issue_date", { ascending: false });
 
     if (!error) {
       const loadedQuotes = (data ?? []) as unknown as Quote[];
+      const productIds = [...new Set(loadedQuotes.flatMap((quote) => quote.quotation_items ?? []).map((item) => item.product_id).filter((id): id is string => Boolean(id)))];
+      if (productIds.length > 0) {
+        const { data: productNames, error: productNamesError } = await supabase.from("products").select("id, name_en").in("id", productIds);
+        if (productNamesError) console.error("Could not load English product names for invoice", productNamesError);
+        const englishNames = new Map((productNames ?? []).map((product) => [product.id, product.name_en ?? ""]));
+        for (const quote of loadedQuotes) for (const item of quote.quotation_items ?? []) item.product_name_en = item.product_id ? englishNames.get(item.product_id) ?? "" : "";
+      }
       const today = new Date().toISOString().slice(0, 10);
       const expiredIds = loadedQuotes
         .filter(
@@ -1191,6 +1202,7 @@ function Quotes() {
       }
     >
       <div className="space-y-4">
+        <label className="flex items-center gap-2 rounded-lg border p-3 text-sm font-semibold"><input type="checkbox" checked={showEnglishName} onChange={(event) => toggleEnglishName(event.target.checked)} className="h-4 w-4" /> إظهار الاسم الإنجليزي للصنف في الفاتورة (المعاينة وPDF)</label>
         <div className="relative">
           <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input

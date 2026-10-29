@@ -261,6 +261,7 @@ function Products() {
                 <TableRow>
                   <TableHead className="text-right">SKU</TableHead>
                   <TableHead className="text-right">الاسم العربي</TableHead>
+                  <TableHead className="text-right">الاسم الإنجليزي</TableHead>
                   <TableHead className="text-right">الماركة</TableHead>
                   <TableHead className="text-right">التصنيف</TableHead>
                   <TableHead className="text-right">الموديل</TableHead>
@@ -274,6 +275,7 @@ function Products() {
                   <TableRow key={p.id}>
                     <TableCell className="num font-bold">{p.sku}</TableCell>
                     <TableCell>{p.nameAr}</TableCell>
+                    <TableCell dir="ltr" className="text-left">{p.nameEn || "—"}</TableCell>
                     <TableCell>{p.brand}</TableCell>
                     <TableCell>{p.category1}</TableCell>
                     <TableCell className="num">{p.model}</TableCell>
