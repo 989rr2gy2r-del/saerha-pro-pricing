@@ -938,7 +938,6 @@ function ProductForm({
         <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
           {textField("nameAr", "الاسم العربي")}
           {textField("nameEn", "الاسم الإنجليزي")}
-          {textField("sku", "كود الصنف (SKU)")}
           {textField("unitsPerPrimary", "العدد", true)}
           {selectField("unit", "الوحدة/ص", unitOptions)}
           {textField("resellerPrice", "شراء/ص", true)}
@@ -952,11 +951,11 @@ function ProductForm({
           </div>
           {selectField("category1", "التصنيف", categoryOptions)}
           {selectField("brand", "الماركة", brandOptions)}
+          {textField("sku", "كود الصنف (SKU)")}
           <Button className="h-14 w-full rounded-xl bg-orange-500 text-base font-extrabold text-white hover:bg-orange-600 sm:col-span-2 lg:col-span-3" onClick={submit} disabled={saving}>{saving ? "جارٍ الحفظ..." : selected ? "تحديث المنتج" : "حفظ المنتج"}</Button>
           {selected && <Button type="button" variant="destructive" className="h-12 w-full font-extrabold sm:col-span-2 lg:col-span-3" onClick={() => void removeProduct()} disabled={saving}><Trash2 className="ml-2 h-4 w-4" /> حذف المنتج نهائيًا</Button>}
         </div>
       </DialogContent>
     </Dialog>
   );
-}
 }
