@@ -729,12 +729,12 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
   const loadUnits = async () => {
     // Unit selectors must use only explicit product-specific conversions.
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("unit_conversions")
       .select("product_id, from_unit, to_unit")
       .not("product_id", "is", null);
     if (error) throw error;
-    setDatabaseUnitConversions((data ?? []) as Array<{ product_id: string | null; from_unit: string; to_unit: string }>);
+    setDatabaseUnitConversions((data ?? []) as unknown as Array<{ product_id: string | null; from_unit: string; to_unit: string }>);
   };
 
   const loadProducts = async (): Promise<{
@@ -906,7 +906,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   useEffect(() => {
     void loadCustomers();
     void loadProducts();
-    void loadUnits().catch(() => setDatabaseUnits([]));
+    void loadUnits().catch(() => setDatabaseUnitConversions([]));
   }, []);
 
   useEffect(() => {
