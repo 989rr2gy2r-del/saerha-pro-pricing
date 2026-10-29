@@ -337,6 +337,7 @@ export type ProductImportRow = {
   resellerPrice?: number | string | null;
   secondaryUnit?: string | null;
   unitsPerPrimary?: number | string | null;
+  cartonCount?: number | string | null;
   secondaryRetailPrice?: number | string | null;
   secondaryResellerPrice?: number | string | null;
   customerSpecialPrice?: number | string | null;
@@ -463,6 +464,7 @@ export async function importProductsAndPrices(
       resellerPrice: normalizePrice(row.resellerPrice),
       secondaryUnit: normalize(row.secondaryUnit),
       unitsPerPrimary: normalizePrice(row.unitsPerPrimary),
+      cartonCount: normalizePrice(row.cartonCount),
       secondaryRetailPrice: normalizePrice(row.secondaryRetailPrice),
       secondaryResellerPrice: normalizePrice(row.secondaryResellerPrice),
       currency: normalize(row.currency || "KWD") || "KWD",
