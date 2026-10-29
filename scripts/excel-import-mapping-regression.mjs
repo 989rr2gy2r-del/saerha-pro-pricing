@@ -85,7 +85,7 @@ assert.match(migration, /secondaryUnit and unitsPerPrimary must both be supplied
 assert.match(migration, /Secondary-unit prices require secondaryUnit/);
 assert.match(migration, /unitsPerPrimary must be greater than zero/);
 assert.match(data, /\(secondaryUnit && \(conversion === null \|\| conversion <= 0\)\)/);
-assert.match(data, /\(!secondaryUnit && \(conversion !== null && conversion !== 0\)\)/);
+assert.match(data, /!secondaryUnit && conversion !== null && conversion !== 0/);
 assert.match(migration, /Blank cells mean "not provided"/);
 
 console.log("Excel import safety regression checks passed.");
