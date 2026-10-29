@@ -453,191 +453,25 @@ function ProductForm({
     }
   }, [selected, open]);
 
-  const readImportRows = (rows: Record<string, unknown>[]): ProductImportRow[] => {
-    const readValue = (row: Record<string, unknown>, field?: string) => {
-      if (!field) return "";
-      const direct = row[field];
-      if (direct !== undefined && direct !== null) return direct;
-      return "";
-    };
-
-    const toStringOrNull = (value: unknown): string | null => {
-      if (value === null || value === undefined || value === "") return null;
-      return String(value);
-    };
-
-    const normalizeOptionalPrice = (value: unknown): string | number | null => {
-      if (value === null || value === undefined || value === "") return null;
-      return typeof value === "number" ? value : String(value);
-    };
-
-    return rows
-      .map((row): ProductImportRow => ({
-        sku: String(
-          readValue(row, "sku") ||
-            readValue(row, "SKU") ||
-            readValue(row, "كود الصنف") ||
-            readValue(row, "Code") ||
-            readValue(row, "sku_code") ||
-            "",
-        ),
-        nameAr: String(
-          readValue(row, "name_ar") ||
-            readValue(row, "nameAr") ||
-            readValue(row, "الاسم العربي") ||
-            readValue(row, "اسم عربي") ||
-            readValue(row, "arabic_name") ||
-            "",
-        ),
-        nameEn: String(
-          readValue(row, "name_en") ||
-            readValue(row, "nameEn") ||
-            readValue(row, "الاسم الإنجليزي") ||
-            readValue(row, "اسم انجليزي") ||
-            readValue(row, "english_name") ||
-            "",
-        ),
-        shortName: String(
-          readValue(row, "short_name") ||
-            readValue(row, "shortName") ||
-            readValue(row, "اسم مختصر") ||
-            readValue(row, "الاسم المختصر") ||
-            readValue(row, "short_name") ||
-            "",
-        ),
-        brand: String(
-          readValue(row, "brand") ||
-            readValue(row, "الماركة") ||
-            readValue(row, "brand_name") ||
-            "",
-        ),
-        category1: String(
-          readValue(row, "category_main") ||
-            readValue(row, "category1") ||
-            readValue(row, "التصنيف الرئيسي") ||
-            readValue(row, "main_category") ||
-            "",
-        ),
-        category2: String(
-          readValue(row, "category_sub") ||
-            readValue(row, "category2") ||
-            readValue(row, "التصنيف الفرعي") ||
-            readValue(row, "sub_category") ||
-            "",
-        ),
-        category3: String(
-          readValue(row, "category_third") ||
-            readValue(row, "category3") ||
-            readValue(row, "التصنيف الثالث") ||
-            readValue(row, "third_category") ||
-            "",
-        ),
-        group: String(
-          readValue(row, "product_group") ||
-            readValue(row, "group") ||
-            readValue(row, "المجموعة") ||
-            readValue(row, "group_name") ||
-            "",
-        ),
-        model: String(
-          readValue(row, "model") ||
-            readValue(row, "الموديل") ||
-            readValue(row, "model_name") ||
-            "",
-        ),
-        size: String(
-          readValue(row, "size") || readValue(row, "المقاس") || readValue(row, "size_name") || "",
-        ),
-        color: String(
-          readValue(row, "color") || readValue(row, "اللون") || readValue(row, "color_name") || "",
-        ),
-        unit: String(
-          readValue(row, "unit") ||
-            readValue(row, "الوحدة") ||
-            readValue(row, "unit_name") ||
-            "حبة",
-        ),
-        description: String(
-          readValue(row, "description") ||
-            readValue(row, "الوصف") ||
-            readValue(row, "description_text") ||
-            "",
-        ),
-        status:
-          String(readValue(row, "status") || "active").toLowerCase() === "inactive"
-            ? "inactive"
-            : "active",
-        retailPrice: normalizeOptionalPrice(
-          readValue(row, "retail_price") ||
-            readValue(row, "سعر التجزئة") ||
-            readValue(row, "Retail Price") ||
-            readValue(row, "retail") ||
-            null,
-        ),
-        resellerPrice: normalizeOptionalPrice(
-          readValue(row, "reseller_price") ||
-            readValue(row, "سعر الموزع") ||
-            readValue(row, "Reseller Price") ||
-            readValue(row, "reseller") ||
-            null,
-        ),
-        secondaryUnit: toStringOrNull(
-          readValue(row, "الوحدة الثانوية المصدر") ||
-            readValue(row, "الوحدة الثانوية") ||
-            readValue(row, "secondary_unit") ||
-            readValue(row, "unit_secondary") ||
-            "",
-        ),
-        unitsPerPrimary: normalizeOptionalPrice(
-          readValue(row, "عدد قطع الكبرى المصدر") ||
-            readValue(row, "عدد الوحدات في الوحدة الكبرى") ||
-            readValue(row, "units_per_primary") ||
-            readValue(row, "units_per_unit") ||
-            null,
-        ),
-        secondaryRetailPrice: normalizeOptionalPrice(
-          readValue(row, "بيع / ص المصدر") ||
-            readValue(row, "سعر بيع الوحدة الثانوية") ||
-            readValue(row, "secondary_retail_price") ||
-            null,
-        ),
-        secondaryResellerPrice: normalizeOptionalPrice(
-          readValue(row, "بيع / ك المصدر") ||
-            readValue(row, "سعر جملة الوحدة الثانوية") ||
-            readValue(row, "secondary_reseller_price") ||
-            null,
-        ),
-        customerSpecialPrice: normalizeOptionalPrice(
-          readValue(row, "customer_special_price") ||
-            readValue(row, "سعر خاص") ||
-            readValue(row, "Customer Special Price") ||
-            readValue(row, "special_price") ||
-            null,
-        ),
-        customerName: toStringOrNull(
-          readValue(row, "customer_name") ||
-            readValue(row, "اسم العميل") ||
-            readValue(row, "Customer Name") ||
-            readValue(row, "customer_name") ||
-            "",
-        ),
-        currency: String(
-          readValue(row, "currency") ||
-            readValue(row, "العملة") ||
-            readValue(row, "Currency") ||
-            "KWD",
-        ),
-      }))
-      .filter((row) => row.sku || row.nameAr || row.nameEn);
-  };
+  const normalizeHeader = (value: unknown) =>
+    String(value ?? "")
+      .normalize("NFKC")
+      .trim()
+      .toLowerCase()
+      .replace(/[\\s_\\-./\\\\]+/g, "")
+      .replace(/[：:]/g, "");
 
   const defaultColumnMap = (headers: string[]) => {
-    const find = (...keys: string[]) =>
-      headers.find((header) =>
-        keys.some((key) => key.toLowerCase() === String(header).toLowerCase()),
-      ) ?? "";
+    const normalizedHeaders = headers.map((header) => ({
+      original: header,
+      normalized: normalizeHeader(header),
+    }));
+    const find = (...keys: string[]) => {
+      const normalizedKeys = keys.map(normalizeHeader);
+      return normalizedHeaders.find((header) => normalizedKeys.includes(header.normalized))?.original ?? "";
+    };
     return {
-      sku: find("sku", "كود الصنف", "code"),
+      sku: find("sku", "كود الصنف", "code", "sku_code"),
       nameAr: find("name_ar", "namear", "اسم عربي", "الاسم العربي", "arabic_name"),
       nameEn: find("name_en", "nameen", "اسم انجليزي", "الاسم الإنجليزي", "english_name"),
       shortName: find("short_name", "shortname", "اسم مختصر", "الاسم المختصر"),
@@ -651,21 +485,17 @@ function ProductForm({
       color: find("color", "اللون", "color_name"),
       unit: find("unit", "الوحدة", "unit_name"),
       description: find("description", "الوصف", "description_text"),
+      status: find("status", "الحالة"),
       retailPrice: find("retail_price", "retailprice", "سعر البيع/ص", "سعر التجزئة", "retail", "retail price"),
       resellerPrice: find("reseller_price", "resellerprice", "شراء/ص", "سعر الموزع", "reseller", "reseller price"),
-      secondaryUnit: find("الوحدة الثانوية المصدر", "الوحدة الثانوية", "secondary_unit", "secondaryunit", "unit_secondary"),
-      unitsPerPrimary: find("عدد قطع الكبرى المصدر", "عدد قطع الكبرى", "عدد الوحدات في الوحدة الكبرى", "units_per_primary", "unitsperprimary", "units_per_unit"),
-      secondaryRetailPrice: find("بيع / ص المصدر", "بيع/ك", "سعر بيع الوحدة الثانوية", "secondary_retail_price", "secondaryretailprice"),
-      secondaryResellerPrice: find("بيع / ك المصدر", "شراء/ك", "سعر جملة الوحدة الثانوية", "secondary_reseller_price", "secondaryresellerprice"),
+      secondaryUnit: find("secondary_unit", "secondaryunit", "unit_secondary", "الوحدة الثانوية", "الوحدة الثانوية المصدر"),
+      unitsPerPrimary: find("units_per_primary", "unitsperprimary", "units_per_unit", "عدد الوحدات في الوحدة الكبرى"),
+      secondaryRetailPrice: find("secondary_retail_price", "secondaryretailprice", "بيع/ص المصدر", "سعر بيع الوحدة الثانوية"),
+      secondaryResellerPrice: find("secondary_reseller_price", "secondaryresellerprice", "بيع/ك المصدر", "سعر جملة الوحدة الثانوية"),
       cartonCount: find("carton_count", "cartoncount", "عدد قطع الكبرى", "عدد قطع الكبرى المصدر"),
-      customerSpecialPrice: find(
-        "customer_special_price",
-        "سعر خاص",
-        "special price",
-        "customer special price",
-      ),
+      customerSpecialPrice: find("customer_special_price", "سعر خاص", "special price", "customer special price"),
       customerName: find("customer_name", "اسم العميل", "customer name"),
-      currency: find("currency", "العملة", "currency"),
+      currency: find("currency", "العملة"),
     } as Record<string, string>;
   };
 
@@ -681,11 +511,14 @@ function ProductForm({
       if (!firstSheetName) throw new Error("الملف المحدد لا يحتوي على أوراق عمل.");
       const sheet = workbook.Sheets[firstSheetName];
       if (!sheet) throw new Error("تعذر قراءة الورقة الأولى من الملف.");
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-      const imported = readImportRows(rows as Record<string, unknown>[]);
-      const headers = Object.keys((rows as Record<string, unknown>[])[0] ?? {});
-      setPreviewRows(imported);
-      setColumnMap(defaultColumnMap(headers));
+      const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: "" }) as Record<string, unknown>[];
+      if (rawRows.length === 0) throw new Error("الملف لا يحتوي على صفوف بيانات.");
+      const headers = Object.keys(rawRows[0] ?? {});
+      const mapping = defaultColumnMap(headers);
+      if (!mapping.sku) throw new Error("لم أجد عمود كود الصنف (SKU). تأكد من وجود عمود sku أو كود الصنف.");
+      if (!mapping.nameAr && !mapping.nameEn) throw new Error("لم أجد عمود الاسم العربي أو الإنجليزي.");
+      setPreviewRows(rawRows);
+      setColumnMap(mapping);
       setOpen(true);
     } catch (error) {
       alert(error instanceof Error ? error.message : "تعذر قراءة الملف المختار");
@@ -698,64 +531,47 @@ function ProductForm({
   const importRows = useMemo<ProductImportRow[]>(
     () =>
       previewRows.map((row): ProductImportRow => {
-        const read = (field?: string) => {
-          if (!field) return "";
-          const value = row[field as keyof typeof row];
-          return value === undefined ? "" : value;
+        const read = (field: string) => {
+          const value = row[columnMap[field] ?? ""];
+          return value === undefined || value === null ? "" : value;
         };
-
-        const toStringOrNull = (value: unknown): string | null => {
-          if (value === null || value === undefined || value === "") return null;
-          return String(value);
+        const optionalText = (value: unknown): string | null => {
+          if (value === null || value === undefined || String(value).trim() === "") return null;
+          return String(value).trim();
         };
-
-        const statusValue: ProductImportRow["status"] =
-          String(read(columnMap["status"] ?? "") || read("status") || "active").toLowerCase() ===
-          "inactive"
-            ? "inactive"
-            : "active";
-
-        const normalizeOptionalPrice = (value: unknown): string | number | null => {
-          if (value === null || value === undefined || value === "") return null;
-          return typeof value === "number" ? value : String(value);
+        const optionalNumber = (value: unknown): string | number | null => {
+          if (value === null || value === undefined || String(value).trim() === "") return null;
+          return typeof value === "number" ? value : String(value).trim();
         };
-
+        const statusValue = String(read("status") || "active").trim().toLowerCase();
         return {
-          sku: String(read(columnMap["sku"]) || read("sku") || ""),
-          nameAr: String(read(columnMap["nameAr"]) || read("nameAr") || ""),
-          nameEn: String(read(columnMap["nameEn"]) || read("nameEn") || ""),
-          shortName: String(read(columnMap["shortName"]) || read("shortName") || ""),
-          brand: String(read(columnMap["brand"]) || read("brand") || ""),
-          category1: String(read(columnMap["category1"]) || read("category1") || ""),
-          category2: String(read(columnMap["category2"]) || read("category2") || ""),
-          category3: String(read(columnMap["category3"]) || read("category3") || ""),
-          group: String(read(columnMap["group"]) || read("group") || ""),
-          model: String(read(columnMap["model"]) || read("model") || ""),
-          size: String(read(columnMap["size"]) || read("size") || ""),
-          color: String(read(columnMap["color"]) || read("color") || ""),
-          unit: String(read(columnMap["unit"]) || read("unit") || "حبة"),
-          description: String(read(columnMap["description"]) || read("description") || ""),
-          status: statusValue,
-          retailPrice: normalizeOptionalPrice(
-            read(columnMap["retailPrice"] ?? "") || read("retailPrice") || null,
-          ),
-          resellerPrice: normalizeOptionalPrice(
-            read(columnMap["resellerPrice"] ?? "") || read("resellerPrice") || null,
-          ),
-          secondaryUnit: toStringOrNull(read(columnMap["secondaryUnit"] ?? "") || read("secondaryUnit") || null),
-          unitsPerPrimary: normalizeOptionalPrice(read(columnMap["unitsPerPrimary"] ?? "") || read("unitsPerPrimary") || null),
-          secondaryRetailPrice: normalizeOptionalPrice(read(columnMap["secondaryRetailPrice"] ?? "") || read("secondaryRetailPrice") || null),
-          secondaryResellerPrice: normalizeOptionalPrice(read(columnMap["secondaryResellerPrice"] ?? "") || read("secondaryResellerPrice") || null),
-          cartonCount: normalizeOptionalPrice(read(columnMap["cartonCount"] ?? "") || read("cartonCount") || null),
-          customerSpecialPrice: normalizeOptionalPrice(
-            read(columnMap["customerSpecialPrice"] ?? "") || read("customerSpecialPrice") || null,
-          ),
-          customerName: toStringOrNull(
-            read(columnMap["customerName"] ?? "") || read("customerName") || "",
-          ),
-          currency: String(read(columnMap["currency"]) || read("currency") || "KWD"),
+          sku: String(read("sku") ?? "").trim(),
+          nameAr: String(read("nameAr") ?? "").trim(),
+          nameEn: String(read("nameEn") ?? "").trim(),
+          shortName: String(read("shortName") ?? "").trim(),
+          brand: String(read("brand") ?? "").trim(),
+          category1: String(read("category1") ?? "").trim(),
+          category2: String(read("category2") ?? "").trim(),
+          category3: String(read("category3") ?? "").trim(),
+          group: String(read("group") ?? "").trim(),
+          model: String(read("model") ?? "").trim(),
+          size: String(read("size") ?? "").trim(),
+          color: String(read("color") ?? "").trim(),
+          unit: String(read("unit") || "حبة").trim(),
+          description: String(read("description") ?? "").trim(),
+          status: statusValue === "inactive" || statusValue === "غير مفعّل" ? "inactive" : "active",
+          retailPrice: optionalNumber(read("retailPrice")),
+          resellerPrice: optionalNumber(read("resellerPrice")),
+          secondaryUnit: optionalText(read("secondaryUnit")),
+          unitsPerPrimary: optionalNumber(read("unitsPerPrimary")),
+          secondaryRetailPrice: optionalNumber(read("secondaryRetailPrice")),
+          secondaryResellerPrice: optionalNumber(read("secondaryResellerPrice")),
+          cartonCount: optionalNumber(read("cartonCount")),
+          customerSpecialPrice: optionalNumber(read("customerSpecialPrice")),
+          customerName: optionalText(read("customerName")),
+          currency: String(read("currency") || "KWD").trim(),
         };
-      }),
+      }).filter((row) => Boolean(row.sku || row.nameAr || row.nameEn)),
     [previewRows, columnMap],
   );
 
