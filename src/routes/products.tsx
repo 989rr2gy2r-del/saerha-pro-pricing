@@ -367,7 +367,7 @@ function ProductForm({
       "AW-001", "مثال: سلك كهربائي", "Example: Electrical Wire", "سلك",
       "الخليج", "الكهرباء", "الأسلاك", "", "الوايرات", "", "2.5 ملم", "أحمر",
       "رول", "مثال توضيحي — استبدله ببيانات الصنف الفعلية", "active",
-      "", "", "متر", 100, "", "", "KWD",
+      "", "", "متر", 100, "", "", "", "KWD",
     ];
     const worksheet = XLSX.utils.aoa_to_sheet([headers, example]);
     worksheet["!cols"] = headers.map((header) => ({ wch: Math.max(16, header.length + 3) }));
@@ -657,6 +657,7 @@ function ProductForm({
       unitsPerPrimary: find("عدد قطع الكبرى المصدر", "عدد قطع الكبرى", "عدد الوحدات في الوحدة الكبرى", "units_per_primary", "unitsperprimary", "units_per_unit"),
       secondaryRetailPrice: find("بيع / ص المصدر", "بيع/ك", "سعر بيع الوحدة الثانوية", "secondary_retail_price", "secondaryretailprice"),
       secondaryResellerPrice: find("بيع / ك المصدر", "شراء/ك", "سعر جملة الوحدة الثانوية", "secondary_reseller_price", "secondaryresellerprice"),
+      cartonCount: find("carton_count", "cartoncount", "عدد قطع الكبرى", "عدد قطع الكبرى المصدر"),
       customerSpecialPrice: find(
         "customer_special_price",
         "سعر خاص",
@@ -745,6 +746,7 @@ function ProductForm({
           unitsPerPrimary: normalizeOptionalPrice(read(columnMap["unitsPerPrimary"] ?? "") || read("unitsPerPrimary") || null),
           secondaryRetailPrice: normalizeOptionalPrice(read(columnMap["secondaryRetailPrice"] ?? "") || read("secondaryRetailPrice") || null),
           secondaryResellerPrice: normalizeOptionalPrice(read(columnMap["secondaryResellerPrice"] ?? "") || read("secondaryResellerPrice") || null),
+          cartonCount: normalizeOptionalPrice(read(columnMap["cartonCount"] ?? "") || read("cartonCount") || null),
           customerSpecialPrice: normalizeOptionalPrice(
             read(columnMap["customerSpecialPrice"] ?? "") || read("customerSpecialPrice") || null,
           ),
