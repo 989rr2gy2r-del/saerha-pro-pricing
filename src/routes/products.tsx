@@ -360,14 +360,14 @@ function ProductForm({
       "sku", "name_ar", "name_en", "short_name", "brand",
       "category_main", "category_sub", "category_third", "product_group",
       "model", "size", "color", "unit", "description", "status",
-      "retailPrice", "resellerPrice", "secondaryUnit", "unitsPerPrimary",
-      "secondaryRetailPrice", "secondaryResellerPrice", "currency",
+      "retail_price", "reseller_price", "secondary_unit", "units_per_primary",
+      "secondary_retail_price", "secondary_reseller_price", "carton_count", "currency",
     ];
     const example = [
       "AW-001", "مثال: سلك كهربائي", "Example: Electrical Wire", "سلك",
       "الخليج", "الكهرباء", "الأسلاك", "", "الوايرات", "", "2.5 ملم", "أحمر",
       "رول", "مثال توضيحي — استبدله ببيانات الصنف الفعلية", "active",
-      "", "", "متر", 100, "", "", "KWD",
+      "", "", "متر", 100, "", "", "", "KWD",
     ];
     const worksheet = XLSX.utils.aoa_to_sheet([headers, example]);
     worksheet["!cols"] = headers.map((header) => ({ wch: Math.max(16, header.length + 3) }));
@@ -651,12 +651,13 @@ function ProductForm({
       color: find("color", "اللون", "color_name"),
       unit: find("unit", "الوحدة", "unit_name"),
       description: find("description", "الوصف", "description_text"),
-      retailPrice: find("retail_price", "سعر التجزئة", "retail", "retail price"),
-      resellerPrice: find("reseller_price", "سعر الموزع", "reseller", "reseller price"),
-      secondaryUnit: find("الوحدة الثانوية المصدر", "الوحدة الثانوية", "secondary_unit", "unit_secondary"),
-      unitsPerPrimary: find("عدد قطع الكبرى المصدر", "عدد الوحدات في الوحدة الكبرى", "units_per_primary", "units_per_unit"),
-      secondaryRetailPrice: find("بيع / ص المصدر", "سعر بيع الوحدة الثانوية", "secondary_retail_price"),
-      secondaryResellerPrice: find("بيع / ك المصدر", "سعر جملة الوحدة الثانوية", "secondary_reseller_price"),
+      retailPrice: find("retail_price", "retailprice", "سعر البيع/ص", "سعر التجزئة", "retail", "retail price"),
+      resellerPrice: find("reseller_price", "resellerprice", "شراء/ص", "سعر الموزع", "reseller", "reseller price"),
+      secondaryUnit: find("الوحدة الثانوية المصدر", "الوحدة الثانوية", "secondary_unit", "secondaryunit", "unit_secondary"),
+      unitsPerPrimary: find("عدد قطع الكبرى المصدر", "عدد قطع الكبرى", "عدد الوحدات في الوحدة الكبرى", "units_per_primary", "unitsperprimary", "units_per_unit"),
+      secondaryRetailPrice: find("بيع / ص المصدر", "بيع/ك", "سعر بيع الوحدة الثانوية", "secondary_retail_price", "secondaryretailprice"),
+      secondaryResellerPrice: find("بيع / ك المصدر", "شراء/ك", "سعر جملة الوحدة الثانوية", "secondary_reseller_price", "secondaryresellerprice"),
+      cartonCount: find("carton_count", "cartoncount", "عدد قطع الكبرى", "عدد قطع الكبرى المصدر"),
       customerSpecialPrice: find(
         "customer_special_price",
         "سعر خاص",
@@ -745,6 +746,7 @@ function ProductForm({
           unitsPerPrimary: normalizeOptionalPrice(read(columnMap["unitsPerPrimary"] ?? "") || read("unitsPerPrimary") || null),
           secondaryRetailPrice: normalizeOptionalPrice(read(columnMap["secondaryRetailPrice"] ?? "") || read("secondaryRetailPrice") || null),
           secondaryResellerPrice: normalizeOptionalPrice(read(columnMap["secondaryResellerPrice"] ?? "") || read("secondaryResellerPrice") || null),
+          cartonCount: normalizeOptionalPrice(read(columnMap["cartonCount"] ?? "") || read("cartonCount") || null),
           customerSpecialPrice: normalizeOptionalPrice(
             read(columnMap["customerSpecialPrice"] ?? "") || read("customerSpecialPrice") || null,
           ),

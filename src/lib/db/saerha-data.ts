@@ -337,6 +337,7 @@ export type ProductImportRow = {
   resellerPrice?: number | string | null;
   secondaryUnit?: string | null;
   unitsPerPrimary?: number | string | null;
+  cartonCount?: number | string | null;
   secondaryRetailPrice?: number | string | null;
   secondaryResellerPrice?: number | string | null;
   customerSpecialPrice?: number | string | null;
@@ -398,7 +399,29 @@ export async function importProductsAndPrices(
     const sku = normalize(row.sku || row.nameAr || row.nameEn);
     const nameAr = normalize(row.nameAr || row.nameEn);
     const nameEn = normalize(row.nameEn || row.nameAr);
-    if (!sku || (!nameAr && !nameEn)) {
+    // SKU must be supplied explicitly; never silently invent it from a product name.
+    if (!normalize(row.sku) || (!nameAr && !nameEn)) {
+      summary.error += 1;
+      continue;
+    }
+
+    const priceFields = [
+      row.retailPrice,
+      row.resellerPrice,
+      row.secondaryRetailPrice,
+      row.secondaryResellerPrice,
+    ];
+    const hasInvalidPrice = priceFields.some((value) => {
+      if (value === null || value === undefined || String(value).trim() === "") return false;
+      const parsed = normalizePrice(value);
+      return parsed === null || parsed < 0;
+    });
+    const secondaryUnit = normalize(row.secondaryUnit);
+    const conversion = normalizePrice(row.unitsPerPrimary);
+    const invalidConversion =
+      (secondaryUnit && (conversion === null || conversion <= 0)) ||
+      (!secondaryUnit && conversion !== null && conversion !== 0);
+    if (hasInvalidPrice || invalidConversion) {
       summary.error += 1;
       continue;
     }
@@ -441,6 +464,7 @@ export async function importProductsAndPrices(
       resellerPrice: normalizePrice(row.resellerPrice),
       secondaryUnit: normalize(row.secondaryUnit),
       unitsPerPrimary: normalizePrice(row.unitsPerPrimary),
+      cartonCount: normalizePrice(row.cartonCount),
       secondaryRetailPrice: normalizePrice(row.secondaryRetailPrice),
       secondaryResellerPrice: normalizePrice(row.secondaryResellerPrice),
       currency: normalize(row.currency || "KWD") || "KWD",
