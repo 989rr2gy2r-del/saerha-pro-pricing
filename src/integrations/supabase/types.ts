@@ -369,6 +369,7 @@ export type Database = {
       }
       products: {
         Row: {
+          carton_count: number | null
           brand: string | null
           category_main: string | null
           category_main_en: string | null
@@ -397,6 +398,7 @@ export type Database = {
           warranty: string | null
         }
         Insert: {
+          carton_count?: number | null
           brand?: string | null
           category_main?: string | null
           category_main_en?: string | null
@@ -425,6 +427,7 @@ export type Database = {
           warranty?: string | null
         }
         Update: {
+          carton_count?: number | null
           brand?: string | null
           category_main?: string | null
           category_main_en?: string | null
