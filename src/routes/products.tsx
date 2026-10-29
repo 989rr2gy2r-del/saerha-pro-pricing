@@ -161,7 +161,7 @@ function Products() {
     <AppShell
       title="المنتجات"
       subtitle="إدارة أصناف شركة الأواب — بيانات حقيقية من Supabase"
-      action={<ProductForm onSaved={refresh} />}
+      action={<ProductForm items={items} onSaved={refresh} />}
     >
       {error && (
         <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
@@ -319,6 +319,7 @@ function Products() {
                 <p className="mt-0.5 text-sm">{selected.description}</p>
               </div>
               <ProductForm
+                items={items}
                 selected={selected}
                 onSaved={async () => {
                   await refresh();
@@ -334,9 +335,11 @@ function Products() {
 }
 
 function ProductForm({
+  items,
   selected,
   onSaved,
 }: {
+  items: Product[];
   selected?: Product;
   onSaved?: () => Promise<void> | void;
 }) {
