@@ -1306,7 +1306,7 @@ function Quotes() {
                         className="h-4 w-4"
                       />
                     </TableCell>
-                    <TableCell className="num font-bold">{q.reference}</TableCell>
+                    <TableCell className="num font-bold"><button type="button" className="cursor-pointer text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setOpen(q)} aria-label={`معاينة عرض السعر ${q.reference}`} title="اضغط لمعاينة الفاتورة دون تنزيلها">{q.reference}</button></TableCell>
                     <TableCell>{getCustomerName(q.customers)}</TableCell>
                     <TableCell className="num">{q.issue_date}</TableCell>
                     <TableCell className="num">{q.expiry_date}</TableCell>

@@ -532,7 +532,7 @@ function NewOrder() {
     Array<{ name: string; size: number; type: string; status: string }>
   >([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
-  const [databaseUnits, setDatabaseUnits] = useState<Array<{ code: string; name_ar: string; name_en: string }>>([]);
+  const [databaseUnitConversions, setDatabaseUnitConversions] = useState<Array<{ product_id: string | null; from_unit: string; to_unit: string }>>([]);
   const [productAliases, setProductAliases] = useState<Record<string, string[]>>({});
   // Reuse the initial catalog request if analysis starts before page-load finishes.
   // Without this guard, uploading immediately after opening the page triggered
@@ -728,12 +728,13 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   };
 
   const loadUnits = async () => {
-    const { data, error } = await supabase
-      .from("units")
-      .select("code, name_ar, name_en")
-      .order("name_en", { ascending: true });
+    // Unit selectors must use only explicit product-specific conversions. The generated Supabase types may lag this table.
+    const { data, error } = await (supabase as any)
+      .from("unit_conversions")
+      .select("product_id, from_unit, to_unit")
+      .not("product_id", "is", null);
     if (error) throw error;
-    setDatabaseUnits((data ?? []) as Array<{ code: string; name_ar: string; name_en: string }>);
+    setDatabaseUnitConversions((data ?? []) as unknown as Array<{ product_id: string | null; from_unit: string; to_unit: string }>);
   };
 
   const loadProducts = async (): Promise<{
@@ -905,7 +906,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   useEffect(() => {
     void loadCustomers();
     void loadProducts();
-    void loadUnits().catch(() => setDatabaseUnits([]));
+    void loadUnits().catch(() => setDatabaseUnitConversions([]));
   }, []);
 
   useEffect(() => {
@@ -3334,18 +3335,18 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                           }
                                         }}
                                       ><SelectValue placeholder="اختر الوحدة" /></SelectTrigger><SelectContent>{(() => {
-                                        const baseUnit = String(item.product?.unit ?? item.unit ?? "").trim();
-                                        const unitNames = new Map(databaseUnits.map((unit) => [unit.name_ar.trim().toLowerCase(), unit.name_ar]));
-                                        const allowed = new Set<string>([
-                                          ...databaseUnits.map((unit) => unit.name_ar.trim()).filter(Boolean),
-                                          ...["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج"],
-                                          ...(baseUnit ? [baseUnit] : []),
-                                          ...(item.unit ? [item.unit] : []),
-                                        ]);
+                                        const productId = item.product?.id;
+                                        const baseUnit = String(item.product?.unit ?? "").trim();
+                                        const allowed = new Set<string>(baseUnit ? [baseUnit] : []);
+                                        if (productId) {
+                                          for (const conversion of databaseUnitConversions) {
+                                            if (conversion.product_id !== productId) continue;
+                                            if (conversion.from_unit.trim()) allowed.add(conversion.from_unit.trim());
+                                            if (conversion.to_unit.trim()) allowed.add(conversion.to_unit.trim());
+                                          }
+                                        }
                                         return [...allowed].map((unit) => (
-                                          <SelectItem key={unit} value={unit}>
-                                            {unitNames.get(unit.toLowerCase()) ?? unit}
-                                          </SelectItem>
+                                          <SelectItem key={unit} value={unit}>{unit}</SelectItem>
                                         ));
                                       })()}</SelectContent></Select>
                                   </td>
@@ -3758,7 +3759,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                   <Label className="text-xs">الوحدة</Label>
                                   <Select value={item.unit || ""} onValueChange={(value) => handleUnitChange(index, value)}>
                                     <SelectTrigger><SelectValue placeholder="اختر الوحدة" /></SelectTrigger>
-                                    <SelectContent>{[...new Set(["حبة", "قطعة", "قطع", "كرتون", "علبة", "رول", "لفة", "متر", "كيلوغرام", "غرام", "لتر", "عبوة", "باكيت", "كيس", "صندوق", "طقم", "زوج", ...(item.unit ? [item.unit] : []), ...(item.product?.unit ? [item.product.unit] : [])])].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>))}</SelectContent>
+                                    <SelectContent>{(() => { const productId = item.product?.id; const allowed = new Set<string>(item.product?.unit?.trim() ? [item.product.unit.trim()] : []); if (productId) { for (const conversion of databaseUnitConversions) { if (conversion.product_id !== productId) continue; if (conversion.from_unit.trim()) allowed.add(conversion.from_unit.trim()); if (conversion.to_unit.trim()) allowed.add(conversion.to_unit.trim()); } } return [...allowed].map((unit) => (<SelectItem key={unit} value={unit}>{unit}</SelectItem>)); })()}</SelectContent>
                                   </Select>
                                 </div>
                                 <div className="space-y-1">
