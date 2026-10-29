@@ -871,13 +871,27 @@ function ProductForm({
     }
   };
 
-  // ترتيب الحقول مطابق للصورة المرجعية، مع إبقاء SKU ضرورياً للصنف.
-  const labels = [
-    { key: "nameAr", label: "الاسم العربي" },
-    { key: "nameEn", label: "الاسم الإنجليزي" },
-    { key: "sku", label: "كود الصنف (SKU)" },
-    { key: "unit", label: "الوحدة/ص" },
-  ] as const;
+  // حقول النموذج مرتبة كما في صورة نموذج Excel، مع الحفاظ على SKU كحقل إلزامي.
+  const unitOptions = [...new Set(["رول", "متر", "حبة", "كرتون", "قطعة", "كيس", ...items.map((p) => p.unit)])].filter(Boolean);
+  const categoryOptions = [...new Set(items.map((p) => p.category1))].filter(Boolean);
+  const brandOptions = [...new Set(items.map((p) => p.brand))].filter(Boolean);
+  const [cartonCount, setCartonCount] = useState("");
+  const fieldClass = "h-12 rounded-xl border-slate-300 bg-white text-base";
+  const textField = (key: "sku" | "nameAr" | "nameEn" | "retailPrice" | "resellerPrice" | "secondaryUnit" | "unitsPerPrimary" | "secondaryRetailPrice" | "secondaryResellerPrice" | "category1" | "brand", label: string, numeric = false) => (
+    <div className="space-y-1.5" key={key}>
+      <Label className="text-sm font-semibold">{label}</Label>
+      <Input className={fieldClass} inputMode={numeric ? "decimal" : "text"} value={form[key]} onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))} placeholder={label} required={key === "sku" || key === "nameAr"} />
+    </div>
+  );
+  const selectField = (key: "unit" | "secondaryUnit" | "category1" | "brand", label: string, options: string[]) => (
+    <div className="space-y-1.5" key={key}>
+      <Label className="text-sm font-semibold">{label}</Label>
+      <Select value={form[key]} onValueChange={(value) => setForm((prev) => ({ ...prev, [key]: value }))}>
+        <SelectTrigger className={fieldClass}><SelectValue placeholder={label} /></SelectTrigger>
+        <SelectContent>{options.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
+      </Select>
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -889,183 +903,57 @@ function ProductForm({
       <DialogContent dir="rtl" className="w-[min(96vw,1200px)] max-w-[1200px] max-h-[92vh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-6 text-right shadow-xl sm:p-8">
         <DialogHeader>
           <DialogTitle>{selected ? "تعديل المنتج" : "إضافة منتج"}</DialogTitle>
-          <DialogDescription>الحقول الأساسية لصنف في قاعدة منتجات شركة الأواب.</DialogDescription>
+          <DialogDescription>أدخل بيانات المنتج حسب أعمدة نموذج ملف Excel.</DialogDescription>
         </DialogHeader>
-
         <div className="mb-3 flex gap-2">
           <label className="inline-flex cursor-pointer items-center rounded-md bg-secondary px-3 py-2 text-sm font-semibold">
-            <input
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              className="hidden"
-              onChange={handleImport}
-            />
+            <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport} />
             {importing ? "جارٍ قراءة الملف..." : "استيراد المنتجات"}
           </label>
-          <Button
-            type="button"
-            variant="default"
-            className="inline-flex items-center rounded-md bg-accent px-3 py-2 text-sm font-bold text-accent-foreground"
-            onClick={downloadProductTemplate}
-          >
-            قالب Excel
-          </Button>
+          <Button type="button" variant="default" className="inline-flex items-center rounded-md bg-accent px-3 py-2 text-sm font-bold text-accent-foreground" onClick={downloadProductTemplate}>قالب Excel</Button>
         </div>
-
         {previewRows.length > 0 && (
           <div className="mb-3 rounded-lg border border-border bg-muted/40 p-3">
             <p className="mb-2 text-sm font-bold">معاينة قبل الحفظ</p>
             <div className="mb-4 grid gap-3 md:grid-cols-2">
               {[
-                { field: "sku", label: "SKU / كود الصنف" },
-                { field: "nameAr", label: "الاسم العربي" },
-                { field: "nameEn", label: "الاسم الإنجليزي" },
-                { field: "brand", label: "الماركة" },
-                { field: "unit", label: "الوحدة" },
-                { field: "retailPrice", label: "سعر التجزئة" },
-                { field: "resellerPrice", label: "سعر الموزع" },
-                { field: "customerSpecialPrice", label: "سعر خاص" },
-                { field: "customerName", label: "اسم العميل" },
-                { field: "currency", label: "العملة" },
+                { field: "sku", label: "SKU / كود الصنف" }, { field: "nameAr", label: "الاسم العربي" },
+                { field: "nameEn", label: "الاسم الإنجليزي" }, { field: "brand", label: "الماركة" },
+                { field: "unit", label: "الوحدة" }, { field: "retailPrice", label: "سعر التجزئة" },
+                { field: "resellerPrice", label: "سعر الموزع" }, { field: "customerSpecialPrice", label: "سعر خاص" },
+                { field: "customerName", label: "اسم العميل" }, { field: "currency", label: "العملة" },
               ].map(({ field, label }) => {
                 const options = Object.keys(previewRows[0] ?? {});
-                return (
-                  <div key={field} className="space-y-1.5">
-                    <Label className="text-[11px]">{label}</Label>
-                    <Select
-                      value={columnMap[field] ?? ""}
-                      onValueChange={(value) =>
-                        setColumnMap((prev) => ({ ...prev, [field]: value }))
-                      }
-                    >
-                      <SelectTrigger className="h-10">
-                        <SelectValue placeholder="اختر العمود" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">لا يوجد</SelectItem>
-                        {options.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                );
+                return <div key={field} className="space-y-1.5"><Label className="text-[11px]">{label}</Label><Select value={columnMap[field] ?? ""} onValueChange={(value) => setColumnMap((prev) => ({ ...prev, [field]: value }))}><SelectTrigger className="h-10"><SelectValue placeholder="اختر العمود" /></SelectTrigger><SelectContent><SelectItem value="none">لا يوجد</SelectItem>{options.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select></div>;
               })}
             </div>
-            <div className="max-h-52 overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>الاسم العربي</TableHead>
-                    <TableHead>السعر</TableHead>
-                    <TableHead>الحالة</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {importRows.slice(0, 5).map((row, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell>{row.sku || "—"}</TableCell>
-                      <TableCell>{row.nameAr || row.nameEn || "—"}</TableCell>
-                      <TableCell>
-                        {row.retailPrice || row.resellerPrice || row.customerSpecialPrice || "—"}
-                      </TableCell>
-                      <TableCell>{row.sku ? "جاهز" : "خطأ"}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <Button className="mt-3 w-full" onClick={confirmImport} disabled={saving}>
-              تأكيد الاستيراد
-            </Button>
+            <div className="max-h-52 overflow-auto"><Table><TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>الاسم العربي</TableHead><TableHead>السعر</TableHead><TableHead>الحالة</TableHead></TableRow></TableHeader><TableBody>{importRows.slice(0, 5).map((row, idx) => <TableRow key={idx}><TableCell>{row.sku || "—"}</TableCell><TableCell>{row.nameAr || row.nameEn || "—"}</TableCell><TableCell>{row.retailPrice || row.resellerPrice || row.customerSpecialPrice || "—"}</TableCell><TableCell>{row.sku ? "جاهز" : "خطأ"}</TableCell></TableRow>)}</TableBody></Table></div>
+            <Button className="mt-3 w-full" onClick={confirmImport} disabled={saving}>تأكيد الاستيراد</Button>
           </div>
         )}
-
-        {importReport && (
-          <div className="mb-3 rounded-lg border border-border bg-muted/40 p-3">
-            <p className="mb-2 text-sm font-bold">تقرير الاستيراد</p>
-            <div className="grid gap-2 text-sm sm:grid-cols-5">
-              <div className="rounded-md bg-background p-2">
-                جديد: <span className="num font-bold">{importReport.new}</span>
-              </div>
-              <div className="rounded-md bg-background p-2">
-                محدث: <span className="num font-bold">{importReport.updated}</span>
-              </div>
-              <div className="rounded-md bg-background p-2">
-                سعر متغير: <span className="num font-bold">{importReport.priceChanged}</span>
-              </div>
-              <div className="rounded-md bg-background p-2">
-                مكرر: <span className="num font-bold">{importReport.duplicate}</span>
-              </div>
-              <div className="rounded-md bg-background p-2">
-                خطأ: <span className="num font-bold">{importReport.error}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {labels.map((field) => (
-            <div key={field.key} className="space-y-1.5">
-              <Label className="text-sm font-semibold">{field.label}</Label>
-              <Input
-                className="h-12 rounded-xl border-slate-300 bg-white text-base"
-                value={form[field.key] as string}
-                onChange={(e) => setForm((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                placeholder={field.label}
-                required={field.key === "sku" || field.key === "nameAr"}
-              />
-            </div>
-          ))}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">العدد</Label>
-            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" inputMode="decimal" value={form.unitsPerPrimary} onChange={(e) => setForm((prev) => ({ ...prev, unitsPerPrimary: e.target.value }))} placeholder="العدد" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">شراء/ص</Label>
-            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" inputMode="decimal" value={form.resellerPrice} onChange={(e) => setForm((prev) => ({ ...prev, resellerPrice: e.target.value }))} placeholder="شراء/ص" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">بيع/ص</Label>
-            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" inputMode="decimal" value={form.retailPrice} onChange={(e) => setForm((prev) => ({ ...prev, retailPrice: e.target.value }))} placeholder="بيع/ص" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">الوحدة/ك</Label>
-            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" value={form.secondaryUnit} onChange={(e) => setForm((prev) => ({ ...prev, secondaryUnit: e.target.value }))} placeholder="الوحدة/ك" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">شراء/ك</Label>
-            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" inputMode="decimal" value={form.secondaryResellerPrice} onChange={(e) => setForm((prev) => ({ ...prev, secondaryResellerPrice: e.target.value }))} placeholder="شراء/ك" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">بيع/ك</Label>
-            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" inputMode="decimal" value={form.secondaryRetailPrice} onChange={(e) => setForm((prev) => ({ ...prev, secondaryRetailPrice: e.target.value }))} placeholder="بيع/ك" />
-          </div>
+        {importReport && <div className="mb-3 rounded-lg border border-border bg-muted/40 p-3"><p className="mb-2 text-sm font-bold">تقرير الاستيراد</p><div className="grid gap-2 text-sm sm:grid-cols-5"><div className="rounded-md bg-background p-2">جديد: <span className="num font-bold">{importReport.new}</span></div><div className="rounded-md bg-background p-2">محدث: <span className="num font-bold">{importReport.updated}</span></div><div className="rounded-md bg-background p-2">سعر متغير: <span className="num font-bold">{importReport.priceChanged}</span></div><div className="rounded-md bg-background p-2">مكرر: <span className="num font-bold">{importReport.duplicate}</span></div><div className="rounded-md bg-background p-2">خطأ: <span className="num font-bold">{importReport.error}</span></div></div></div>}
+        <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+          {textField("nameAr", "الاسم العربي")}
+          {textField("nameEn", "الاسم الإنجليزي")}
+          {textField("sku", "كود الصنف (SKU)")}
+          {textField("unitsPerPrimary", "العدد", true)}
+          {selectField("unit", "الوحدة/ص", unitOptions)}
+          {textField("resellerPrice", "شراء/ص", true)}
+          {textField("retailPrice", "بيع/ص", true)}
+          {selectField("secondaryUnit", "الوحدة/ك", unitOptions)}
+          {textField("secondaryResellerPrice", "شراء/ك", true)}
+          {textField("secondaryRetailPrice", "بيع/ك", true)}
           <div className="space-y-1.5">
             <Label className="text-sm font-semibold">عدد قطع الكرتون</Label>
-            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" inputMode="numeric" placeholder="عدد قطع الكرتون" />
+            <Input className={fieldClass} inputMode="numeric" value={cartonCount} onChange={(e) => setCartonCount(e.target.value)} placeholder="عدد قطع الكرتون" />
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">التصنيف</Label>
-            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" value={form.category1} onChange={(e) => setForm((prev) => ({ ...prev, category1: e.target.value }))} placeholder="التصنيف" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">الماركة</Label>
-            <Input className="h-12 rounded-xl border-slate-300 bg-white text-base" value={form.brand} onChange={(e) => setForm((prev) => ({ ...prev, brand: e.target.value }))} placeholder="الماركة" />
-          </div>
-          <Button className="h-14 w-full rounded-xl bg-orange-500 text-base font-extrabold text-white hover:bg-orange-600 sm:col-span-2 lg:col-span-3" onClick={submit} disabled={saving}>
-            {saving ? "جارٍ الحفظ..." : selected ? "تحديث المنتج" : "حفظ المنتج"}
-          </Button>
-          {selected && (
-            <Button type="button" variant="destructive" className="h-12 w-full font-extrabold sm:col-span-2 lg:col-span-3" onClick={() => void removeProduct()} disabled={saving}>
-              <Trash2 className="ml-2 h-4 w-4" /> حذف المنتج نهائيًا
-            </Button>
-          )}
+          {selectField("category1", "التصنيف", categoryOptions)}
+          {selectField("brand", "الماركة", brandOptions)}
+          <Button className="h-14 w-full rounded-xl bg-orange-500 text-base font-extrabold text-white hover:bg-orange-600 sm:col-span-2 lg:col-span-3" onClick={submit} disabled={saving}>{saving ? "جارٍ الحفظ..." : selected ? "تحديث المنتج" : "حفظ المنتج"}</Button>
+          {selected && <Button type="button" variant="destructive" className="h-12 w-full font-extrabold sm:col-span-2 lg:col-span-3" onClick={() => void removeProduct()} disabled={saving}><Trash2 className="ml-2 h-4 w-4" /> حذف المنتج نهائيًا</Button>}
         </div>
       </DialogContent>
     </Dialog>
   );
+}
 }
