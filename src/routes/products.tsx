@@ -466,7 +466,7 @@ function ProductForm({
           .is("customer_id", null)
           .order("valid_from", { ascending: false }),
         supabase
-          .from("unit_conversions")
+          .from("unit_conversions" as never)
           .select("from_unit, to_unit, multiplier")
           .eq("product_id", selected.id),
       ]);
