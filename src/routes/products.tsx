@@ -401,6 +401,8 @@ function ProductForm({
     unitsPerPrimary: string;
     secondaryRetailPrice: string;
     secondaryResellerPrice: string;
+    cartonCount: string;
+    quantity: string;
   }>({
     sku: selected?.sku ?? "",
     nameAr: selected?.nameAr ?? "",
@@ -424,6 +426,8 @@ function ProductForm({
     unitsPerPrimary: "",
     secondaryRetailPrice: "",
     secondaryResellerPrice: "",
+    cartonCount: "",
+    quantity: "",
   });
 
   useEffect(() => {
@@ -455,6 +459,8 @@ function ProductForm({
         unitsPerPrimary: "",
         secondaryRetailPrice: "",
         secondaryResellerPrice: "",
+        cartonCount: "",
+        quantity: "",
       });
 
       const [{ data: priceRows, error: priceError }, { data: conversions, error: conversionError }] = await Promise.all([
@@ -703,7 +709,7 @@ function ProductForm({
       }
       if (
         form.retailPrice.trim() || form.resellerPrice.trim() || form.secondaryUnit.trim() ||
-        form.secondaryRetailPrice.trim() || form.secondaryResellerPrice.trim()
+        form.secondaryRetailPrice.trim() || form.secondaryResellerPrice.trim() || form.cartonCount.trim()
       ) {
         await importProductsAndPrices([{
           sku: form.sku,
@@ -727,6 +733,7 @@ function ProductForm({
           unitsPerPrimary: form.unitsPerPrimary.trim() || null,
           secondaryRetailPrice: form.secondaryRetailPrice.trim() || null,
           secondaryResellerPrice: form.secondaryResellerPrice.trim() || null,
+          cartonCount: form.cartonCount.trim() || null,
           currency: "KWD",
         }]);
       }
@@ -759,7 +766,7 @@ function ProductForm({
   const categoryOptions = [...new Set(items.map((p) => p.category1))].filter(Boolean);
   const brandOptions = [...new Set(items.map((p) => p.brand))].filter(Boolean);
   const fieldClass = "h-12 rounded-xl border-slate-300 bg-white text-base";
-  const textField = (key: "sku" | "nameAr" | "nameEn" | "retailPrice" | "resellerPrice" | "secondaryUnit" | "unitsPerPrimary" | "secondaryRetailPrice" | "secondaryResellerPrice" | "category1" | "brand", label: string, numeric = false) => (
+  const textField = (key: "sku" | "nameAr" | "nameEn" | "retailPrice" | "resellerPrice" | "secondaryUnit" | "unitsPerPrimary" | "secondaryRetailPrice" | "secondaryResellerPrice" | "category1" | "brand" | "cartonCount" | "quantity", label: string, numeric = false) => (
     <div className="space-y-1.5" key={key}>
       <Label className="text-sm font-semibold">{label}</Label>
       <Input className={fieldClass} inputMode={numeric ? "decimal" : "text"} value={form[key]} onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))} placeholder={label} required={key === "sku" || key === "nameAr"} />
@@ -815,18 +822,49 @@ function ProductForm({
         )}
         {importReport && <div className="mb-3 rounded-lg border border-border bg-muted/40 p-3"><p className="mb-2 text-sm font-bold">تقرير الاستيراد</p><div className="grid gap-2 text-sm sm:grid-cols-5"><div className="rounded-md bg-background p-2">جديد: <span className="num font-bold">{importReport.new}</span></div><div className="rounded-md bg-background p-2">محدث: <span className="num font-bold">{importReport.updated}</span></div><div className="rounded-md bg-background p-2">سعر متغير: <span className="num font-bold">{importReport.priceChanged}</span></div><div className="rounded-md bg-background p-2">مكرر: <span className="num font-bold">{importReport.duplicate}</span></div><div className="rounded-md bg-background p-2">خطأ: <span className="num font-bold">{importReport.error}</span></div></div></div>}
         <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-          {textField("sku", "كود الصنف (SKU)")}
           {textField("nameAr", "الاسم العربي")}
           {textField("nameEn", "الاسم الإنجليزي")}
+          {textField("quantity", "العدد", true)}
           {selectField("unit", "الوحدة/ص", unitOptions)}
           {textField("resellerPrice", "شراء/ص", true)}
           {textField("retailPrice", "بيع/ص", true)}
           {selectField("secondaryUnit", "الوحدة/ك", unitOptions)}
-          {textField("unitsPerPrimary", "عدد الوحدات في الوحدة الكبرى", true)}
           {textField("secondaryResellerPrice", "شراء/ك", true)}
           {textField("secondaryRetailPrice", "بيع/ك", true)}
+          {textField("cartonCount", "عدد قطع الكبرى", true)}
           {selectField("category1", "التصنيف", categoryOptions)}
           {selectField("brand", "الماركة", brandOptions)}
+          {textField("sku", "كود الصنف (SKU)")}
+          <div className="space-y-1.5">
+            <Label className="text-sm font-semibold">صورة المنتج</Label>
+            <Input
+              className={fieldClass}
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                if (!file.type.startsWith("image/")) {
+                  alert("اختر ملف صورة صالحًا.");
+                  event.target.value = "";
+                  return;
+                }
+                if (file.size > 2 * 1024 * 1024) {
+                  alert("حجم الصورة يجب ألا يتجاوز 2 ميجابايت.");
+                  event.target.value = "";
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (typeof reader.result === "string") {
+                    setForm((prev) => ({ ...prev, image: reader.result as string }));
+                  }
+                };
+                reader.readAsDataURL(file);
+              }}
+            />
+            {form.image && <img src={form.image} alt="معاينة صورة المنتج" className="h-16 w-16 rounded-lg border object-cover" />}
+          </div>
           <div className="space-y-1.5">
             <Label className="text-sm font-semibold">الحالة</Label>
             <Select value={form.status} onValueChange={(value) => setForm((prev) => ({ ...prev, status: value as Product["status"] }))}>
