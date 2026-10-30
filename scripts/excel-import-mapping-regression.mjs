@@ -59,8 +59,8 @@ assert.match(route, /const value = row\[columnMap\[field\] \?\? ""\]/);
 
 // Keep carton count distinct from conversion factor and in sync with generated schema.
 assert.match(route, /cartonCount: find\("carton_count", "cartoncount", "عدد قطع الكبرى", "عدد قطع الكبرى المصدر"\)/);
-assert.match(route, /unitsPerPrimary: find\("units_per_primary", "unitsperprimary", "units_per_unit", "عدد الوحدات في الوحدة الكبرى"\)/);
-assert.doesNotMatch(route, /unitsPerPrimary: find\([^\n]*عدد قطع الكبرى/);
+assert.match(route, /unitsPerPrimary: find\("units_per_primary", "unitsperprimary", "units_per_unit", "عدد الوحدات في الوحدة الكبرى", "عدد قطع الكبرى", "عدد قطع الكبرى المصدر"\)/);
+assert.match(route, /unitsPerPrimary: find\([^\n]*عدد قطع الكبرى/);
 assert.match(data, /cartonCount\?: number \| string \| null/);
 assert.match(data, /cartonCount: normalizePrice\(row\.cartonCount\)/);
 assert.match(migration, /carton_count/);
