@@ -822,6 +822,7 @@ function ProductForm({
         )}
         {importReport && <div className="mb-3 rounded-lg border border-border bg-muted/40 p-3"><p className="mb-2 text-sm font-bold">تقرير الاستيراد</p><div className="grid gap-2 text-sm sm:grid-cols-5"><div className="rounded-md bg-background p-2">جديد: <span className="num font-bold">{importReport.new}</span></div><div className="rounded-md bg-background p-2">محدث: <span className="num font-bold">{importReport.updated}</span></div><div className="rounded-md bg-background p-2">سعر متغير: <span className="num font-bold">{importReport.priceChanged}</span></div><div className="rounded-md bg-background p-2">مكرر: <span className="num font-bold">{importReport.duplicate}</span></div><div className="rounded-md bg-background p-2">خطأ: <span className="num font-bold">{importReport.error}</span></div></div></div>}
         <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+          {textField("sku", "كود الصنف (SKU)")}
           {textField("nameAr", "الاسم العربي")}
           {textField("nameEn", "الاسم الإنجليزي")}
           {textField("quantity", "العدد", true)}
@@ -834,7 +835,6 @@ function ProductForm({
           {textField("cartonCount", "عدد قطع الكبرى", true)}
           {selectField("category1", "التصنيف", categoryOptions)}
           {selectField("brand", "الماركة", brandOptions)}
-          {textField("sku", "كود الصنف (SKU)")}
           <div className="space-y-1.5">
             <Label className="text-sm font-semibold">صورة المنتج</Label>
             <Input
