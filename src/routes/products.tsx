@@ -758,7 +758,6 @@ function ProductForm({
   const unitOptions = [...new Set(["رول", "متر", "حبة", "كرتون", "قطعة", "كيس", ...items.map((p) => p.unit)])].filter(Boolean);
   const categoryOptions = [...new Set(items.map((p) => p.category1))].filter(Boolean);
   const brandOptions = [...new Set(items.map((p) => p.brand))].filter(Boolean);
-  const [cartonCount, setCartonCount] = useState("");
   const fieldClass = "h-12 rounded-xl border-slate-300 bg-white text-base";
   const textField = (key: "sku" | "nameAr" | "nameEn" | "retailPrice" | "resellerPrice" | "secondaryUnit" | "unitsPerPrimary" | "secondaryRetailPrice" | "secondaryResellerPrice" | "category1" | "brand", label: string, numeric = false) => (
     <div className="space-y-1.5" key={key}>
