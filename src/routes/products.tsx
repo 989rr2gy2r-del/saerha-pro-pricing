@@ -465,7 +465,7 @@ function ProductForm({
           .eq("is_active", true)
           .is("customer_id", null)
           .order("valid_from", { ascending: false }),
-        supabase
+        (supabase as any)
           .from("unit_conversions")
           .select("from_unit, to_unit, multiplier")
           .eq("product_id", selected.id),
@@ -533,24 +533,24 @@ function ProductForm({
       return normalizedHeaders.find((header) => normalizedKeys.includes(header.normalized))?.original ?? "";
     };
     return {
-      sku: find("sku", "كود الصنف", "code", "sku_code"),
-      nameAr: find("name_ar", "namear", "اسم عربي", "الاسم العربي", "arabic_name"),
+      sku: find("sku", "كود الصنف", "الكود", "كود", "code", "sku_code"),
+      nameAr: find("name_ar", "namear", "اسم عربي", "الاسم العربي", "الاسم", "اسم الصنف", "arabic_name"),
       nameEn: find("name_en", "nameen", "اسم انجليزي", "الاسم الإنجليزي", "english_name"),
       shortName: find("short_name", "shortname", "اسم مختصر", "الاسم المختصر"),
       brand: find("brand", "الماركة", "brand_name"),
-      category1: find("category_main", "category1", "التصنيف الرئيسي", "main_category"),
+      category1: find("category_main", "category1", "التصنيف الرئيسي", "التصنيف", "main_category"),
       category2: find("category_sub", "category2", "التصنيف الفرعي", "sub_category"),
       category3: find("category_third", "category3", "التصنيف الثالث", "third_category"),
       group: find("product_group", "group", "المجموعة", "group_name"),
       model: find("model", "الموديل", "model_name"),
       size: find("size", "المقاس", "size_name"),
       color: find("color", "اللون", "color_name"),
-      unit: find("unit", "الوحدة", "unit_name"),
+      unit: find("unit", "الوحدة", "الوحدة/ص", "الوحدة / ص", "unit_name"),
       description: find("description", "الوصف", "description_text"),
       status: find("status", "الحالة"),
       retailPrice: find("retail_price", "retailprice", "بيع/ص", "سعر البيع/ص", "سعر التجزئة", "retail", "retail price"),
       resellerPrice: find("reseller_price", "resellerprice", "شراء/ص", "سعر الموزع", "reseller", "reseller price"),
-      secondaryUnit: find("secondary_unit", "secondaryunit", "unit_secondary", "الوحدة/ك", "الوحدة الثانوية", "الوحدة الثانوية المصدر"),
+      secondaryUnit: find("secondary_unit", "secondaryunit", "unit_secondary", "الوحدة/ك", "الوحده/ك", "الوحدة / ك", "الوحده / ك", "الوحدة الثانوية", "الوحدة الثانوية المصدر"),
       unitsPerPrimary: find("units_per_primary", "unitsperprimary", "units_per_unit", "عدد الوحدات في الوحدة الكبرى"),
       secondaryRetailPrice: find("secondary_retail_price", "secondaryretailprice", "بيع/ك", "بيع/ص المصدر", "سعر بيع الوحدة الثانوية"),
       secondaryResellerPrice: find("secondary_reseller_price", "secondaryresellerprice", "شراء/ك", "بيع/ك المصدر", "سعر جملة الوحدة الثانوية"),
@@ -816,6 +816,7 @@ function ProductForm({
         )}
         {importReport && <div className="mb-3 rounded-lg border border-border bg-muted/40 p-3"><p className="mb-2 text-sm font-bold">تقرير الاستيراد</p><div className="grid gap-2 text-sm sm:grid-cols-5"><div className="rounded-md bg-background p-2">جديد: <span className="num font-bold">{importReport.new}</span></div><div className="rounded-md bg-background p-2">محدث: <span className="num font-bold">{importReport.updated}</span></div><div className="rounded-md bg-background p-2">سعر متغير: <span className="num font-bold">{importReport.priceChanged}</span></div><div className="rounded-md bg-background p-2">مكرر: <span className="num font-bold">{importReport.duplicate}</span></div><div className="rounded-md bg-background p-2">خطأ: <span className="num font-bold">{importReport.error}</span></div></div></div>}
         <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+          {textField("sku", "كود الصنف (SKU)")}
           {textField("nameAr", "الاسم العربي")}
           {textField("nameEn", "الاسم الإنجليزي")}
           {textField("unitsPerPrimary", "العدد", true)}
@@ -831,7 +832,6 @@ function ProductForm({
           </div>
           {selectField("category1", "التصنيف", categoryOptions)}
           {selectField("brand", "الماركة", brandOptions)}
-          {textField("sku", "كود الصنف (SKU)")}
           <div className="space-y-1.5">
             <Label className="text-sm font-semibold">صورة المنتج</Label>
             <Input
