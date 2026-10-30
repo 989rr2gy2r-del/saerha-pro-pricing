@@ -551,7 +551,7 @@ function ProductForm({
       retailPrice: find("retail_price", "retailprice", "بيع/ص", "سعر البيع/ص", "سعر التجزئة", "retail", "retail price"),
       resellerPrice: find("reseller_price", "resellerprice", "شراء/ص", "سعر الموزع", "reseller", "reseller price"),
       secondaryUnit: find("secondary_unit", "secondaryunit", "unit_secondary", "الوحدة/ك", "الوحده/ك", "الوحدة / ك", "الوحده / ك", "الوحدة الثانوية", "الوحدة الثانوية المصدر"),
-      unitsPerPrimary: find("units_per_primary", "unitsperprimary", "units_per_unit", "عدد الوحدات في الوحدة الكبرى"),
+      unitsPerPrimary: find("units_per_primary", "unitsperprimary", "units_per_unit", "عدد الوحدات في الوحدة الكبرى", "عدد قطع الكبرى", "عدد قطع الكبرى المصدر"),
       secondaryRetailPrice: find("secondary_retail_price", "secondaryretailprice", "بيع/ك", "بيع/ص المصدر", "سعر بيع الوحدة الثانوية"),
       secondaryResellerPrice: find("secondary_reseller_price", "secondaryresellerprice", "شراء/ك", "بيع/ك المصدر", "سعر جملة الوحدة الثانوية"),
       cartonCount: find("carton_count", "cartoncount", "عدد قطع الكبرى", "عدد قطع الكبرى المصدر"),
@@ -819,17 +819,17 @@ function ProductForm({
           {textField("sku", "كود الصنف (SKU)")}
           {textField("nameAr", "الاسم العربي")}
           {textField("nameEn", "الاسم الإنجليزي")}
-          {textField("unitsPerPrimary", "العدد", true)}
           {selectField("unit", "الوحدة/ص", unitOptions)}
           {textField("resellerPrice", "شراء/ص", true)}
           {textField("retailPrice", "بيع/ص", true)}
           {selectField("secondaryUnit", "الوحدة/ك", unitOptions)}
-          {textField("secondaryResellerPrice", "شراء/ك", true)}
-          {textField("secondaryRetailPrice", "بيع/ك", true)}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">عدد قطع الكبرى</Label>
-            <Input className={fieldClass} inputMode="numeric" value={cartonCount} onChange={(e) => setCartonCount(e.target.value)} placeholder="عدد قطع الكبرى" />
-          </div>
+          {form.secondaryUnit.trim() && (
+            <>
+              {textField("unitsPerPrimary", "عدد الوحدات في الوحدة الكبرى", true)}
+              {textField("secondaryResellerPrice", "شراء/ك", true)}
+              {textField("secondaryRetailPrice", "بيع/ك", true)}
+            </>
+          )}
           {selectField("category1", "التصنيف", categoryOptions)}
           {selectField("brand", "الماركة", brandOptions)}
           <div className="space-y-1.5">
