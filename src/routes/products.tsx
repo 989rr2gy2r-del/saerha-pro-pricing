@@ -554,7 +554,7 @@ function ProductForm({
       unitsPerPrimary: find("units_per_primary", "unitsperprimary", "units_per_unit", "عدد الوحدات في الوحدة الكبرى", "عدد قطع الكبرى"),
       secondaryRetailPrice: find("secondary_retail_price", "secondaryretailprice", "بيع/ك", "بيع/ص المصدر", "سعر بيع الوحدة الثانوية"),
       secondaryResellerPrice: find("secondary_reseller_price", "secondaryresellerprice", "شراء/ك", "بيع/ك المصدر", "سعر جملة الوحدة الثانوية"),
-      cartonCount: find("carton_count", "cartoncount", "عدد قطع الكبرى المصدر"),
+      cartonCount: find("carton_count", "cartoncount", "عدد قطع الكبرى", "عدد قطع الكبرى المصدر"),
       customerSpecialPrice: find("customer_special_price", "سعر خاص", "special price", "customer special price"),
       customerName: find("customer_name", "اسم العميل", "customer name"),
       currency: find("currency", "العملة"),
