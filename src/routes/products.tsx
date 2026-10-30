@@ -822,45 +822,11 @@ function ProductForm({
           {textField("resellerPrice", "شراء/ص", true)}
           {textField("retailPrice", "بيع/ص", true)}
           {selectField("secondaryUnit", "الوحدة/ك", unitOptions)}
-          {form.secondaryUnit.trim() && (
-            <>
-              {textField("unitsPerPrimary", "عدد الوحدات في الوحدة الكبرى", true)}
-              {textField("secondaryResellerPrice", "شراء/ك", true)}
-              {textField("secondaryRetailPrice", "بيع/ك", true)}
-            </>
-          )}
+          {textField("unitsPerPrimary", "عدد الوحدات في الوحدة الكبرى", true)}
+          {textField("secondaryResellerPrice", "شراء/ك", true)}
+          {textField("secondaryRetailPrice", "بيع/ك", true)}
           {selectField("category1", "التصنيف", categoryOptions)}
           {selectField("brand", "الماركة", brandOptions)}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">صورة المنتج</Label>
-            <Input
-              className={fieldClass}
-              type="file"
-              accept="image/*"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                if (!file.type.startsWith("image/")) {
-                  alert("اختر ملف صورة صالحًا.");
-                  event.target.value = "";
-                  return;
-                }
-                if (file.size > 2 * 1024 * 1024) {
-                  alert("حجم الصورة يجب ألا يتجاوز 2 ميجابايت.");
-                  event.target.value = "";
-                  return;
-                }
-                const reader = new FileReader();
-                reader.onload = () => {
-                  if (typeof reader.result === "string") {
-                    setForm((prev) => ({ ...prev, image: reader.result as string }));
-                  }
-                };
-                reader.readAsDataURL(file);
-              }}
-            />
-            {form.image && <img src={form.image} alt="معاينة صورة المنتج" className="h-16 w-16 rounded-lg border object-cover" />}
-          </div>
           <div className="space-y-1.5">
             <Label className="text-sm font-semibold">الحالة</Label>
             <Select value={form.status} onValueChange={(value) => setForm((prev) => ({ ...prev, status: value as Product["status"] }))}>
