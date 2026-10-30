@@ -709,7 +709,7 @@ function ProductForm({
       }
       if (
         form.retailPrice.trim() || form.resellerPrice.trim() || form.secondaryUnit.trim() ||
-        form.secondaryRetailPrice.trim() || form.secondaryResellerPrice.trim()
+        form.secondaryRetailPrice.trim() || form.secondaryResellerPrice.trim() || form.cartonCount.trim()
       ) {
         await importProductsAndPrices([{
           sku: form.sku,
@@ -733,6 +733,7 @@ function ProductForm({
           unitsPerPrimary: form.unitsPerPrimary.trim() || null,
           secondaryRetailPrice: form.secondaryRetailPrice.trim() || null,
           secondaryResellerPrice: form.secondaryResellerPrice.trim() || null,
+          cartonCount: form.cartonCount.trim() || null,
           currency: "KWD",
         }]);
       }
