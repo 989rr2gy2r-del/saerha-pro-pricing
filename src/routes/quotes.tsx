@@ -110,7 +110,10 @@ function PdfCanvasPreview({ pdfUrl }: { pdfUrl: string }) {
         pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
         const loadedPdfDocument = await pdfjsLib.getDocument({ url: pdfUrl }).promise;
         pdfDocument = loadedPdfDocument;
-        const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+        // Render previews at a minimum 2x backing resolution so PDF text stays crisp
+        // on standard-DPI desktop displays as well as high-DPI mobile screens.
+        // Cap at 3x to avoid excessive canvas memory use on very high-DPI devices.
+        const outputScale = Math.min(Math.max(window.devicePixelRatio || 1, 2), 3);
 
         for (let pageNumber = 1; pageNumber <= loadedPdfDocument.numPages; pageNumber += 1) {
           if (cancelled) return;
