@@ -209,7 +209,7 @@ function Dashboard() {
               <CardTitle className="flex items-center gap-2 text-base">
                 <ClipboardList className="h-4 w-4 text-accent" /> آخر الطلبات
               </CardTitle>
-              <Link to="/orders" search={{}} className="flex items-center gap-1 text-xs font-bold text-primary">
+              <Link to="/orders" search={{ status: undefined }} className="flex items-center gap-1 text-xs font-bold text-primary">
                 الكل <ArrowUpLeft className="h-3.5 w-3.5" />
               </Link>
             </CardHeader>
