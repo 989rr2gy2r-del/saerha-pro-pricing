@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import * as XLSX from "xlsx";
-import { Check, Database as DatabaseIcon, FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { Check, Database as DatabaseIcon, Eye, FileSpreadsheet, FileText, Image as ImageIcon, PenLine, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -104,6 +104,8 @@ type ReviewItem = {
   sourceLineTotal?: number | null;
   matchCandidates?: Array<{ id: string; sku: string; name_ar: string; score: number; reason: string }>;
 };
+
+type PurchaseCostPreviewPrice = { unit: string; amount: number };
 
 type OrderAnalysisResult = {
   items: ReviewItem[];
@@ -562,6 +564,11 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [editingQuoteReference, setEditingQuoteReference] = useState<string | null>(null);
   const [editingQuoteLoading, setEditingQuoteLoading] = useState(false);
+  const [costPreviewOpen, setCostPreviewOpen] = useState(false);
+  const [costPreviewLoading, setCostPreviewLoading] = useState(false);
+  const [costPreviewItem, setCostPreviewItem] = useState<ReviewItem | null>(null);
+  const [costPreviewPrices, setCostPreviewPrices] = useState<PurchaseCostPreviewPrice[]>([]);
+  const [costPreviewError, setCostPreviewError] = useState("");
 
   const productOptions = useMemo(
     () =>
@@ -914,6 +921,70 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     const quoteId = new URLSearchParams(window.location.search).get("editQuote");
     if (quoteId) void loadQuoteForEditing(quoteId);
   }, []);
+
+  const handleOpenCostPreview = async (item: ReviewItem) => {
+    if (!item.product) return;
+
+    setCostPreviewItem(item);
+    setCostPreviewPrices([]);
+    setCostPreviewError("");
+    setCostPreviewOpen(true);
+    setCostPreviewLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("prices")
+        .select("price_type, amount, customer_id, valid_from, valid_to, is_active, source_field, source_price_type")
+        .eq("product_id", item.product.id)
+        .is("customer_id", null)
+        .in("price_type", ["reseller", "unit_price"])
+        .eq("is_active", true);
+      if (error) throw error;
+
+      const now = Date.now();
+      const validRows = (data ?? [])
+        .filter((row) => {
+          const validFrom = new Date(row.valid_from).getTime();
+          const validTo = row.valid_to ? new Date(row.valid_to).getTime() : null;
+          const amount = Number(row.amount);
+          return (
+            row.is_active === true &&
+            Number.isFinite(validFrom) &&
+            validFrom <= now &&
+            (!validTo || (Number.isFinite(validTo) && validTo > now)) &&
+            Number.isFinite(amount) &&
+            amount >= 0
+          );
+        })
+        .sort((a, b) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime());
+
+      const primaryCost = validRows.find((row) => row.price_type === "reseller");
+      const baseUnit = item.product.unit?.trim() || "الوحدة الأساسية";
+      const secondaryCosts = new Map<string, number>();
+      for (const row of validRows) {
+        if (row.price_type !== "unit_price" || row.source_price_type !== "reseller") continue;
+        const unit = String(row.source_field ?? "").trim();
+        if (!unit || unit.toLowerCase() === baseUnit.toLowerCase() || secondaryCosts.has(unit)) continue;
+        secondaryCosts.set(unit, Number(row.amount));
+      }
+
+      const prices: PurchaseCostPreviewPrice[] = [];
+      if (primaryCost) {
+        prices.push({
+          unit: baseUnit,
+          amount: Number(primaryCost.amount),
+        });
+      }
+      for (const [unit, amount] of secondaryCosts) {
+        prices.push({ unit, amount });
+      }
+      setCostPreviewPrices(prices);
+    } catch (error) {
+      setCostPreviewError(error instanceof Error ? error.message : "تعذر قراءة تكلفة الشراء من قاعدة البيانات.");
+    } finally {
+      setCostPreviewLoading(false);
+    }
+  };
 
   const patchReviewItem = (index: number, updater: (item: ReviewItem) => ReviewItem) => {
     setAnalysisResult((prev) => {
@@ -3174,6 +3245,21 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                           )}
                                         </div>                                      </button>
 
+                                      {item.product && (
+                                        <div className="mt-2 flex justify-start">
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-8 gap-1.5 text-xs"
+                                            onClick={() => void handleOpenCostPreview(item)}
+                                          >
+                                            <Eye className="h-3.5 w-3.5" />
+                                            معاينة سعر الشراء
+                                          </Button>
+                                        </div>
+                                      )}
+
                                       {!item.product && item.matchCandidates && item.matchCandidates.length > 0 && (
                                         <div className="absolute right-0 top-[calc(100%+6px)] z-[110] w-full min-w-[300px] max-w-[420px] rounded-xl border bg-background p-2 shadow-xl">
                                           <div className="mb-2 flex items-center justify-between gap-2 px-1">
@@ -3652,6 +3738,21 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                     )}
                                   </button>
 
+                                  {item.product && (
+                                    <div className="mt-2 flex justify-start">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-8 gap-1.5 text-xs"
+                                        onClick={() => void handleOpenCostPreview(item)}
+                                      >
+                                        <Eye className="h-3.5 w-3.5" />
+                                        معاينة سعر الشراء
+                                      </Button>
+                                    </div>
+                                  )}
+
                                   {openProductPickerId === item.id && (
                                     <div className="absolute right-0 top-[calc(100%+8px)] z-[100] w-full max-w-[560px] rounded-xl border bg-background p-2 shadow-2xl">
                                       <div className="flex items-center gap-2">
@@ -3984,6 +4085,57 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             </CardContent>
           </Card>
         )}
+
+        <Dialog
+          open={costPreviewOpen}
+          onOpenChange={(open) => {
+            setCostPreviewOpen(open);
+            if (!open) {
+              setCostPreviewItem(null);
+              setCostPreviewPrices([]);
+              setCostPreviewError("");
+            }
+          }}
+        >
+          <DialogContent dir="rtl" className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>معاينة سعر الشراء</DialogTitle>
+              <DialogDescription>
+                {costPreviewItem?.product?.name_ar ?? "الصنف"}
+                {costPreviewItem?.product?.sku ? " — " + costPreviewItem.product.sku : ""}
+                {" · الأسعار من سجلات الشراء الفعالة في قاعدة البيانات."}
+              </DialogDescription>
+            </DialogHeader>
+
+            {costPreviewLoading ? (
+              <p className="py-5 text-center text-sm text-muted-foreground">جارٍ قراءة أسعار الشراء...</p>
+            ) : costPreviewError ? (
+              <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{costPreviewError}</p>
+            ) : costPreviewPrices.length > 0 ? (
+              <div className="space-y-2">
+                {costPreviewPrices.map((price) => (
+                  <div key={price.unit} className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-4 py-3">
+                    <span className="font-semibold">شراء / {price.unit}</span>
+                    <span className="font-extrabold tabular-nums">{price.amount.toFixed(3)} د.ك</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+                لا يوجد سعر شراء فعال مسجل لهذا الصنف في قاعدة البيانات.
+              </p>
+            )}
+
+            <p className="text-[11px] text-muted-foreground">
+              هذه معاينة داخلية فقط؛ لا تدخل تكلفة الشراء في حساب سعر البيع أو الخصومات أو إجمالي العرض.
+            </p>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCostPreviewOpen(false)}>
+                إغلاق
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={customerDialogOpen} onOpenChange={setCustomerDialogOpen}>
           <DialogContent dir="rtl" className="sm:max-w-md">
