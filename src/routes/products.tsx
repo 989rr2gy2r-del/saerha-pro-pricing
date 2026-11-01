@@ -145,14 +145,13 @@ function Products() {
       const secondaryUnit = conversion
         ? (conversion.from_unit === selected.unit ? conversion.to_unit : conversion.from_unit)
         : "";
-      const cartonRow = rows.find((row) => row.source_field === "carton_count");
       setDetailPricing({
         resellerPrice: firstAmount((row) => row.price_type === "reseller"),
         retailPrice: firstAmount((row) => row.price_type === "retail"),
         secondaryUnit,
         secondaryRetailPrice: secondaryUnit ? firstAmount((row) => row.price_type === "unit_price" && row.source_price_type === "retail" && row.source_field === secondaryUnit) : "",
         secondaryResellerPrice: secondaryUnit ? firstAmount((row) => row.price_type === "unit_price" && row.source_price_type === "reseller" && row.source_field === secondaryUnit) : "",
-        cartonCount: cartonRow?.amount == null ? "" : String(cartonRow.amount),
+        cartonCount: "",
       });
       setDetailPricingLoading(false);
     };
