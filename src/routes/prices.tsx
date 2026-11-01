@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { deletePrice, upsertPrice } from "@/lib/db/saerha-data";
+import { deletePrice, updateProduct, upsertPrice } from "@/lib/db/saerha-data";
 import { supabase } from "@/integrations/supabase/client";
 import { PRICE_TYPES } from "@/lib/mock-data";
 
@@ -228,6 +228,33 @@ function Prices() {
     }
   };
 
+  const handleUpdateProductName = async (product: ProductRow) => {
+    const nameAr = window.prompt("أدخل الاسم العربي للصنف:", product.name_ar);
+    if (nameAr === null) return;
+    if (!nameAr.trim()) {
+      setError("الاسم العربي لا يمكن أن يكون فارغًا.");
+      return;
+    }
+
+    const nameEn = window.prompt("أدخل الاسم الإنجليزي للصنف (اتركه فارغًا إذا لم يكن مطلوبًا):", product.name_en ?? "");
+    if (nameEn === null) return;
+
+    try {
+      setSavingKey(`${product.id}-name`);
+      setError(null);
+      await updateProduct(product.id, {
+        nameAr: nameAr.trim(),
+        nameEn: nameEn.trim(),
+      });
+      await loadData();
+    } catch (updateError) {
+      const message = updateError instanceof Error ? updateError.message : "تعذر تحديث اسم الصنف";
+      setError(message);
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
   const handleDeletePrice = async (row: PriceRecord) => {
     const product = products.find((item) => item.id === row.product_id);
     const customerName = row.customers?.name ? ` للعميل "${row.customers.name}"` : "";
@@ -348,11 +375,25 @@ function Prices() {
                       <TableRow key={product.id}>
                         <TableCell className="num font-bold">{product.sku}</TableCell>
                         <TableCell className="min-w-40">
-                          <div className="space-y-0.5">
-                            <p className="font-bold">{product.name_ar}</p>
-                            {product.name_en ? (
-                              <p className="text-xs text-muted-foreground">{product.name_en}</p>
-                            ) : null}
+                          <div className="flex items-start gap-2">
+                            <div className="min-w-0 space-y-0.5">
+                              <p className="font-bold">{product.name_ar}</p>
+                              {product.name_en ? (
+                                <p className="text-xs text-muted-foreground">{product.name_en}</p>
+                              ) : null}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 shrink-0"
+                              onClick={() => void handleUpdateProductName(product)}
+                              disabled={savingKey === `${product.id}-name`}
+                              title="تعديل الاسم العربي والإنجليزي"
+                              aria-label={`تعديل اسم الصنف ${product.name_ar}`}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         </TableCell>
                         <TableCell>{product.unit ?? "—"}</TableCell>
