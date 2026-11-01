@@ -937,7 +937,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         .select("price_type, amount, customer_id, valid_from, valid_to, is_active, source_field, source_price_type")
         .eq("product_id", item.product.id)
         .is("customer_id", null)
-        .in("price_type", ["reseller", "unit_price"]);
+        .in("price_type", ["reseller", "unit_price"])
+        .eq("is_active", true);
       if (error) throw error;
 
       const now = Date.now();
@@ -947,7 +948,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           const validTo = row.valid_to ? new Date(row.valid_to).getTime() : null;
           const amount = Number(row.amount);
           return (
-            row.is_active !== false &&
+            row.is_active === true &&
             Number.isFinite(validFrom) &&
             validFrom <= now &&
             (!validTo || (Number.isFinite(validTo) && validTo > now)) &&
@@ -958,25 +959,24 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         .sort((a, b) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime());
 
       const primaryCost = validRows.find((row) => row.price_type === "reseller");
-      const secondaryCost = validRows.find(
-        (row) =>
-          row.price_type === "unit_price" &&
-          row.source_price_type === "reseller" &&
-          String(row.source_field ?? "").trim().length > 0,
-      );
+      const baseUnit = item.product.unit?.trim() || "الوحدة الأساسية";
+      const secondaryCosts = new Map<string, number>();
+      for (const row of validRows) {
+        if (row.price_type !== "unit_price" || row.source_price_type !== "reseller") continue;
+        const unit = String(row.source_field ?? "").trim();
+        if (!unit || unit.toLowerCase() === baseUnit.toLowerCase() || secondaryCosts.has(unit)) continue;
+        secondaryCosts.set(unit, Number(row.amount));
+      }
 
       const prices: PurchaseCostPreviewPrice[] = [];
       if (primaryCost) {
         prices.push({
-          unit: item.product.unit?.trim() || "الوحدة الأساسية",
+          unit: baseUnit,
           amount: Number(primaryCost.amount),
         });
       }
-      if (secondaryCost) {
-        prices.push({
-          unit: String(secondaryCost.source_field).trim(),
-          amount: Number(secondaryCost.amount),
-        });
+      for (const [unit, amount] of secondaryCosts) {
+        prices.push({ unit, amount });
       }
       setCostPreviewPrices(prices);
     } catch (error) {
@@ -2697,7 +2697,6 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
       }
 
       const orderTotals = calculateOrderTotals(quoteLines);
-
       if (editingQuoteId) {
         const { data: existingQuote, error: existingQuoteError } = await (supabase as any)
           .from("quotations")
