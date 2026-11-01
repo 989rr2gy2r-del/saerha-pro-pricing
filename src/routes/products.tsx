@@ -631,7 +631,7 @@ function ProductForm({
           retailPrice: optionalNumber(read("retailPrice")),
           resellerPrice: optionalNumber(read("resellerPrice")),
           secondaryUnit: optionalText(read("secondaryUnit")),
-          unitsPerPrimary: optionalNumber(read("unitsPerPrimary")),
+          unitsPerPrimary: optionalNumber(read("unitsPerPrimary") || (read("secondaryUnit") ? read("cartonCount") : "")),
           secondaryRetailPrice: optionalNumber(read("secondaryRetailPrice")),
           secondaryResellerPrice: optionalNumber(read("secondaryResellerPrice")),
           cartonCount: optionalNumber(read("cartonCount")),
