@@ -2714,6 +2714,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         setAnalysisError("");
         const referenceLabel = editingQuoteReference ? '"' + editingQuoteReference + '" ' : "";
         alert("تم حفظ تعديلات عرض السعر " + referenceLabel + "بنجاح.");
+        window.location.assign(String(import.meta.env.BASE_URL) + "quotes");
         return;
       }
 
