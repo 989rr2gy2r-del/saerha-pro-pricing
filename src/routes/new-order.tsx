@@ -545,6 +545,7 @@ function NewOrder() {
   const [lastAnalyzedKey, setLastAnalyzedKey] = useState<string>("");
   const [productSearches, setProductSearches] = useState<Record<string, string>>({});
   const [openProductPickerId, setOpenProductPickerId] = useState<string | null>(null);
+  const productPickerRef = useRef<HTMLDivElement | null>(null);
   const keyboardFieldRefs = useRef<Record<string, HTMLElement | null>>({});
 const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   const [skuErrors, setSkuErrors] = useState<Record<string, string>>({});
@@ -954,6 +955,20 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   const handleCloseProductPicker = () => {
     setOpenProductPickerId(null);
   };
+
+  useEffect(() => {
+    if (!openProductPickerId) return;
+
+    const handlePointerDownOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && !productPickerRef.current?.contains(target)) {
+        setOpenProductPickerId(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDownOutside);
+    return () => document.removeEventListener("pointerdown", handlePointerDownOutside);
+  }, [openProductPickerId]);
 
 
   const recordCorrection = async (
@@ -3089,7 +3104,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <div className="relative min-w-[300px]">
+                                    <div ref={openProductPickerId === item.id ? productPickerRef : undefined} className="relative min-w-[300px]">
                                       <button
                                         ref={(node) => {
                                           keyboardFieldRefs.current[`${item.id}:product`] = node;
