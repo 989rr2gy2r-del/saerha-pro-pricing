@@ -2697,6 +2697,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
       }
 
       const orderTotals = calculateOrderTotals(quoteLines);
+
       if (editingQuoteId) {
         const { data: existingQuote, error: existingQuoteError } = await (supabase as any)
           .from("quotations")
