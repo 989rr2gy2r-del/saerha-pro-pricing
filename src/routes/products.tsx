@@ -67,21 +67,44 @@ export const Route = createFileRoute("/products")({
   ),
 });
 
-const FIELDS: { key: keyof Product; label: string }[] = [
-  { key: "sku", label: "SKU / كود الصنف" },
-  { key: "nameAr", label: "الاسم العربي" },
-  { key: "nameEn", label: "الاسم الإنجليزي" },
-  { key: "shortName", label: "الاسم المختصر" },
-  { key: "brand", label: "الماركة" },
-  { key: "category1", label: "التصنيف الرئيسي" },
-  { key: "category2", label: "التصنيف الفرعي" },
-  { key: "category3", label: "التصنيف الثالث" },
-  { key: "group", label: "المجموعة" },
-  { key: "model", label: "الموديل" },
-  { key: "size", label: "المقاس" },
-  { key: "color", label: "اللون" },
-  { key: "unit", label: "الوحدة" },
+const DETAIL_FIELDS: { label: string; value: (product: Product, pricing: ProductDetailPricing) => string }[] = [
+  { label: "كود الصنف (SKU)", value: (p) => p.sku },
+  { label: "الاسم العربي", value: (p) => p.nameAr },
+  { label: "الاسم الإنجليزي", value: (p) => p.nameEn },
+  { label: "الاسم المختصر", value: (p) => p.shortName },
+  { label: "العدد", value: () => "—" },
+  { label: "الوحدة/ص", value: (p) => p.unit },
+  { label: "شراء/ص", value: (_p, v) => v.resellerPrice },
+  { label: "بيع/ص", value: (_p, v) => v.retailPrice },
+  { label: "الوحدة/ك", value: (_p, v) => v.secondaryUnit },
+  { label: "شراء/ك", value: (_p, v) => v.secondaryResellerPrice },
+  { label: "بيع/ك", value: (_p, v) => v.secondaryRetailPrice },
+  { label: "عدد قطع الكبرى", value: (_p, v) => v.cartonCount },
+  { label: "التصنيف الرئيسي", value: (p) => p.category1 },
+  { label: "التصنيف الفرعي", value: (p) => p.category2 },
+  { label: "التصنيف الثالث", value: (p) => p.category3 },
+  { label: "المجموعة", value: (p) => p.group },
+  { label: "الموديل", value: (p) => p.model },
+  { label: "المقاس", value: (p) => p.size },
+  { label: "الماركة", value: (p) => p.brand },
+  { label: "اللون", value: (p) => p.color },
+  { label: "الحالة", value: (p) => p.status === "active" ? "مفعّل" : "غير مفعّل" },
+  { label: "صورة المنتج", value: (p) => p.image ? "متوفرة" : "غير مرفقة" },
+  { label: "الوصف", value: (p) => p.description },
 ];
+
+type ProductDetailPricing = {
+  resellerPrice: string;
+  retailPrice: string;
+  secondaryUnit: string;
+  secondaryResellerPrice: string;
+  secondaryRetailPrice: string;
+  cartonCount: string;
+};
+const EMPTY_DETAIL_PRICING: ProductDetailPricing = {
+  resellerPrice: "", retailPrice: "", secondaryUnit: "",
+  secondaryResellerPrice: "", secondaryRetailPrice: "", cartonCount: "",
+};
 
 function Products() {
   const [items, setItems] = useState<Product[]>([]);
@@ -89,8 +112,52 @@ function Products() {
   const [cat, setCat] = useState("all");
   const [sort, setSort] = useState("sku");
   const [selected, setSelected] = useState<Product | null>(null);
+  const [detailPricing, setDetailPricing] = useState<ProductDetailPricing>(EMPTY_DETAIL_PRICING);
+  const [detailPricingLoading, setDetailPricingLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selected) {
+      setDetailPricing(EMPTY_DETAIL_PRICING);
+      return;
+    }
+    const loadDetailPricing = async () => {
+      setDetailPricingLoading(true);
+      const [{ data: priceRows, error: priceError }, { data: conversions, error: conversionError }] = await Promise.all([
+        supabase.from("prices")
+          .select("price_type, amount, customer_id, is_active, valid_from, source_price_type, source_field")
+          .eq("product_id", selected.id).eq("is_active", true).is("customer_id", null)
+          .order("valid_from", { ascending: false }),
+        (supabase as any).from("unit_conversions")
+          .select("from_unit, to_unit, multiplier").eq("product_id", selected.id),
+      ]);
+      if (cancelled) return;
+      const rows = priceError ? [] : (priceRows ?? []);
+      const firstAmount = (predicate: (row: (typeof rows)[number]) => boolean) => {
+        const row = rows.find(predicate);
+        return row?.amount == null ? "" : String(row.amount);
+      };
+      const conversion = !conversionError
+        ? (conversions ?? []).find((item) => item.from_unit === selected.unit || item.to_unit === selected.unit)
+        : undefined;
+      const secondaryUnit = conversion
+        ? (conversion.from_unit === selected.unit ? conversion.to_unit : conversion.from_unit)
+        : "";
+      setDetailPricing({
+        resellerPrice: firstAmount((row) => row.price_type === "reseller"),
+        retailPrice: firstAmount((row) => row.price_type === "retail"),
+        secondaryUnit,
+        secondaryRetailPrice: secondaryUnit ? firstAmount((row) => row.price_type === "unit_price" && row.source_price_type === "retail" && row.source_field === secondaryUnit) : "",
+        secondaryResellerPrice: secondaryUnit ? firstAmount((row) => row.price_type === "unit_price" && row.source_price_type === "reseller" && row.source_field === secondaryUnit) : "",
+        cartonCount: "",
+      });
+      setDetailPricingLoading(false);
+    };
+    void loadDetailPricing();
+    return () => { cancelled = true; };
+  }, [selected]);
 
   const refresh = async () => {
     try {
@@ -307,19 +374,25 @@ function Products() {
           {selected && (
             <div className="space-y-3">
               <dl className="grid grid-cols-2 gap-3">
-                {FIELDS.map((f) => (
-                  <div key={f.key} className="rounded-lg bg-muted/50 p-2.5">
-                    <dt className="text-[11px] text-muted-foreground">{f.label}</dt>
-                    <dd className="mt-0.5 truncate text-sm font-semibold">
-                      {String(selected[f.key])}
-                    </dd>
-                  </div>
-                ))}
+                {DETAIL_FIELDS.map((field) => {
+                  const value = field.value(selected, detailPricing).trim();
+                  return (
+                    <div key={field.label} className="rounded-lg bg-muted/50 p-2.5">
+                      <dt className="text-[11px] text-muted-foreground">{field.label}</dt>
+                      <dd className="mt-0.5 break-words text-sm font-semibold">
+                        {value || "—"}
+                      </dd>
+                    </div>
+                  );
+                })}
               </dl>
-              <div className="rounded-lg bg-muted/50 p-2.5">
-                <p className="text-[11px] text-muted-foreground">الوصف</p>
-                <p className="mt-0.5 text-sm">{selected.description}</p>
-              </div>
+              {detailPricingLoading && <p className="text-xs text-muted-foreground">جارٍ تحميل الأسعار والوحدات...</p>}
+              {selected.image && (
+                <div className="rounded-lg bg-muted/50 p-2.5">
+                  <p className="mb-2 text-[11px] text-muted-foreground">معاينة صورة المنتج</p>
+                  <img src={selected.image} alt={selected.nameAr} className="max-h-36 rounded-md object-contain" />
+                </div>
+              )}
               <ProductForm
                 items={items}
                 selected={selected}
