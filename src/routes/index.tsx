@@ -121,17 +121,19 @@ function Dashboard() {
     const quoted = quotes.length;
 
     return [
-      { id: "orders", labelAr: "إجمالي الطلبات", value: totalOrders, hintAr: "الطلبات المسجلة" },
-      { id: "new", labelAr: "جديدة", value: newOrders, hintAr: "تحتاج معالجة" },
+      { id: "orders", labelAr: "إجمالي الطلبات", value: totalOrders, hintAr: "الطلبات المسجلة", to: "/orders" },
+      { id: "new", labelAr: "جديدة", value: newOrders, hintAr: "تحتاج معالجة", to: "/orders", search: { status: "new" } },
       {
         id: "review",
         labelAr: "قيد المراجعة",
         value: inReviewOrders,
         hintAr: "في انتظار المراجعة",
+        to: "/orders",
+        search: { status: "in_review" },
       },
-      { id: "quotes", labelAr: "عروض الأسعار", value: quoted, hintAr: "العروض الحالية" },
-      { id: "customers", labelAr: "العملاء", value: customerCount, hintAr: "العملاء المسجلين" },
-      { id: "products", labelAr: "المنتجات", value: productCount, hintAr: "المنتجات المتاحة" },
+      { id: "quotes", labelAr: "عروض الأسعار", value: quoted, hintAr: "العروض الحالية", to: "/quotes" },
+      { id: "customers", labelAr: "العملاء", value: customerCount, hintAr: "العملاء المسجلين", to: "/customers" },
+      { id: "products", labelAr: "المنتجات", value: productCount, hintAr: "المنتجات المتاحة", to: "/products" },
     ];
   }, [orders, quotes, productCount, customerCount]);
 
@@ -183,13 +185,21 @@ function Dashboard() {
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           {metrics.map((s) => (
-            <Card key={s.id} className="shadow-card">
-              <CardContent className="p-4">
-                <p className="text-xs font-semibold text-muted-foreground">{s.labelAr}</p>
-                <p className="num mt-1 text-3xl font-extrabold text-primary">{s.value}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">{s.hintAr}</p>
-              </CardContent>
-            </Card>
+            <Link
+              key={s.id}
+              to={s.to as any}
+              search={(s.search ?? {}) as any}
+              aria-label={`فتح ${s.labelAr}`}
+              className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            >
+              <Card className="h-full shadow-card transition-all hover:-translate-y-0.5 hover:border-accent/50 hover:shadow-raised active:scale-[0.99]">
+                <CardContent className="p-4">
+                  <p className="text-xs font-semibold text-muted-foreground">{s.labelAr}</p>
+                  <p className="num mt-1 text-3xl font-extrabold text-primary">{s.value}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{s.hintAr}</p>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
 
@@ -199,7 +209,7 @@ function Dashboard() {
               <CardTitle className="flex items-center gap-2 text-base">
                 <ClipboardList className="h-4 w-4 text-accent" /> آخر الطلبات
               </CardTitle>
-              <Link to="/orders" className="flex items-center gap-1 text-xs font-bold text-primary">
+              <Link to="/orders" search={{ status: undefined }} className="flex items-center gap-1 text-xs font-bold text-primary">
                 الكل <ArrowUpLeft className="h-3.5 w-3.5" />
               </Link>
             </CardHeader>

@@ -78,6 +78,9 @@ const formatDisplayDate = (value?: string | null) => {
 };
 
 export const Route = createFileRoute("/orders")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    status: typeof search.status === "string" ? search.status : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "الطلبات — سعّرها" },
@@ -98,7 +101,8 @@ function Orders() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const { status: initialStatus } = Route.useSearch();
+  const [statusFilter, setStatusFilter] = useState(initialStatus ?? "all");
   const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
 
   const loadOrders = async () => {
