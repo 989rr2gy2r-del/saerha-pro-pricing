@@ -84,6 +84,8 @@ assert.ok(firstProductWrite > validationStart, "Secondary-unit validation must p
 assert.match(migration, /secondaryUnit and unitsPerPrimary must both be supplied or both be blank/);
 assert.match(migration, /Secondary-unit prices require secondaryUnit/);
 assert.match(migration, /unitsPerPrimary must be greater than zero/);
+assert.match(data, /normalizePrice\(row\.unitsPerPrimary\) \?\?\s*\(secondaryUnit \? normalizePrice\(row\.cartonCount\) : null\)/);
+assert.match(data, /unitsPerPrimary:[\s\S]*normalizePrice\(row\.cartonCount\)/);
 assert.match(data, /\(secondaryUnit && \(conversion === null \|\| conversion <= 0\)\)/);
 assert.match(data, /!secondaryUnit && conversion !== null && conversion !== 0/);
 assert.match(migration, /Blank cells mean "not provided"/);

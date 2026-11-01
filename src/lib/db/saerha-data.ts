@@ -417,7 +417,12 @@ export async function importProductsAndPrices(
       return parsed === null || parsed < 0;
     });
     const secondaryUnit = normalize(row.secondaryUnit);
-    const conversion = normalizePrice(row.unitsPerPrimary);
+    // Some approved import sheets store the secondary-unit conversion in cartonCount
+    // (the "عدد قطع الكبرى" column). Prefer an explicit conversion, then use that
+    // source value only when a secondary unit is present.
+    const conversion =
+      normalizePrice(row.unitsPerPrimary) ??
+      (secondaryUnit ? normalizePrice(row.cartonCount) : null);
     const invalidConversion =
       (secondaryUnit && (conversion === null || conversion <= 0)) ||
       (!secondaryUnit && conversion !== null && conversion !== 0);
@@ -463,7 +468,9 @@ export async function importProductsAndPrices(
       retailPrice: normalizePrice(row.retailPrice),
       resellerPrice: normalizePrice(row.resellerPrice),
       secondaryUnit: normalize(row.secondaryUnit),
-      unitsPerPrimary: normalizePrice(row.unitsPerPrimary),
+      unitsPerPrimary:
+        normalizePrice(row.unitsPerPrimary) ??
+        (normalize(row.secondaryUnit) ? normalizePrice(row.cartonCount) : null),
       cartonCount: normalizePrice(row.cartonCount),
       secondaryRetailPrice: normalizePrice(row.secondaryRetailPrice),
       secondaryResellerPrice: normalizePrice(row.secondaryResellerPrice),
