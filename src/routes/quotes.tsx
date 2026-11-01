@@ -1200,7 +1200,11 @@ function Quotes() {
       title="عروض الأسعار"
       subtitle="عروض أسعار حقيقية من Supabase"
       action={
-        <Button className="h-12 shrink-0 gap-2 font-extrabold">
+        <Button
+          type="button"
+          className="h-12 shrink-0 gap-2 font-extrabold"
+          onClick={() => window.location.assign(`${import.meta.env.BASE_URL}new-order`)}
+        >
           <Plus className="h-4 w-4" /> عرض سعر جديد
         </Button>
       }
