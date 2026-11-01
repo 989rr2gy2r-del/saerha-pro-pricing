@@ -766,7 +766,7 @@ function ProductForm({
   const categoryOptions = [...new Set(items.map((p) => p.category1))].filter(Boolean);
   const brandOptions = [...new Set(items.map((p) => p.brand))].filter(Boolean);
   const fieldClass = "h-12 rounded-xl border-slate-300 bg-white text-base";
-  const textField = (key: "sku" | "nameAr" | "nameEn" | "retailPrice" | "resellerPrice" | "secondaryUnit" | "unitsPerPrimary" | "secondaryRetailPrice" | "secondaryResellerPrice" | "category1" | "brand" | "cartonCount" | "quantity", label: string, numeric = false) => (
+  const textField = (key: "sku" | "nameAr" | "nameEn" | "shortName" | "category2" | "category3" | "group" | "model" | "size" | "color" | "retailPrice" | "resellerPrice" | "secondaryUnit" | "unitsPerPrimary" | "secondaryRetailPrice" | "secondaryResellerPrice" | "category1" | "brand" | "cartonCount" | "quantity", label: string, numeric = false) => (
     <div className="space-y-1.5" key={key}>
       <Label className="text-sm font-semibold">{label}</Label>
       <Input className={fieldClass} inputMode={numeric ? "decimal" : "text"} value={form[key]} onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))} placeholder={label} required={key === "sku" || key === "nameAr"} />
@@ -825,6 +825,7 @@ function ProductForm({
           {textField("sku", "كود الصنف (SKU)")}
           {textField("nameAr", "الاسم العربي")}
           {textField("nameEn", "الاسم الإنجليزي")}
+          {textField("shortName", "الاسم المختصر")}
           {textField("quantity", "العدد", true)}
           {selectField("unit", "الوحدة/ص", unitOptions)}
           {textField("resellerPrice", "شراء/ص", true)}
@@ -833,8 +834,23 @@ function ProductForm({
           {textField("secondaryResellerPrice", "شراء/ك", true)}
           {textField("secondaryRetailPrice", "بيع/ك", true)}
           {textField("cartonCount", "عدد قطع الكبرى", true)}
-          {selectField("category1", "التصنيف", categoryOptions)}
+          {selectField("category1", "التصنيف الرئيسي", categoryOptions)}
+          {textField("category2", "التصنيف الفرعي")}
+          {textField("category3", "التصنيف الثالث")}
+          {textField("group", "المجموعة")}
+          {textField("model", "الموديل")}
+          {textField("size", "المقاس")}
+          {textField("color", "اللون")}
           {selectField("brand", "الماركة", brandOptions)}
+          <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+            <Label className="text-sm font-semibold">الوصف</Label>
+            <Textarea
+              className="min-h-20 rounded-xl border-slate-300 bg-white text-base"
+              value={form.description}
+              onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+              placeholder="الوصف"
+            />
+          </div>
           <div className="space-y-1.5">
             <Label className="text-sm font-semibold">صورة المنتج</Label>
             <Input
