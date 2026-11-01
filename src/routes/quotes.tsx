@@ -91,86 +91,14 @@ const getCustomerName = (customers?: QuoteCustomerValue) =>
   getCustomerList(customers)[0]?.name?.trim() || "عميل";
 
 function PdfCanvasPreview({ pdfUrl }: { pdfUrl: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    let pdfDocument: { numPages: number; getPage: (pageNumber: number) => Promise<any>; destroy: () => Promise<void> } | null = null;
-
-    const render = async () => {
-      const container = containerRef.current;
-      if (!container) return;
-
-      setError(false);
-      container.replaceChildren();
-
-      try {
-        const pdfjsLib = await import(/* @vite-ignore */ PDFJS_URL);
-        pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
-        const loadedPdfDocument = await pdfjsLib.getDocument({ url: pdfUrl }).promise;
-        pdfDocument = loadedPdfDocument;
-        // Render previews at a minimum 2x backing resolution so PDF text stays crisp
-        // on standard-DPI desktop displays as well as high-DPI mobile screens.
-        // Cap at 3x to avoid excessive canvas memory use on very high-DPI devices.
-        const outputScale = Math.min(Math.max(window.devicePixelRatio || 1, 2), 3);
-
-        for (let pageNumber = 1; pageNumber <= loadedPdfDocument.numPages; pageNumber += 1) {
-          if (cancelled) return;
-
-          const page = await loadedPdfDocument.getPage(pageNumber);
-          const baseViewport = page.getViewport({ scale: 1 });
-          const availableWidth = Math.max(container.clientWidth - 2, 1);
-          const scale = availableWidth / baseViewport.width;
-          const viewport = page.getViewport({ scale });
-
-          const canvas = document.createElement("canvas");
-          const context = canvas.getContext("2d", { alpha: false });
-          if (!context) throw new Error("تعذر تجهيز معاينة الفاتورة");
-
-          canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
-          canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
-          canvas.style.display = "block";
-          canvas.style.width = "100%";
-          canvas.style.height = "auto";
-          canvas.style.background = "#ffffff";
-          canvas.setAttribute("aria-label", `صفحة ${pageNumber} من الفاتورة`);
-
-          container.appendChild(canvas);
-
-          await page.render({
-            canvasContext: context,
-            viewport,
-            transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined,
-          }).promise;
-        }
-      } catch (renderError) {
-        if (!cancelled) {
-          console.error("PDF canvas preview failed", renderError);
-          setError(true);
-        }
-      }
-    };
-
-    void render();
-
-    return () => {
-      cancelled = true;
-      void pdfDocument?.destroy();
-    };
-  }, [pdfUrl]);
-
-  if (error) {
-    return (
-      <div className="flex min-h-[70vh] items-center justify-center p-6 text-sm text-destructive">
-        تعذر عرض الفاتورة. استخدم زر PDF لتنزيلها.
-      </div>
-    );
-  }
-
-  return <div ref={containerRef} className="w-full overflow-hidden bg-white" />;
+  return (
+    <iframe
+      src={pdfUrl}
+      title="معاينة الفاتورة PDF"
+      className="h-[70vh] min-h-[70vh] w-full border-0 bg-white"
+    />
+  );
 }
-
 function Quotes() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [open, setOpen] = useState<Quote | null>(null);
