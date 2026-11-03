@@ -877,6 +877,109 @@ export function rankProductMatches<T>(
 }
 
 
+export type ProductMatchDiagnostics = {
+  normalizedVariants: string[];
+  identityTokens: string[];
+  candidatePoolCount: number;
+  unitCompatibleCount: number;
+  constraintPassedCount: number;
+  constraintRejectedCount: number;
+  constraintRejectedSamples: Array<{ sku: string; name_ar: string }>;
+  retrievalStatus: "EMPTY_QUERY" | "EMPTY_CATALOG" | "NO_SHARED_TOKENS" | "CANDIDATES_FOUND";
+};
+
+/**
+ * Read-only explanation of the local matcher retrieval stages.
+ * This function does not change ranking, thresholds, acceptance, or product data.
+ */
+export function diagnoseLocalProductMatch<T extends MatchableProductRecord>(
+  text: string,
+  products: T[],
+  normalizedArabic = "",
+  aliases:
+    | Array<{ product_id: string; alias: string; normalized_alias?: string | null }>
+    | Record<string, string[]> = [],
+): ProductMatchDiagnostics {
+  const queries = [...new Set(
+    [text, normalizedArabic]
+      .map(stripCommercialOrderTail)
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean),
+  )];
+  const empty = {
+    normalizedVariants: [],
+    identityTokens: [],
+    candidatePoolCount: 0,
+    unitCompatibleCount: 0,
+    constraintPassedCount: 0,
+    constraintRejectedCount: 0,
+    constraintRejectedSamples: [],
+  };
+  if (!queries.length) return { ...empty, retrievalStatus: "EMPTY_QUERY" };
+  if (!products.length) return { ...empty, retrievalStatus: "EMPTY_CATALOG" };
+
+  const aliasesByProduct = Array.isArray(aliases)
+    ? prepareAliases(aliases)
+    : prepareAliases(Object.entries(aliases).flatMap(([product_id, values]) =>
+        values.map((alias) => ({ product_id, alias })),
+      ));
+  const variants = queries.flatMap(buildMarketQueryVariants);
+  const preparedVariants = variants.map(prepareText);
+  const normalizedVariants = [...new Set(preparedVariants.map((variant) => variant.value))];
+  const identityTokens = [...new Set(preparedVariants.flatMap((variant) =>
+    variant.identity.length ? variant.identity : variant.tokens,
+  ))];
+  const tokenIndex = getProductTokenIndex(products, aliasesByProduct, (product) => String(product.id));
+  const candidateProductsById = new Map<string, T>();
+  for (const variant of preparedVariants) {
+    const tokens = variant.identity.length ? variant.identity : variant.tokens;
+    for (const token of tokens) {
+      for (const product of tokenIndex.byToken.get(token) ?? []) {
+        candidateProductsById.set(String(product.id), product);
+      }
+    }
+  }
+  const candidateProducts = [...candidateProductsById.values()];
+  if (!candidateProducts.length) {
+    return { ...empty, normalizedVariants, identityTokens, retrievalStatus: "NO_SHARED_TOKENS" };
+  }
+
+  const requestedUnit = normalizeCommercialMatchUnit(
+    text.match(/(?:حبة|قطعة|قطع|كرتون|كرتونه|رول|لفة|لفه|لف|باكيت|باك|متر|عبوة|طقم|كيس|صندوق|دزينة|درزن|زوج|pcs?|pieces?|piece|rolls?|coils?|packets?|packs?|cartons?|boxes?|meters?|meter)$/i)?.[0] ?? "",
+  );
+  const unitCompatibleCount = requestedUnit
+    ? candidateProducts.filter((product) => normalizeCommercialMatchUnit(product.unit ?? "") === requestedUnit).length
+    : candidateProducts.length;
+  const constraints = extractMatchConstraints(text);
+  let constraintPassedCount = 0;
+  let constraintRejectedCount = 0;
+  const constraintRejectedSamples: Array<{ sku: string; name_ar: string }> = [];
+  for (const product of candidateProducts) {
+    const prepared = prepareProduct(product, (item) => String(item.id));
+    const productAliases = (aliasesByProduct.get(prepared.id) ?? []).map(prepareText);
+    const searchableText = [...prepared.fields, ...productAliases].map((field) => field.value).join(" ");
+    if (candidateMatchesConstraints(searchableText, constraints, true)) {
+      constraintPassedCount += 1;
+    } else {
+      constraintRejectedCount += 1;
+      if (constraintRejectedSamples.length < 5) {
+        constraintRejectedSamples.push({ sku: String(product.sku ?? ""), name_ar: String(product.name_ar ?? "") });
+      }
+    }
+  }
+  return {
+    normalizedVariants,
+    identityTokens,
+    candidatePoolCount: candidateProducts.length,
+    unitCompatibleCount,
+    constraintPassedCount,
+    constraintRejectedCount,
+    constraintRejectedSamples,
+    retrievalStatus: "CANDIDATES_FOUND",
+  };
+}
+
+
 export type MatchableProductRecord = {
   id: string;
   sku: string;
