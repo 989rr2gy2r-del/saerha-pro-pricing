@@ -105,6 +105,12 @@ const resolverProducts = products.map((product) => ({
   id: product.sku,
 }));
 
+assert.equal(matcher.stripTrailingParsedQuantity("ساكت 1 انج 30", 30), "ساكت 1 انج", "remove a trailing parsed quantity from the product description");
+assert.equal(matcher.stripTrailingParsedQuantity("كوع 3/4 انج 30", 30), "كوع 3/4 انج", "preserve the inch fraction while removing quantity");
+assert.equal(matcher.stripTrailingParsedQuantity("كوع 30 ملم", 30), "كوع 30 ملم", "preserve an attached metric size");
+assert.equal(matcher.stripTrailingParsedQuantity("بايب 25 مم 30", 30), "بايب 25 مم", "remove quantity while preserving the metric dimension");
+assert.equal(matcher.stripTrailingParsedQuantity("ساكت 1 انج 25", 30), "ساكت 1 انج 25", "do not remove a trailing number that differs from parsed quantity");
+
 const elbowProducts = [
   { id: "02225", sku: "02225", name_ar: "كوع مفتوح 3/4 اخضر عدساني 25 ملم", name_en: "KWAA MFTWH 3/4 GREEN ADSANY 25 MM", unit: "حبه" },
   { id: "12225", sku: "12225", name_ar: "كوع مفتوح 3/4 حار عدساني", name_en: "KWAA MFTWH 3/4 HAR ADSANY", unit: "حبه" },
