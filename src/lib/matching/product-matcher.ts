@@ -238,7 +238,8 @@ export function normalizeProductText(value: string): string {
     .replace(/\b3\s*[/\-]\s*4\b/g, "3/4")
     .replace(/\b1\s*[/\-]\s*2\b/g, "1/2")
     .replace(/(\d+(?:\.\d+)?)\s*["”″]/g, "$1 انش")
-    .replace(/(\d+(?:\.\d+)?)\s*(?:مللى|مللي|ملي|مم|mm)\b/gi, "$1 مم")
+    .replace(/(\d+(?:\.\d+)?)\s*(?:مللى|مللي|ملي)(?![\\p{L}\\p{N}])/giu, "$1 مم")
+    .replace(/(\d+(?:\.\d+)?)\s*(?:مم|mm)\b/gi, "$1 مم")
     .replace(/(\d+(?:\.\d+)?)\s*(?:سم|cm)\b/gi, "$1 سم")
     .replace(/(\d+(?:\.\d+)?)\s*(?:انش|inch|in)\b/gi, "$1 انش")
     // Market phrasing such as "انش ونص" / "انش ونصف" means 1.5 inch.
