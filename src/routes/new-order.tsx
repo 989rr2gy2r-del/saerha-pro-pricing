@@ -2494,11 +2494,13 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         const confidence = selectedMatch
           ? Math.min(1, Math.max(0, selectedMatch.score))
           : 0;
-        const status: MatchStatus = selectedProduct && confidence >= 0.86
-          ? "HIGH_CONFIDENCE"
-          : selectedProduct
-            ? "NEEDS_REVIEW"
-            : "UNMATCHED";
+        // Preserve the matcher's own confidence classification. Linking a review
+        // candidate must never promote it to HIGH_CONFIDENCE based on score alone.
+        const status: MatchStatus = selectedProduct
+          ? selectedMatch?.status === "HIGH_CONFIDENCE"
+            ? "HIGH_CONFIDENCE"
+            : "NEEDS_REVIEW"
+          : "UNMATCHED";
 
         // Opt-in diagnostic logging for root-cause analysis. Enable with
         // localStorage.setItem("saerha_debug_matching", "1").
