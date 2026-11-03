@@ -30,7 +30,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { createCustomer, fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
-import { extractMatchConstraints, findLocalProductMatch, getMarketArabicTranslation, normalizeProductText, resolveProductByNormalizedNameCandidates, resolveProductBySkuCandidates } from "@/lib/matching/product-matcher";
+import { diagnoseLocalProductMatch, extractMatchConstraints, findLocalProductMatch, getMarketArabicTranslation, normalizeProductText, resolveProductByNormalizedNameCandidates, resolveProductBySkuCandidates } from "@/lib/matching/product-matcher";
 import { normalizeQuantity, parseLocalOcrText, parseTextOrderFallback, stopAtOrderFooter } from "@/lib/order/order-input";
 import { extractOrderLineSignals, parseOrderSourceLines, reconcileOrderLineEvidence } from "@/lib/order/order-line-parser";
 
@@ -114,6 +114,14 @@ type ReviewItem = {
     skuCandidates: string[];
     nameConflict: boolean;
     sourceIssues: string[];
+    normalizedVariants: string[];
+    identityTokens: string[];
+    candidatePoolCount: number;
+    unitCompatibleCount: number;
+    constraintPassedCount: number;
+    constraintRejectedCount: number;
+    constraintRejectedSamples: Array<{ sku: string; name_ar: string }>;
+    retrievalStatus: string;
   };
 };
 
@@ -2410,6 +2418,12 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             : null;
 
         const selectedMatch = match;
+        const matcherDiagnostics = diagnoseLocalProductMatch(
+          searchQuery,
+          matchingProducts,
+          marketTranslationAr,
+          matchingAliases,
+        );
         // For an ambiguous DB / distribution-board phrase, show real catalog
         // choices without auto-selecting one. OCR often renders "ديبي 6 واي"
         // as variants such as "وى 6خط"; this is suggestion-only and requires
@@ -2555,6 +2569,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             skuCandidates: skuResolution.candidates,
             nameConflict: nameResolution.conflict,
             sourceIssues: evidenceIssues,
+            ...matcherDiagnostics,
           },
           unit: displayUnit,
           matchReason,
@@ -3385,7 +3400,19 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                             <span>تعارض الاسم:</span>
                                             <b>{item.matchDiagnostics.nameConflict ? "نعم" : "لا"}</b>
                                           </div>
-                                          <p className="mt-2 break-words"><b>عبارة البحث:</b> {item.matchDiagnostics.searchQuery || "فارغة"}</p>
+                                          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-amber-200 pt-2 dark:border-amber-900">
+                                            <span>حالة الاسترجاع الأولي:</span><b>{item.matchDiagnostics.retrievalStatus}</b>
+                                            <span>المنتجات التي دخلت مجموعة البحث:</span><b dir="ltr">{item.matchDiagnostics.candidatePoolCount}</b>
+                                            <span>المتوافقة مع وحدة الطلب:</span><b dir="ltr">{item.matchDiagnostics.unitCompatibleCount}</b>
+                                            <span>اجتازت شروط المواصفات:</span><b dir="ltr">{item.matchDiagnostics.constraintPassedCount}</b>
+                                            <span>استُبعدت بشروط المواصفات:</span><b dir="ltr">{item.matchDiagnostics.constraintRejectedCount}</b>
+                                          </div>
+                                          {item.matchDiagnostics.normalizedVariants.length > 0 && <p className="mt-2 break-words"><b>عبارات البحث بعد التطبيع والتوسعة:</b> {item.matchDiagnostics.normalizedVariants.join(" / ")}</p>}
+                                          {item.matchDiagnostics.identityTokens.length > 0 && <p className="mt-1 break-words"><b>كلمات الاسترجاع:</b> {item.matchDiagnostics.identityTokens.join("، ")}</p>}
+                                          {item.matchDiagnostics.constraintRejectedSamples.length > 0 && (
+                                            <div className="mt-1"><b>أمثلة أصناف استُبعدت بسبب المواصفات:</b><ul className="list-disc pr-5">{item.matchDiagnostics.constraintRejectedSamples.map((sample) => <li key={sample.sku}>{sample.sku} — {sample.name_ar}</li>)}</ul></div>
+                                          )}
+                                                                                    <p className="mt-2 break-words"><b>عبارة البحث:</b> {item.matchDiagnostics.searchQuery || "فارغة"}</p>
                                           {item.matchDiagnostics.skuCandidates.length > 0 && (
                                             <p className="mt-1"><b>أكواد محتملة من المصدر:</b> {item.matchDiagnostics.skuCandidates.join("، ")}</p>
                                           )}
