@@ -362,6 +362,50 @@ function Quotes() {
 
   const createPdfBlob = async (quote: Quote) => {
     try {
+      // Resolve missing invoice units at the PDF boundary, not only when the
+      // quotation list is loaded. Preserve every explicitly saved quotation unit.
+      const invoiceItems = (quote.quotation_items ?? []).map((item) => ({ ...item }));
+      const itemsMissingUnit = invoiceItems.filter((item) => !String(item.unit ?? "").trim());
+      if (itemsMissingUnit.length > 0) {
+        const productIds = [...new Set(itemsMissingUnit.map((item) => item.product_id).filter((id): id is string => Boolean(id)))];
+        const productSkus = [...new Set(itemsMissingUnit.map((item) => item.sku).filter((sku): sku is string => Boolean(sku)))];
+        const productsById = new Map<string, { sku?: string | null; unit?: string | null }>();
+        const productsBySku = new Map<string, { unit?: string | null }>();
+
+        if (productIds.length > 0) {
+          const { data, error } = await supabase
+            .from("products")
+            .select("id, sku, unit")
+            .in("id", productIds);
+          if (error) throw new Error("تعذر استرجاع وحدات الأصناف من قاعدة المنتجات: " + error.message);
+          for (const product of data ?? []) productsById.set(product.id, product);
+        }
+        if (productSkus.length > 0) {
+          const { data, error } = await supabase
+            .from("products")
+            .select("id, sku, unit")
+            .in("sku", productSkus);
+          if (error) throw new Error("تعذر استرجاع وحدات الأصناف بواسطة الأكواد: " + error.message);
+          for (const product of data ?? []) {
+            if (product.sku) productsBySku.set(product.sku, product);
+            if (product.id) productsById.set(product.id, product);
+          }
+        }
+
+        for (const item of itemsMissingUnit) {
+          const product = (item.product_id ? productsById.get(item.product_id) : undefined)
+            ?? (item.sku ? productsBySku.get(item.sku) : undefined);
+          const unit = String(product?.unit ?? "").trim();
+          if (unit) item.unit = unit;
+        }
+      }
+
+      const unresolvedUnits = invoiceItems.filter((item) => !String(item.unit ?? "").trim());
+      if (unresolvedUnits.length > 0) {
+        const names = unresolvedUnits.map((item) => item.product_name || item.sku || "صنف غير معروف").join("، ");
+        throw new Error("تعذر إنشاء الفاتورة لأن وحدة بعض الأصناف غير محفوظة ولا توجد وحدة أساسية لها في قاعدة المنتجات: " + names);
+      }
+
       const [headerResponse, footerResponse, logoResponse, boldFontResponse, regularFontResponse, fallbackFontResponse] = await Promise.all([
         fetch(`${import.meta.env.BASE_URL}invoice-header.png`),
         fetch(`${import.meta.env.BASE_URL}invoice-footer.png`),
@@ -1062,7 +1106,7 @@ function Quotes() {
       await drawHeader();
       drawInfo();
       y = drawTableHeader(y);
-      const items = quote.quotation_items ?? [];
+      const items = invoiceItems;
 
       for (const [index, item] of items.entries()) {
         // Leave enough room for the full wrapped description row.
