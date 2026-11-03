@@ -1353,7 +1353,7 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
     : [...candidateProductsById.values()];
 
   const queryConstraints = extractMatchConstraints(text);
-  const ranked: Array<MatchCandidate<T> & { productId: string; constraintsPassed: boolean }> = [];
+  const ranked: Array<MatchCandidate<T> & { productId: string; constraintsPassed: boolean; ampProximity: number }> = [];
 
   for (const product of candidateProductsById.values()) {
     const preparedProduct = prepareProduct(product, (item) => String(item.id));
@@ -1362,6 +1362,16 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
     const searchableText = searchable.map((field) => field.value).join(" ");
 
     const constraintsPassed = candidateMatchesConstraints(searchableText, queryConstraints, true);
+    const candidateAmpValues = [...searchableText.matchAll(/(\d+(?:\.\d+)?)\s*(?:امبير|a|amp(?:s)?)(?=$|\s|[^\p{L}\p{N}])/giu)]
+      .map((match) => Number(match[1]))
+      .filter(Number.isFinite);
+    const ampProximity = queryConstraints.amps.length && candidateAmpValues.length
+      ? Math.max(...queryConstraints.amps.map((requested) =>
+          Math.max(...candidateAmpValues.map((candidate) =>
+            Math.max(0, 1 - Math.abs(Number(requested) - candidate) / Math.max(Number(requested), candidate, 1)),
+          )),
+        ))
+      : 1;
 
     let bestScore = 0;
     let bestSignals = {
@@ -1462,6 +1472,7 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
         product,
         productId: preparedProduct.id,
         constraintsPassed,
+        ampProximity,
         score: bestScore,
         status:
           constraintsPassed && (bestSignals.exact || bestSignals.alias ||
@@ -1474,7 +1485,7 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
     }
   }
 
-  const sorted = ranked.sort((a, b) => b.score - a.score).slice(0, 8);
+  const sorted = ranked.sort((a, b) => Number(b.constraintsPassed) - Number(a.constraintsPassed) || b.ampProximity - a.ampProximity || b.score - a.score).slice(0, 8);
   const unitCompatible = requestedUnit
     ? sorted.filter(
         (candidate) => normalizeCommercialMatchUnit(candidate.product.unit ?? "") === requestedUnit,
