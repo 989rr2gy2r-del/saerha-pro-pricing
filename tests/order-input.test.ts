@@ -56,6 +56,25 @@ describe("order input parsing", () => {
 });
 
 describe("technical matching normalization", () => {
+  it("treats سلك as واير and normalizes market spelling مللى as mm", () => {
+    expect(normalizeProductText("سلك 1.5 4مللى احمر")).toContain("واير");
+    expect(normalizeProductText("سلك 1.5 4مللى احمر")).toContain("4 مم");
+  });
+
+  it("matches colloquial wire wording to the exact catalog color and size", () => {
+    const products = [
+      { id: "red", sku: "07151", name_ar: "واير سنجل كور 1.5 مم خليجي احمر", name_en: "WIRE SINGLE CORE 1.5 MM GULF RED", short_name: "", brand: "الخليج", model: "", size: "", color: "احمر", description: "", category_main: "", category_sub: "", category_third: "", product_group: "", unit: "رول" },
+      { id: "black", sku: "07154", name_ar: "واير سنجل كور 1.5 مم خليجي اسود", name_en: "WIRE SINGLE CORE 1.5 MM GULF BLACK", short_name: "", brand: "الخليج", model: "", size: "", color: "اسود", description: "", category_main: "", category_sub: "", category_third: "", product_group: "", unit: "رول" },
+      { id: "green", sku: "07155", name_ar: "واير سنجل كور 1.5 مم خليجي اخضر", name_en: "WIRE SINGLE CORE 1.5 MM GULF GREEN", short_name: "", brand: "الخليج", model: "", size: "", color: "اخضر", description: "", category_main: "", category_sub: "", category_third: "", product_group: "", unit: "رول" },
+    ];
+    const red = rankProductMatches("1 لفه سلك 1.5 احمر", products, [], (product) => product.id, 8);
+    const black = rankProductMatches("1 لفه سلك 1.5 اسود", products, [], (product) => product.id, 8);
+    const green = rankProductMatches("1 لفه سلك 1.5 اخضر", products, [], (product) => product.id, 8);
+    expect(red[0]?.product.sku).toBe("07151");
+    expect(black[0]?.product.sku).toBe("07154");
+    expect(green[0]?.product.sku).toBe("07155");
+  });
+
   it("normalizes numeric 4-way/2-way variants to the same gang signal", () => {
     expect(normalizeProductText("BOX WHITE 4WAY 20 MM")).toContain("4 دقمة");
     expect(normalizeProductText("BOX WHITE 2 WAY 20 MM")).toContain("2 دقمة");
