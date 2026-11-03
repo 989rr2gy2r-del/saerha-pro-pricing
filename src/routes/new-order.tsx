@@ -2050,7 +2050,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         // deterministic text parser for documents whose text was extracted.
         const serverMessage = serverError instanceof Error ? serverError.message.trim() : "";
         const isImageUpload =
-          first.type.startsWith("image/") || /\\.(jpe?g|png|webp|heic)$/i.test(first.name);
+          first.type.startsWith("image/") || /\.(jpe?g|png|webp|heic)$/i.test(first.name);
 
         if (isImageUpload) {
           setProgress(52);
