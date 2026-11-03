@@ -1074,7 +1074,8 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
           lang: "ar",
           source: "manual",
         },
-        { onConflict: "product_id,normalized_alias" },
+        // Match the database's actual unique constraint.
+        { onConflict: "product_id,alias" },
       );
       if (aliasError) throw aliasError;
     }
@@ -3246,7 +3247,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                         </div>                                      </button>
 
                                       {item.product && (
-                                        <div className="mt-2 flex justify-start">
+                                        <div className="mt-2 flex flex-wrap justify-start gap-2">
                                           <Button
                                             type="button"
                                             size="sm"
@@ -3256,6 +3257,16 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                           >
                                             <Eye className="h-3.5 w-3.5" />
                                             معاينة سعر الشراء
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-8 gap-1.5 text-xs"
+                                            onClick={() => void handleSaveAlias(index)}
+                                            title="يحفظ عبارة الطلب الحالية كاسم بديل للصنف المحدد"
+                                          >
+                                            حفظ العبارة للتعلّم
                                           </Button>
                                         </div>
                                       )}
