@@ -1111,16 +1111,19 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
   const handleAcceptMatch = (index: number) => {
     const current = analysisResult?.items[index];
-    if (current?.product) void recordCorrection(current, "accepted");
+    if (!current?.product || current.rejected) {
+      setAnalysisError("اختر الصنف الصحيح من قاعدة البيانات أولًا، ثم اعتمده بعد المراجعة.");
+      return;
+    }
+    void recordCorrection(current, "accepted");
     patchReviewItem(index, (item) => ({
       ...item,
       accepted: true,
       rejected: false,
-      status: item.product ? "HIGH_CONFIDENCE" : "UNMATCHED",
-      matchReason: item.product
-        ? "تمت مراجعة المنتج والموافقة عليه"
-        : "يجب اختيار منتج قبل التأكيد",
+      // Approval is a user decision; it must not rewrite the matcher status or score.
+      matchReason: "تمت مراجعة الصنف واعتماده يدويًا من المستخدم",
     }));
+    setAnalysisError("");
   };
 
   const handleRejectLine = (index: number) => {
@@ -1316,11 +1319,15 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         basePriceUnit: selected ? selected.unit ?? "" : item.basePriceUnit,
         priceType: selected ? null : item.priceType,
         priceLabel: selected ? "جارٍ جلب السعر من قاعدة الأسعار..." : item.priceLabel,
-        accepted: Boolean(selected),
+        // Selecting a catalog row is not the same as approving it.
+        accepted: false,
         rejected: false,
-        status: nextStatus,
-        matchScore: selected ? 1 : null,
-        matchReason: selected ? "تم اختيار المنتج من قاعدة البيانات" : "لم يتم اختيار منتج",
+        status: selected ? "NEEDS_REVIEW" : "UNMATCHED",
+        // Preserve only a real matcher score; never manufacture 100% on selection.
+        matchScore: selected ? item.matchScore ?? null : null,
+        matchReason: selected
+          ? "تم اختيار مرشح من قاعدة البيانات — يتطلب مراجعة واعتماد المستخدم"
+          : "لم يتم اختيار منتج",
         notes: [item.notes, unitNote].filter(Boolean).join(" "),
       };
       return nextItem;
@@ -2607,7 +2614,8 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           matchReason,
           status,
           rejected: false,
-          accepted: Boolean(selectedProduct && status === "HIGH_CONFIDENCE"),
+          // Even an exact/high-confidence database match remains unapproved until the user confirms it.
+          accepted: false,
           priceAmount: null,
           priceType: null,
           priceLabel: "جاري جلب السعر...",
@@ -2640,18 +2648,26 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
       return;
     }
 
-    const validItems = analysisResult.items.filter(
-      (item) =>
-        !item.rejected &&
-        item.product &&
-        item.quantity > 0 &&
-        item.status === "HIGH_CONFIDENCE" &&
-        item.accepted,
-    );
-    if (!validItems.length) {
-      setAnalysisError("لا توجد عناصر مؤكدة ومطابقة لإنشاء عرض السعر بعد المراجعة.");
+    const activeItems = analysisResult.items.filter((item) => !item.rejected);
+    if (!activeItems.length) {
+      setAnalysisError("لا توجد أصناف متبقية لإنشاء عرض السعر.");
       return;
     }
+
+    // Do not silently omit unapproved rows: every active line must be reviewed,
+    // linked to a real catalog product, explicitly approved, and have a quantity.
+    const unapprovedItems = activeItems.filter(
+      (item) => !item.product || !item.accepted || !(Number(item.quantity) > 0),
+    );
+    if (unapprovedItems.length > 0) {
+      setAnalysisError(
+        "لا يمكن حفظ العرض: يوجد " + unapprovedItems.length +
+        " صنف غير معتمد أو بلا منتج/كمية صحيحة. راجع كل صنف واضغط «اعتماد الصنف» بعد التأكد منه.",
+      );
+      return;
+    }
+
+    const validItems = activeItems.filter((item) => Boolean(item.product));
 
     try {
       const { data: customerRow, error: customerError } = await supabase
@@ -3348,22 +3364,40 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                           </span>
                                         </div>
                                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                          {item.product ? (
+                                          {item.product && item.accepted ? (
                                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-                                              <DatabaseIcon className="h-3 w-3" />
-                                              بيانات الصنف من القاعدة · مطابقة {Math.round((item.matchScore ?? item.confidence) * 100)}% · قراءة {Math.round((item.extractionConfidence ?? 0) * 100)}%
+                                              <Check className="h-3 w-3" />
+                                              معتمد من المستخدم · مطابقة {item.matchScore == null ? "غير محددة" : Math.round(item.matchScore * 100) + "%"} · قراءة {Math.round((item.extractionConfidence ?? 0) * 100)}%
                                             </span>
                                           ) : (
-                                            <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                                              {item.status === "NEEDS_REVIEW"
-                                                ? "يحتاج مراجعة · مطابقة " + Math.round((item.matchScore ?? item.confidence) * 100) + "% · قراءة " + Math.round((item.extractionConfidence ?? 0) * 100) + "%"
-                                                : "اضغط لاختيار الصنف"}
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                                              {item.product
+                                                ? "مرشح من قاعدة البيانات — غير معتمد · مطابقة " + (item.matchScore == null ? "غير محددة" : Math.round(item.matchScore * 100) + "%") + " · قراءة " + Math.round((item.extractionConfidence ?? 0) * 100) + "%"
+                                                : item.status === "NEEDS_REVIEW"
+                                                  ? "يحتاج مراجعة · مطابقة " + (item.matchScore == null ? "غير محددة" : Math.round(item.matchScore * 100) + "%") + " · قراءة " + Math.round((item.extractionConfidence ?? 0) * 100) + "%"
+                                                  : "اضغط لاختيار الصنف"}
                                             </span>
                                           )}
                                         </div>                                      </button>
 
                                       {item.product && (
                                         <div className="mt-2 flex flex-wrap justify-start gap-2">
+                                          {item.accepted ? (
+                                            <span className="inline-flex h-8 items-center gap-1.5 rounded-md bg-emerald-50 px-3 text-xs font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                                              <Check className="h-3.5 w-3.5" />
+                                              تم اعتماد الصنف
+                                            </span>
+                                          ) : (
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              className="h-8 gap-1.5 text-xs"
+                                              onClick={() => handleAcceptMatch(index)}
+                                            >
+                                              <Check className="h-3.5 w-3.5" />
+                                              اعتماد الصنف
+                                            </Button>
+                                          )}
                                           <Button
                                             type="button"
                                             size="sm"
@@ -3957,7 +3991,23 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                   </button>
 
                                   {item.product && (
-                                    <div className="mt-2 flex justify-start">
+                                    <div className="mt-2 flex flex-wrap justify-start gap-2">
+                                      {item.accepted ? (
+                                        <span className="inline-flex h-8 items-center gap-1.5 rounded-md bg-emerald-50 px-3 text-xs font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                                          <Check className="h-3.5 w-3.5" />
+                                          تم اعتماد الصنف
+                                        </span>
+                                      ) : (
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          className="h-8 gap-1.5 text-xs"
+                                          onClick={() => handleAcceptMatch(index)}
+                                        >
+                                          <Check className="h-3.5 w-3.5" />
+                                          اعتماد الصنف
+                                        </Button>
+                                      )}
                                       <Button
                                         type="button"
                                         size="sm"
