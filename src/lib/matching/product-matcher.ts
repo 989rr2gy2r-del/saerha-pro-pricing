@@ -318,7 +318,7 @@ export function extractMatchConstraints(value: string): MatchConstraints {
     /(?:^|\s)تيب(?:\s|$)|\btape\b/.test(text) ? "tape" :
     /(?:^|\s)(?:لاصق|غراء)(?:\s|$)|\bglue\b/.test(text) ? "glue" :
     /(?:^|\s)مفتاح(?:\s|$)|\bswitch(?:es)?\b/.test(text) ? "switch" :
-    /(?:^|\s)(?:ساكت|سكت)(?:\s|$)|\bsocket(?:s)?\b/.test(text) ? "socket" :
+    /(?:^|\s)(?:ساكت|سكت|بلاك)(?:\s|$)|\bsocket(?:s)?\b|\bplug(?:s)?\b/.test(text) ? "socket" :
     /(?:^|\s)لوحة(?:\s|$)|\bsdb\b|distribution board|لوحة توزيع/.test(text) ? "distribution_board" :
     null;
 
