@@ -103,6 +103,18 @@ type ReviewItem = {
   };
   sourceLineTotal?: number | null;
   matchCandidates?: Array<{ id: string; sku: string; name_ar: string; score: number; reason: string }>;
+  matchDiagnostics?: {
+    searchQuery: string;
+    catalogCount: number;
+    displayedCandidateCount: number;
+    candidates: Array<{ id: string; sku: string; name_ar: string; score: number; reason: string }>;
+    selectedScore: number | null;
+    selectedStatus: string;
+    skuConflict: boolean;
+    skuCandidates: string[];
+    nameConflict: boolean;
+    sourceIssues: string[];
+  };
 };
 
 type PurchaseCostPreviewPrice = { unit: string; amount: number };
@@ -2532,6 +2544,18 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           sourceUnitPrice: item.sourceUnitPrice ?? null,
           sourceLineTotal: item.sourceLineTotal ?? null,
           matchCandidates: reviewCandidates,
+          matchDiagnostics: {
+            searchQuery,
+            catalogCount: matchingProducts.length,
+            displayedCandidateCount: reviewCandidates.length,
+            candidates: reviewCandidates.slice(0, 5),
+            selectedScore: selectedMatch?.score ?? null,
+            selectedStatus: selectedMatch?.status ?? "UNMATCHED",
+            skuConflict: skuResolution.conflict,
+            skuCandidates: skuResolution.candidates,
+            nameConflict: nameResolution.conflict,
+            sourceIssues: evidenceIssues,
+          },
           unit: displayUnit,
           matchReason,
           status,
@@ -3340,6 +3364,50 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                             ))}
                                           </div>
                                         </div>
+                                      )}
+
+                                      {item.matchDiagnostics && (
+                                        <details className="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 p-2 text-right text-[11px] text-slate-700 dark:border-amber-900 dark:bg-amber-950/20 dark:text-slate-200">
+                                          <summary className="cursor-pointer select-none font-bold">
+                                            تشخيص المطابقة — لماذا لم يُعثر على الصنف؟
+                                          </summary>
+                                          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+                                            <span>عدد منتجات الكتالوج المحمّلة:</span>
+                                            <b dir="ltr">{item.matchDiagnostics.catalogCount}</b>
+                                            <span>عدد المرشحين المعروضين:</span>
+                                            <b dir="ltr">{item.matchDiagnostics.displayedCandidateCount}</b>
+                                            <span>درجة أفضل مطابقة:</span>
+                                            <b dir="ltr">{item.matchDiagnostics.selectedScore == null ? "لا توجد" : Math.round(item.matchDiagnostics.selectedScore * 100) + "%"}</b>
+                                            <span>حالة المطابقة:</span>
+                                            <b>{item.matchDiagnostics.selectedStatus}</b>
+                                            <span>تعارض كود الصنف:</span>
+                                            <b>{item.matchDiagnostics.skuConflict ? "نعم" : "لا"}</b>
+                                            <span>تعارض الاسم:</span>
+                                            <b>{item.matchDiagnostics.nameConflict ? "نعم" : "لا"}</b>
+                                          </div>
+                                          <p className="mt-2 break-words"><b>عبارة البحث:</b> {item.matchDiagnostics.searchQuery || "فارغة"}</p>
+                                          {item.matchDiagnostics.skuCandidates.length > 0 && (
+                                            <p className="mt-1"><b>أكواد محتملة من المصدر:</b> {item.matchDiagnostics.skuCandidates.join("، ")}</p>
+                                          )}
+                                          {item.matchDiagnostics.sourceIssues.length > 0 && (
+                                            <div className="mt-1"><b>ملاحظات المصدر:</b><ul className="list-disc pr-5">{item.matchDiagnostics.sourceIssues.map((issue, issueIndex) => <li key={issueIndex}>{issue}</li>)}</ul></div>
+                                          )}
+                                          {item.matchDiagnostics.candidates.length > 0 ? (
+                                            <div className="mt-2 border-t border-amber-200 pt-2 dark:border-amber-900">
+                                              <b>المرشحون الذين أعادهم محرك المطابقة:</b>
+                                              <ul className="mt-1 space-y-1">
+                                                {item.matchDiagnostics.candidates.map((candidate) => (
+                                                  <li key={candidate.id} className="flex flex-wrap justify-between gap-2">
+                                                    <span>{candidate.sku} — {candidate.name_ar}</span>
+                                                    <span dir="ltr">{Math.round(candidate.score * 100)}% · {candidate.reason}</span>
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                          ) : (
+                                            <p className="mt-2 border-t border-amber-200 pt-2 font-semibold dark:border-amber-900">لم يُرجع محرك المطابقة أي مرشحين لهذا السطر.</p>
+                                          )}
+                                        </details>
                                       )}
 
                                       {openProductPickerId === item.id && (
