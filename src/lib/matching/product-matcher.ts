@@ -1038,6 +1038,23 @@ function candidateHasSpecificColor(product: MatchableProductRecord): boolean {
   );
 }
 
+/**
+ * Remove a trailing standalone quantity only when it exactly equals the
+ * already-parsed order quantity. Attached technical dimensions (25mm),
+ * fractions (3/4), and other numeric specifications remain untouched.
+ */
+export function stripTrailingParsedQuantity(value: string, quantity: number | string | null | undefined): string {
+  const input = String(value ?? "").trim();
+  if (!input || quantity == null || quantity === "") return input;
+  const parsed = Number(String(quantity).replace(",", "."));
+  if (!Number.isFinite(parsed)) return input;
+  const match = input.match(/(?:^|\\s)(\\d+(?:[.,]\\d+)?)\\s*$/);
+  if (!match) return input;
+  const trailing = Number(match[1].replace(",", "."));
+  if (!Number.isFinite(trailing) || trailing !== parsed) return input;
+  return input.slice(0, match.index).trim();
+}
+
 function stripCommercialOrderTail(value: string): string {
   return String(value ?? "")
     .trim()
