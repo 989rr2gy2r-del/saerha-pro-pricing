@@ -2637,17 +2637,21 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
       return;
     }
 
-    // Every active line must resolve to a real catalog product and a positive quantity.
-    const unapprovedItems = activeItems.filter(
-      (item) => !item.product || !item.accepted || !(Number(item.quantity) > 0),
+    // Review status is advisory only. Block saving only when a line has no
+    // linked catalog product or has an invalid/non-positive quantity.
+    const invalidItems = activeItems.filter(
+      (item) => !item.product || !(Number(item.quantity) > 0),
     );
-    if (unapprovedItems.length > 0) {
+    if (invalidItems.length > 0) {
       setAnalysisError(
-        "لا يمكن حفظ العرض: يوجد " + unapprovedItems.length +
+        "لا يمكن حفظ العرض: يوجد " + invalidItems.length +
         " صنف بلا منتج مرتبط أو بكمية غير صحيحة. اختر الصنف من قاعدة البيانات وتحقق من الكمية.",
       );
       return;
     }
+
+    // Items marked NEEDS_REVIEW remain eligible for saving when a catalog
+    // product is already linked. The review badge is a warning, not a blocker.
 
     const validItems = activeItems.filter((item) => Boolean(item.product));
 
