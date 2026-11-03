@@ -1519,7 +1519,7 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
     queryConstraints.qualifiers.length;
   const hasHardConstraints = hardConstraintCount > 0;
   const exactCatalogEvidence = best.signals.exact || best.signals.alias;
-  const uniqueTechnicalMatch = hasHardConstraints && considered.length === 1;
+  const uniqueTechnicalMatch = hasHardConstraints && considered.filter((candidate) => candidate.constraintsPassed).length === 1;
   const autoAccept =
     best.constraintsPassed &&
     !ambiguous &&
