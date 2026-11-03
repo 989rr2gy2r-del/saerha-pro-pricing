@@ -40,7 +40,7 @@ const MARKET_SYNONYMS: Array<[RegExp, string]> = [
   [/\bmain\s+power\s+cable\b/gi, "كيبل"], [/\bpower\s+cable\b/gi, "كيبل"], [/\bcable\b/gi, "كيبل"],
   [/\bcoil(?:s)?\b/gi, "لف"], [/\bsteel\b/gi, "حديد"], [/\bbox(?:es)?\b/gi, "بوكس"],
   [/\bpipe(?:s)?\b/gi, "بايب"], [/\bband\b/gi, "ربطه"], [/\bchoket\b/gi, "تشوكت"],
-  [/\bpower\s+socket\b/gi, "مفتاح"], [/\bsocket\b/gi, "ساكت"],
+  [/\bpower\s+socket\b/gi, "مفتاح"], [/\bplugs?\b/gi, "بلاك"], [/\bsocket\b/gi, "ساكت"],
 
   [/راليه|رليه|ريله/gi, "ريليه"],
   [/دبي\s*بي|دي\s*بي/gi, "ديبي"],
@@ -59,6 +59,9 @@ const MARKET_SYNONYMS: Array<[RegExp, string]> = [
   [/ترنكي/gi, "ترنكي"],
   [/كتاوت/gi, "كتاوت"],
   [/ساكت/gi, "ساكت"],
+  [/بلاكات|بلاك|بلق/gi, "بلاك"],
+  [/ايزليتر|ايزوليتر|ايزوليتور|ايسليتر/gi, "ايزوليتر"],
+  [/\bisolators?\b/gi, "ايزوليتر"],
   [/ملبوش/gi, "ملبوش"],
   [/انش|إنش|بوصه|بوصة/gi, "انش"],
   [/ملي|ملم|مم/gi, "مم"],
@@ -273,7 +276,7 @@ function identityTokens(value: string): string[] {
 }
 
 type MatchConstraints = {
-  productClass: "rccb" | "mcb" | "box" | "pipe" | "cable" | "wire" | "connector" | "tape" | "glue" | "switch" | "socket" | "distribution_board" | null;
+  productClass: "rccb" | "mcb" | "isolator" | "box" | "pipe" | "cable" | "wire" | "connector" | "tape" | "glue" | "switch" | "socket" | "distribution_board" | null;
   amps: string[];
   colors: string[];
   fractions: string[];
@@ -305,7 +308,8 @@ export function extractMatchConstraints(value: string): MatchConstraints {
 
   const productClass =
     /\brccb\b|قاطع تسريب|قاطع تفاضلي|حماية تسرب|تسريب أرضي/.test(text) ? "rccb" :
-    /\bmcb\b/.test(text) || /(?:^|\s)بريكر(?:\s|$)/.test(text) || /مفتاح حراري|مينيتشر/.test(text) ? "mcb" :
+    /\bmcb\b|(?:^|\s)بريكر(?:\s|$)|مفتاح حراري|مينيتشر|(?:^|\s)قاطع(?:\s|$)/.test(text) ? "mcb" :
+    /\bisolators?\b|ايزوليتر|عازل كهربائي/.test(text) ? "isolator" :
     /(?:^|\s)(?:بوكس|صندوق)(?:\s|$)/.test(text) ? "box" :
     /(?:^|\s)بايب(?:\s|$)|\bpipe(?:s)?\b/.test(text) ? "pipe" :
     /(?:^|\s)(?:كيبل|كابل)(?:\s|$)|\bcable(?:s)?\b/.test(text) ? "cable" :
@@ -318,7 +322,7 @@ export function extractMatchConstraints(value: string): MatchConstraints {
     /(?:^|\s)لوحة(?:\s|$)|\bsdb\b|distribution board|لوحة توزيع/.test(text) ? "distribution_board" :
     null;
 
-  const amps = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:امبير|a)\b/gi)].map((m) => m[1]);
+  const amps = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:امبير|a|amp(?:s)?)(?=$|\s|[^\p{L}\p{N}])/giu)].map((m) => m[1]);
   const colorAliases: Array<[string, string]> = [
     ["احمر", "احمر"], ["اسود", "اسود"], ["اخضر", "اخضر"], ["ابيض", "ابيض"], ["ازرق", "ازرق"], ["اصفر", "اصفر"],
     ["red", "احمر"], ["black", "اسود"], ["green", "اخضر"], ["white", "ابيض"], ["blue", "ازرق"], ["yellow", "اصفر"],
@@ -417,7 +421,8 @@ export function candidateMatchesConstraints(
   const hasClass = (kind: MatchConstraints["productClass"]) => {
     switch (kind) {
       case "rccb": return /\brccb\b|قاطع تسريب|قاطع تفاضلي|حماية تسرب|تسريب أرضي/.test(normalized);
-      case "mcb": return /\bبريكر\b|\bmcb\b|مفتاح حراري|مينيتشر/.test(normalized) && !/\brccb\b|قاطع تسريب|قاطع تفاضلي|حماية تسرب/.test(normalized);
+      case "isolator": return /\bisolators?\b|(?:^|\s)ايزوليتر(?:\s|$)|عازل كهربائي/.test(normalized);
+      case "mcb": return /(?:^|\s)بريكر(?:\s|$)|\bmcb\b|مفتاح حراري|مينيتشر|(?:^|\s)قاطع(?:\s|$)/.test(normalized) && !/\brccb\b|قاطع تسريب|قاطع تفاضلي|حماية تسرب/.test(normalized);
       case "box": return /(?:^|\s)(?:بوكس|صندوق)(?:\s|$)/.test(normalized);
       case "pipe": return /(?:^|\s)بايب(?:\s|$)|\bpipe(?:s)?\b/.test(normalized);
       case "cable": return /(?:^|\s)(?:كيبل|كابل|واير)(?:\s|$)|\b(?:cable|wire)(?:s)?\b/.test(normalized);
@@ -426,7 +431,7 @@ export function candidateMatchesConstraints(
       case "tape": return /(?:^|\s)تيب(?:\s|$)|\btape\b/.test(normalized);
       case "glue": return /(?:^|\s)(?:لاصق|غراء)(?:\s|$)|\bglue\b/.test(normalized);
       case "switch": return /(?:^|\s)مفتاح(?:\s|$)|\bswitch(?:es)?\b/.test(normalized);
-      case "socket": return /(?:^|\s)(?:ساكت|سكت)(?:\s|$)|\bsocket(?:s)?\b/.test(normalized);
+      case "socket": return /(?:^|\s)(?:ساكت|سكت|بلاك)(?:\s|$)|\bsocket(?:s)?\b|\bplug(?:s)?\b/.test(normalized);
       case "distribution_board": return /(?:^|\s)لوحة(?:\s|$)|لوحة توزيع|\bsdb\b|distribution board/.test(normalized);
       default: return true;
     }
@@ -438,7 +443,7 @@ export function candidateMatchesConstraints(
     return false;
   }
 
-  const hasAmp = (value: string) => new RegExp(String.raw`(?:^|\s)${value}\s*(?:امبير|a)(?:\s|$)`, "i").test(normalized);
+  const hasAmp = (value: string) => new RegExp(String.raw\`(?:^|\\s)\${value}\\s*(?:امبير|a|amp(?:s)?)(?=$|\\s|[^\\p{L}\\p{N}])\`, "i").test(normalized);
   if (constraints.amps.some((value) => !hasAmp(value))) return false;
 
   if (constraints.colors.some((color) => !normalized.includes(color))) return false;
@@ -1348,7 +1353,7 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
     : [...candidateProductsById.values()];
 
   const queryConstraints = extractMatchConstraints(text);
-  const ranked: Array<MatchCandidate<T> & { productId: string }> = [];
+  const ranked: Array<MatchCandidate<T> & { productId: string; constraintsPassed: boolean }> = [];
 
   for (const product of candidateProductsById.values()) {
     const preparedProduct = prepareProduct(product, (item) => String(item.id));
@@ -1356,7 +1361,7 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
     const searchable = [...preparedProduct.fields, ...productAliases];
     const searchableText = searchable.map((field) => field.value).join(" ");
 
-    if (!candidateMatchesConstraints(searchableText, queryConstraints, true)) continue;
+    const constraintsPassed = candidateMatchesConstraints(searchableText, queryConstraints, true);
 
     let bestScore = 0;
     let bestSignals = {
@@ -1421,6 +1426,8 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
 
       if (identity >= 1 && identityPrecision >= 0.95 && attributes === 1) score += 0.12;
       if (specificationConflict) score = Math.min(score, 0.72);
+      // Mismatched technical candidates remain visible for review only.
+      if (!constraintsPassed) score = Math.min(score, 0.69);
       score = Math.max(0, Math.min(1, score));
 
       if (score > bestScore) {
@@ -1436,7 +1443,9 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
           identity,
           cores: queryConstraints.cores.length ? 1 : 0,
         };
-        bestReason = exact
+        bestReason = !constraintsPassed
+          ? "الاسم قريب لكن توجد مواصفة فنية مختلفة؛ اقتراح للمراجعة فقط"
+          : exact
           ? "مطابقة مباشرة لاسم الصنف في قاعدة البيانات"
           : alias
             ? "مطابقة مباشرة لاسم بديل محفوظ"
@@ -1452,11 +1461,11 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
       ranked.push({
         product,
         productId: preparedProduct.id,
+        constraintsPassed,
         score: bestScore,
         status:
-          bestSignals.exact ||
-          bestSignals.alias ||
-          (bestSignals.identity >= 0.9 && bestSignals.attributes === 1 && bestScore >= 0.86)
+          constraintsPassed && (bestSignals.exact || bestSignals.alias ||
+          (bestSignals.identity >= 0.9 && bestSignals.attributes === 1 && bestScore >= 0.86))
             ? "HIGH_CONFIDENCE"
             : "NEEDS_REVIEW",
         reason: bestReason,
@@ -1475,7 +1484,7 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
   const best = considered[0];
   const second = considered[1];
 
-  if (!best || best.score < 0.55) return finish(null, candidateProductsById.size);
+  if (!best || best.score < 0.35) return finish(null, candidateProductsById.size);
 
   const margin = second ? best.score - second.score : 1;
   const ambiguous = Boolean(
@@ -1512,6 +1521,7 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
   const exactCatalogEvidence = best.signals.exact || best.signals.alias;
   const uniqueTechnicalMatch = hasHardConstraints && considered.length === 1;
   const autoAccept =
+    best.constraintsPassed &&
     !ambiguous &&
     !unitMismatch &&
     !colorVariantAmbiguous &&
