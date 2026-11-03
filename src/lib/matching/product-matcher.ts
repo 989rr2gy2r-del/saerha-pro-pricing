@@ -221,8 +221,9 @@ export function normalizeProductText(value: string): string {
   // Separate numbers from adjacent Arabic words so "3بوكس" and "4ف6"
   // become tokenizable without changing their meaning.
   text = text
-    .replace(/([^\d\s])(\d)/g, "$1 $2")
-    .replace(/(\d)([^\d\s])/g, "$1 $2");
+    // Preserve decimal points inside technical sizes such as 1.5 and 2.5.
+    .replace(/([^\d\s.])(\d)/g, "$1 $2")
+    .replace(/(\d)([^\d\s.])/g, "$1 $2");
 
   for (const word of marketWords) {
     const escaped = word;
