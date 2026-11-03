@@ -2045,22 +2045,34 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           rawResult = (data.result ?? data) as Record<string, unknown>;
         }
       } catch (serverError) {
-        // The AI is the primary path, but a local fallback keeps both images
-        // and pasted text usable during a temporary Gemini/network failure.
-        const timedOut = serverError instanceof DOMException && serverError.name === "AbortError";
+        // Gemini can be temporarily unavailable (for example HTTP 503).
+        // Keep order entry usable: use browser OCR for image uploads, or the
+        // deterministic text parser for documents whose text was extracted.
         const serverMessage = serverError instanceof Error ? serverError.message.trim() : "";
-        fallbackNotice = timedOut
-          ? "القراءة الذكية تأخرت قليلًا؛ جارٍ تشغيل القراءة الاحتياطية."
-          : serverMessage
-            ? `تعذر تشغيل القراءة الذكية: ${serverMessage} — جارٍ تشغيل القراءة الاحتياطية.`
-            : "تعذر تشغيل القراءة الذكية؛ جارٍ تشغيل القراءة الاحتياطية.";
-        setAnalysisError(
-          timedOut
-            ? "القراءة الذكية تأخرت بعد إعادة المحاولة. لم نشغّل القراءة المحلية حتى لا تتجمد الصفحة؛ أعد المحاولة بعد لحظات."
-            : "تعذر تشغيل القراءة الذكية بعد إعادة المحاولة. لم نشغّل القراءة المحلية حتى لا تتجمد الصفحة؛ أعد المحاولة.",
-        );
-        setProgress(0);
-        throw serverError;      }
+        const isImageUpload =
+          first.type.startsWith("image/") || /\\.(jpe?g|png|webp|heic)$/i.test(first.name);
+
+        if (isImageUpload) {
+          setProgress(52);
+          const localResult = await readImageLocally(first, setProgress);
+          rawResult = {
+            items: localResult.items,
+            notes: "تعذر الوصول إلى Gemini؛ تمت قراءة الصورة محليًا. راجع النص والكميات والمطابقة قبل الاعتماد.",
+          };
+          fallbackNotice =
+            "تعذر تشغيل Gemini مؤقتًا؛ تمت القراءة بمحرك OCR المحلي. راجع جميع البنود والكميات قبل اعتماد العرض.";
+        } else if (text.trim()) {
+          rawResult = await parseTextOrderFallback(text);
+          fallbackNotice =
+            "تعذر تشغيل Gemini مؤقتًا؛ تمت معالجة النص المستخرج محليًا. راجع البنود والكميات قبل اعتماد العرض.";
+        } else {
+          throw new Error(
+            serverMessage
+              ? `تعذر تشغيل محرك القراءة الذكي والقراءة الاحتياطية: ${serverMessage}`
+              : "تعذر تشغيل محرك القراءة الذكي والقراءة الاحتياطية. أعد المحاولة بعد لحظات.",
+          );
+        }
+      }
         }
 
       const rawItems = Array.isArray(rawResult["items"])
