@@ -584,6 +584,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   const [invoiceDiscountType, setInvoiceDiscountType] = useState<"percent" | "amount" | "both">("percent");
   const [invoiceDiscountPercentDraft, setInvoiceDiscountPercentDraft] = useState("0");
   const [invoiceDiscountAmountDraft, setInvoiceDiscountAmountDraft] = useState("0");
+  const [shippingAmountDraft, setShippingAmountDraft] = useState("0");
   const [orderSource, setOrderSource] = useState<"image" | "pdf" | "excel" | "text" | "handwriting">("text");
   const [orderRawText, setOrderRawText] = useState("");
   const [persistedOrderId, setPersistedOrderId] = useState<string | null>(null);
@@ -854,7 +855,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         (supabase as any)
           .from("quotations")
           .select(
-            "id, reference, customer_id, issue_date, expiry_date, price_type, discount_amount, total, notes, quotation_items(id, product_id, product_name, sku, quantity, unit, unit_price, discount_amount, line_total, applied_price_type, is_manual_price)",
+            "id, reference, customer_id, issue_date, expiry_date, price_type, discount_amount, shipping_amount, total, notes, quotation_items(id, product_id, product_name, sku, quantity, unit, unit_price, discount_amount, line_total, applied_price_type, is_manual_price)",
           )
           .eq("id", quoteId)
           .maybeSingle(),
@@ -925,6 +926,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       setInvoiceDiscountType(invoiceDiscountAmount > 0 ? "amount" : "percent");
       setInvoiceDiscountPercentDraft("0");
       setInvoiceDiscountAmountDraft(invoiceDiscountAmount.toFixed(3));
+      setShippingAmountDraft(Math.max(0, Number(quote.shipping_amount ?? 0)).toFixed(3));
       setProgress(100);
 
       if (loadedItems.some((item) => !item.product)) {
@@ -1156,6 +1158,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
     setInvoiceDiscountType("percent");
     setInvoiceDiscountPercentDraft("0");
     setInvoiceDiscountAmountDraft("0");
+    setShippingAmountDraft("0");
     setProgress(0);
     setLastAnalyzedKey("");
   };
@@ -1688,7 +1691,10 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       invoiceDiscountType === "percent" ? 0 : Math.min(afterInvoicePercent, invoiceAmount);
     const invoiceDiscountAmount = Math.min(afterLineDiscount, percentDiscountAmount + fixedDiscountAmount);
     const totalDiscount = lineDiscountTotal + invoiceDiscountAmount;
-    const finalTotal = Math.max(0, afterLineDiscount - invoiceDiscountAmount);
+    const discountedTotal = Math.max(0, afterLineDiscount - invoiceDiscountAmount);
+    const shippingInput = Number(normalizeDecimalDraft(shippingAmountDraft));
+    const shippingAmount = Number.isFinite(shippingInput) ? Math.max(0, shippingInput) : 0;
+    const finalTotal = discountedTotal + shippingAmount;
 
     return {
       rawSubtotal,
@@ -1696,6 +1702,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       afterLineDiscount,
       invoiceDiscountAmount,
       totalDiscount,
+      shippingAmount,
       finalTotal,
     };
   };
@@ -2821,6 +2828,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             customer_id: customerId,
             price_type: quoteLines[0]?.priceType ?? "retail",
             discount_amount: orderTotals.totalDiscount,
+            shipping_amount: orderTotals.shippingAmount,
             tax_amount: 0,
             subtotal: orderTotals.rawSubtotal,
             total: orderTotals.finalTotal,
@@ -2951,6 +2959,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         expiry_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
         price_type: quoteLines[0]?.priceType ?? "retail",
         discount_amount: orderTotals.totalDiscount,
+        shipping_amount: orderTotals.shippingAmount,
         tax_amount: 0,
         subtotal: orderTotals.rawSubtotal,
         total: orderTotals.finalTotal,
@@ -3822,6 +3831,34 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                     <div className="flex items-center justify-between gap-3 text-sm">
                                       <span>خصم الفاتورة</span>
                                       <span className="font-bold tabular-nums">-{calculateOrderTotals(analysisResult.items).invoiceDiscountAmount.toFixed(3)} د.ك</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50/70 p-2 text-sm dark:bg-orange-950/20">
+                                      <Label htmlFor="quotation-shipping-amount" className="font-extrabold">الشحن وأجور التوصيل</Label>
+                                      <div className="flex w-36 items-center gap-2">
+                                        <Input
+                                          id="quotation-shipping-amount"
+                                          type="text"
+                                          inputMode="decimal"
+                                          dir="ltr"
+                                          value={shippingAmountDraft}
+                                          onFocus={(event) => event.currentTarget.select()}
+                                          onChange={(event) => setShippingAmountDraft(normalizeDecimalDraft(event.target.value))}
+                                          onBlur={() => {
+                                            const value = Number(normalizeDecimalDraft(shippingAmountDraft));
+                                            setShippingAmountDraft(Number.isFinite(value) && value >= 0 ? value.toFixed(3) : "0.000");
+                                          }}
+                                          onKeyDown={(event) => {
+                                            if (event.key === "Enter") {
+                                              event.preventDefault();
+                                              event.currentTarget.blur();
+                                            }
+                                          }}
+                                          aria-label="قيمة الشحن وأجور التوصيل بالدينار الكويتي"
+                                          placeholder="0.000"
+                                          className="h-9 bg-background text-left font-bold tabular-nums"
+                                        />
+                                        <span className="shrink-0 text-xs font-bold">د.ك</span>
+                                      </div>
                                     </div>
                                     <div className="flex items-center justify-between gap-3 border-t pt-2 text-lg">
                                       <span className="font-black">الإجمالي النهائي</span>
