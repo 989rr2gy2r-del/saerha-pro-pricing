@@ -332,6 +332,14 @@ export function extractMatchConstraints(value: string): MatchConstraints {
   const marketWireMetricSizes = wireLike
     ? [...text.matchAll(/(\d+(?:\.\d+)?)\s*مل(?:\s|$|[^\p{L}\p{N}])/giu)].map((m) => m[1])
     : [];
+  // In Gulf wire orders, a single bare size after "wire/sلك" commonly means
+  // the conductor cross-section in mm² (e.g. "سلك 1.5 احمر").
+  // Infer it only when exactly one numeric token exists and no explicit metric
+  // size was supplied. Multiple numbers remain ambiguous and are not inferred.
+  const bareWireNumbers = wireLike && metricSizes.length === 0 && marketWireMetricSizes.length === 0
+    ? [...text.matchAll(/(?:^|\s)(\d+(?:\.\d+)?)(?=\s|$)/g)].map((match) => match[1])
+    : [];
+  const implicitWireMetricSizes = bareWireNumbers.length === 1 ? bareWireNumbers : [];
   const inchSizes = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:انش|inch|in)\b/gi)].map((m) => m[1]);
   const pairs = [...text.matchAll(/(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/gi)].map((m) => `${m[1]}x${m[2]}`);
   const gangs = [...text.matchAll(/(\d+)\s*(?:دقمة|gang)\b/gi)].map((m) => m[1]);
@@ -382,7 +390,7 @@ export function extractMatchConstraints(value: string): MatchConstraints {
     amps,
     colors,
     fractions,
-    metricSizes: [...new Set([...metricSizes, ...marketWireMetricSizes])],
+    metricSizes: [...new Set([...metricSizes, ...marketWireMetricSizes, ...implicitWireMetricSizes])],
     inchSizes,
     pairs,
     gangs,
