@@ -78,6 +78,45 @@ function match(query) {
   return rankProductMatches(query, products, aliases, (product) => product.id, 8);
 }
 
+// Market-category regressions based on real catalog wording visible in order review.
+const electricalProducts = [
+  { id: "B10", sku: "B10", name_ar: "بريكر ابيض 10 امبير سنجل", name_en: "WHITE BREAKER 10 AMP SINGLE", unit: "PCS" },
+  { id: "B16", sku: "B16", name_ar: "بريكر ابيض 16 امبير سنجل", name_en: "WHITE BREAKER 16 AMP SINGLE", unit: "PCS" },
+  { id: "I16", sku: "I16", name_ar: "ايزوليتر 16 امبير هاجر", name_en: "ISOLATOR 16 AMP HAGER", unit: "PCS" },
+  { id: "I20", sku: "I20", name_ar: "ايزوليتر 20 امبير", name_en: "ISOLATOR 20 AMP", unit: "PCS" },
+  { id: "I32", sku: "I32", name_ar: "ايزوليتر 32 امبير سنجل", name_en: "ISOLATOR 32 AMP SINGLE", unit: "PCS" },
+  { id: "I40", sku: "I40", name_ar: "ايزوليتر 40 امبير", name_en: "ISOLATOR 40 AMP", unit: "PCS" },
+  { id: "P13", sku: "P13", name_ar: "بلاك 13 امبير", name_en: "13 AMP PLUG", unit: "PIC" },
+  { id: "P15", sku: "P15", name_ar: "بلاك 15 امبير", name_en: "15 AMP PLUG", unit: "PIC" },
+];
+
+const breakerConstraints = extractMatchConstraints("بريكر 10 امبير");
+assert.equal(breakerConstraints.productClass, "mcb", "Arabic breaker must be classified as MCB");
+assert.deepEqual(breakerConstraints.amps, ["10"], "Arabic amp rating must be extracted");
+assert.equal(
+  candidateMatchesConstraints("بريكر ابيض 10 امبير سنجل", breakerConstraints),
+  true,
+  "Arabic breaker candidate with matching amp rating must pass hard constraints",
+);
+const breakerMatch = findLocalProductMatch("بريكر 10 امبير", electricalProducts, "", {});
+assert.equal(breakerMatch?.product?.sku, "B10", "10A breaker must auto-match the exact 10A catalog item");
+assert.equal(breakerMatch?.status, "HIGH_CONFIDENCE", "exact 10A breaker match must be high confidence");
+
+const isolatorConstraints = extractMatchConstraints("ايزليتر 30 امبير");
+assert.equal(isolatorConstraints.productClass, "isolator", "common OCR spelling of isolator must normalize to isolator class");
+assert.deepEqual(isolatorConstraints.amps, ["30"], "isolator amp rating must be extracted");
+const isolatorMatch = findLocalProductMatch("ايزليتر 30 امبير", electricalProducts, "", {});
+assert.equal(isolatorMatch?.product, null, "30A request must not auto-select a 32A isolator");
+assert.equal(isolatorMatch?.reviewProduct?.sku, "I32", "nearest 32A isolator must be offered for manual review");
+assert.equal(isolatorMatch?.status, "NEEDS_REVIEW", "30A versus 32A isolator must remain review-only");
+
+const plugConstraints = extractMatchConstraints("بلاك 13 امبير");
+assert.equal(plugConstraints.productClass, "socket", "market term بلاك must be recognized as a socket/plug");
+assert.deepEqual(plugConstraints.amps, ["13"], "plug amp rating must be extracted");
+const plugMatch = findLocalProductMatch("بلاك 13 امبير", electricalProducts, "", {});
+assert.equal(plugMatch?.product?.sku, "P13", "13A plug must auto-match the exact 13A catalog item");
+assert.equal(plugMatch?.status, "HIGH_CONFIDENCE", "exact 13A plug match must be high confidence");
+
 for (const [query, expectedSku, expectedColor] of [
   ["واير الخليج احمر 6مل", "0761", "احمر"],
   ["واير الخليج اصفر 6مل", "0762", "اصفر"],
