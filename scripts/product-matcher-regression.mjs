@@ -105,6 +105,12 @@ const resolverProducts = products.map((product) => ({
   id: product.sku,
 }));
 
+assert.equal(
+  matcher.normalizeProductText("سلك 1.5 احمر"),
+  "واير 1.5 احمر",
+  "Arabic normalization must preserve decimal conductor sizes",
+);
+
 // Market wording regression: a single bare number on a wire line is its mm size.
 for (const [query, expectedSku] of [
   ["سلك 1.5 احمر رول", "07151"],
