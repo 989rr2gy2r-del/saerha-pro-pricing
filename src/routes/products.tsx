@@ -156,15 +156,48 @@ function Products() {
   const refresh = async () => {
     try {
       setLoading(true);
-      const { data, error: queryError } = await supabase
-        .from("products")
-        .select(
-          "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, color, description, unit, image_url, status",
-        )
-        .order("sku", { ascending: true });
-      if (queryError) throw queryError;
+      const pageSize = 500;
+      let from = 0;
+      const allRows: Array<{
+        id: string;
+        sku: string;
+        name_ar: string;
+        name_en: string | null;
+        short_name: string | null;
+        brand: string | null;
+        category_main: string | null;
+        category_sub: string | null;
+        category_third: string | null;
+        product_group: string | null;
+        model: string | null;
+        size: string | null;
+        color: string | null;
+        description: string | null;
+        unit: string | null;
+        image_url: string | null;
+        status: Product["status"] | null;
+      }> = [];
+
+      while (true) {
+        const { data: pageData, error: queryError } = await supabase
+          .from("products")
+          .select(
+            "id, sku, name_ar, name_en, short_name, brand, category_main, category_sub, category_third, product_group, model, size, color, description, unit, image_url, status",
+          )
+          .order("sku", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1);
+
+        if (queryError) throw queryError;
+
+        const pageRows = pageData ?? [];
+        allRows.push(...pageRows);
+        if (pageRows.length < pageSize) break;
+        from += pageSize;
+      }
+
       setItems(
-        (data ?? []).map((row) => ({
+        allRows.map((row) => ({
           id: row.id,
           sku: row.sku,
           nameAr: row.name_ar,
