@@ -75,6 +75,7 @@ type Quote = {
   expiry_date?: string | null;
   price_type?: string;
   discount_amount?: number;
+  shipping_amount?: number;
   total?: number;
   status?: string | null;
   notes?: string | null;
@@ -121,7 +122,7 @@ function Quotes() {
     const { data, error } = await supabase
       .from("quotations")
       .select(
-        "id, reference, issue_date, created_at, expiry_date, price_type, discount_amount, tax_amount, subtotal, total, currency, status, notes, customers(name, company, phone, address), quotation_items(id, product_id, product_name, sku, quantity, unit, unit_price, discount_amount, line_total)",
+        "id, reference, issue_date, created_at, expiry_date, price_type, discount_amount, shipping_amount, tax_amount, subtotal, total, currency, status, notes, customers(name, company, phone, address), quotation_items(id, product_id, product_name, sku, quantity, unit, unit_price, discount_amount, line_total)",
       )
       .order("issue_date", { ascending: false });
 
@@ -535,7 +536,8 @@ function Quotes() {
       ) ?? 0);
       const discount = Number(quote.discount_amount ?? 0);
       const tax = 0;
-      const total = Number(quote.total ?? subtotal - discount + tax);
+      const shipping = Math.max(0, Number(quote.shipping_amount ?? 0));
+      const total = Number(quote.total ?? subtotal - discount + tax + shipping);
 
       const drawText = (
         value: string,
@@ -996,14 +998,13 @@ function Quotes() {
         const boxW = 180;
         const rowH = 22;
         const boxX = margin;
-        const shipping = 0;
         const paid = 0;
         const remaining = total;
 
         const totalRows = [
           ["الإجمالي", subtotal],
           ["الخصم", discount],
-          ["الشحن", shipping],
+          ["الشحن وأجور التوصيل", shipping],
           ["المدفوع", paid],
         ];
 
