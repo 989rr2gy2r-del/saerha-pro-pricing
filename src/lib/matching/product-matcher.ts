@@ -1493,7 +1493,9 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
     : sorted;
   const considered = unitCompatible.length ? unitCompatible : sorted;
   const best = considered[0];
-  const second = considered[1];
+  const second = best?.constraintsPassed
+    ? considered.find((candidate, index) => index > 0 && candidate.constraintsPassed)
+    : considered[1];
 
   if (!best || best.score < 0.35) return finish(null, candidateProductsById.size);
 
@@ -1512,6 +1514,7 @@ export function findLocalProductMatch<T extends MatchableProductRecord>(
     candidateHasSpecificColor(best.product) &&
     considered.some(
       (candidate) =>
+        candidate.constraintsPassed &&
         !candidateHasSpecificColor(candidate.product) &&
         candidate.score >= best.score - 0.12,
     );
