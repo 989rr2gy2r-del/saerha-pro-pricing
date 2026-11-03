@@ -1298,6 +1298,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
   const handleProductSelect = (index: number, productId: string) => {
     const selected = products.find((product) => product.id === productId) ?? null;
     const current = analysisResult?.items[index];
+    const selectedCandidate = current?.matchCandidates?.find((candidate) => candidate.id === productId);
     if (current && selected) {
       void recordCorrection({ ...current, product: selected }, "corrected");
     }
@@ -1323,7 +1324,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         rejected: false,
         status: selected ? "NEEDS_REVIEW" : "UNMATCHED",
         // Preserve only a real matcher score; never manufacture 100% on selection.
-        matchScore: selected ? item.matchScore ?? null : null,
+        matchScore: selected ? selectedCandidate?.score ?? null : null,
         matchReason: selected
           ? "تم اختيار مرشح من قاعدة البيانات — يتطلب مراجعة واعتماد المستخدم"
           : "لم يتم اختيار منتج",
