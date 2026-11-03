@@ -102,6 +102,8 @@ const EMPTY_DETAIL_PRICING: ProductDetailPricing = {
 
 function Products() {
   const [items, setItems] = useState<Product[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [deletingSelected, setDeletingSelected] = useState(false);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("all");
   const [sort, setSort] = useState("sku");
@@ -230,6 +232,46 @@ function Products() {
     void refresh();
   }, []);
 
+  useEffect(() => {
+    const visibleIds = new Set(items.map((item) => item.id));
+    setSelectedProductIds((current) => current.filter((id) => visibleIds.has(id)));
+  }, [items]);
+
+  const toggleProductSelection = (id: string, checked: boolean) => {
+    setSelectedProductIds((current) =>
+      checked ? (current.includes(id) ? current : [...current, id]) : current.filter((itemId) => itemId !== id),
+    );
+  };
+
+  const toggleAllProducts = (checked: boolean, visibleRows: Product[]) => {
+    setSelectedProductIds((current) => {
+      if (!checked) {
+        const visibleIds = new Set(visibleRows.map((item) => item.id));
+        return current.filter((id) => !visibleIds.has(id));
+      }
+      return [...new Set([...current, ...visibleRows.map((item) => item.id)])];
+    });
+  };
+
+  const deleteSelectedProducts = async () => {
+    if (selectedProductIds.length === 0 || deletingSelected) return;
+    const count = selectedProductIds.length;
+    if (!window.confirm(`هل تريد حذف ${count} صنفًا محددًا نهائيًا؟ سيتم حذف الأسعار والاختصارات المرتبطة بكل صنف وفق علاقات قاعدة البيانات.`)) return;
+    try {
+      setDeletingSelected(true);
+      for (const id of selectedProductIds) {
+        await deleteProduct(id);
+      }
+      setSelectedProductIds([]);
+      await refresh();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "تعذر حذف الأصناف المحددة");
+      await refresh();
+    } finally {
+      setDeletingSelected(false);
+    }
+  };
+
   const categories = useMemo(
     () => [...new Set(items.map((p) => p.category1))].filter(Boolean),
     [items],
@@ -348,11 +390,23 @@ function Products() {
           ))}
         </div>
 
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3">
+          <div className="flex items-center gap-2 text-sm">
+            <span>المحدد: <strong className="num">{selectedProductIds.length}</strong></span>
+            <Button type="button" variant="outline" size="sm" onClick={() => toggleAllProducts(true, rows)} disabled={rows.length === 0}>تحديد الكل</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => toggleAllProducts(false, rows)} disabled={selectedProductIds.length === 0}>إلغاء التحديد</Button>
+          </div>
+          <Button type="button" variant="destructive" size="sm" onClick={() => void deleteSelectedProducts()} disabled={selectedProductIds.length === 0 || deletingSelected}>
+            <Trash2 className="ml-2 h-4 w-4" /> {deletingSelected ? "جارٍ الحذف..." : `حذف المحدد (${selectedProductIds.length})`}
+          </Button>
+        </div>
+
         <Card className="hidden shadow-card lg:block">
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10 text-center"><input type="checkbox" aria-label="تحديد جميع الأصناف المعروضة" checked={rows.length > 0 && rows.every((p) => selectedProductIds.includes(p.id))} onChange={(event) => toggleAllProducts(event.target.checked, rows)} /></TableHead>
                   <TableHead className="text-right">SKU</TableHead>
                   <TableHead className="text-right">الاسم العربي</TableHead>
                   <TableHead className="text-right">الاسم الإنجليزي</TableHead>
@@ -367,6 +421,7 @@ function Products() {
               <TableBody>
                 {rows.map((p) => (
                   <TableRow key={p.id}>
+                    <TableCell className="text-center"><input type="checkbox" aria-label={`تحديد الصنف ${p.sku || p.nameAr}`} checked={selectedProductIds.includes(p.id)} onChange={(event) => toggleProductSelection(p.id, event.target.checked)} /></TableCell>
                     <TableCell className="num font-bold">{p.sku}</TableCell>
                     <TableCell>{p.nameAr}</TableCell>
                     <TableCell dir="ltr" className="text-left">{p.nameEn || "—"}</TableCell>
