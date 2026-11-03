@@ -2386,6 +2386,37 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             : null;
 
         const selectedMatch = match;
+        // For an ambiguous DB / distribution-board phrase, show real catalog
+        // choices without auto-selecting one. OCR often renders "ديبي 6 واي"
+        // as variants such as "وى 6خط"; this is suggestion-only and requires
+        // the employee to choose the exact brand/model.
+        const dbSixWayPhrase = /(?:\\bdb\\b|ديبي|دي\\s*بي|6\\s*(?:واي|وى|way|خط))/i.test(
+          [effectiveRawText, searchQuery, marketTranslationAr].join(" "),
+        );
+        const dbSixWayCandidates = dbSixWayPhrase
+          ? matchingProducts
+              .filter((product) => {
+                const catalogText = normalizeProductText(
+                  [product.name_ar, product.name_en, product.short_name, product.description]
+                    .filter(Boolean)
+                    .join(" "),
+                );
+                return /(?:^|\\s)6\\s*(?:واي|way)(?:\\s|$)/i.test(catalogText) &&
+                  /سنجل|single/i.test(catalogText) &&
+                  /لوحة توزيع|distribution board|lwha twzya/i.test(catalogText);
+              })
+              .slice(0, 5)
+              .map((product) => ({
+                id: product.id,
+                sku: product.sku,
+                name_ar: product.name_ar,
+                score: 0.5,
+                reason: "اقتراح لوحة توزيع 6 واي سنجل — يتطلب اختيار الموظف",
+              }))
+          : [];
+        const reviewCandidates = selectedMatch?.candidates?.length
+          ? selectedMatch.candidates
+          : dbSixWayCandidates;
         const sourceQuantityKnown = sourceSignals.quantity != null && sourceSignals.quantity > 0;
         const sourceUnitKnown = Boolean(sourceSignals.unit);
         const sourceEvidenceSafe =
@@ -2488,7 +2519,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           },
           sourceUnitPrice: item.sourceUnitPrice ?? null,
           sourceLineTotal: item.sourceLineTotal ?? null,
-          matchCandidates: selectedMatch?.candidates,
+          matchCandidates: reviewCandidates,
           unit: displayUnit,
           matchReason,
           status,
