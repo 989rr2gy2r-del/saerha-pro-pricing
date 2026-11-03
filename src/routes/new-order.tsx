@@ -2390,7 +2390,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         // choices without auto-selecting one. OCR often renders "ديبي 6 واي"
         // as variants such as "وى 6خط"; this is suggestion-only and requires
         // the employee to choose the exact brand/model.
-        const dbSixWayPhrase = /(?:\\bdb\\b|ديبي|دي\\s*بي|6\\s*(?:واي|وى|way|خط))/i.test(
+        const dbSixWayPhrase = /(?:\bdb\b|ديبي|دي\s*بي|6\s*(?:واي|وى|way|خط))/i.test(
           [effectiveRawText, searchQuery, marketTranslationAr].join(" "),
         );
         const dbSixWayCandidates = dbSixWayPhrase
@@ -2401,7 +2401,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                     .filter(Boolean)
                     .join(" "),
                 );
-                return /(?:^|\\s)6\\s*(?:واي|way)(?:\\s|$)/i.test(catalogText) &&
+                return /(?:^|\s)6\s*(?:واي|way)(?:\s|$)/i.test(catalogText) &&
                   /سنجل|single/i.test(catalogText) &&
                   /لوحة توزيع|distribution board|lwha twzya/i.test(catalogText);
               })
