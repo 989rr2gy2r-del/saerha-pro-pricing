@@ -443,7 +443,7 @@ export function candidateMatchesConstraints(
     return false;
   }
 
-  const hasAmp = (value: string) => new RegExp(String.raw`(?:^|\s)${value}\s*(?:امبير|a|amp(?:s)?)(?=$|\s|[^\p{L}\p{N}])`, "i").test(normalized);
+  const hasAmp = (value: string) => new RegExp(String.raw`(?:^|\s)${value}\s*(?:امبير|a|amp(?:s)?)(?=$|\s|[^\p{L}\p{N}])`, "iu").test(normalized);
   if (constraints.amps.some((value) => !hasAmp(value))) return false;
 
   if (constraints.colors.some((color) => !normalized.includes(color))) return false;
