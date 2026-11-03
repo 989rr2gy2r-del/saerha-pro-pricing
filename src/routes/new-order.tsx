@@ -2599,7 +2599,10 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             sourceIssues: evidenceIssues,
             ...matcherDiagnostics,
           },
-          unit: displayUnit,
+          // Always default to the selected catalog product base unit. The parsed
+          // order unit is source evidence, not an override of the catalog default.
+          // Secondary units remain selectable through product-specific conversions.
+          unit: selectedProduct?.unit?.trim() || displayUnit || "حبة",
           matchReason,
           status,
           rejected: false,
