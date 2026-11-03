@@ -27,7 +27,9 @@ const products = [
   ["0765", "واير الخليج اخضر مقاس 6مل", "WAIR GULF GREEN SAIZ 6 ML"],
   ["07101", "واير الخليج احمر مقاس 10مل", "WAIR GULF RED SAIZ 10 ML"],
   ["07161", "واير الخليج احمر مقاس 16مل", "WAIR GULF RED SAIZ 16 ML"],
-  ["07155", "واير الخليج اخضر مقاس 1.5مل", "WAIR GULF GREEN SAIZ 1.5 ML"],
+  ["07151", "واير سنجل كور 1.5 مم خليجي احمر", "WIRE SINGLE CORE 1.5 MM GULF RED"],
+  ["07154", "واير سنجل كور 1.5 مم خليجي اسود", "WIRE SINGLE CORE 1.5 MM GULF BLACK"],
+  ["07155", "واير سنجل كور 1.5 مم خليجي اخضر", "WIRE SINGLE CORE 1.5 MM GULF GREEN"],
   ["0736", "واير الخليج 3كور 6مل", "WAIR GULF 3 COR 6 ML"],
   ["07446", "واير الخليج 4كور 6مل", "WAIR GULF 4 COR 6 ML"],
   ["07251", "واير الخليج احمر مقاس 2.5مل", "WAIR GULF RED SAIZ 2.5 ML"],
@@ -93,6 +95,25 @@ for (const [query, expectedSku, expectedColor] of [
 
 assert.equal(match("واير الخليج احمر 6مل").some((candidate) => candidate.product.sku === "07101"), false, "6mm red must reject 10mm red");
 assert.equal(match("واير الخليج احمر 6مل").some((candidate) => candidate.product.sku === "07161"), false, "6mm red must reject 16mm red");
+
+// Market wording regression: a single bare number on a wire line is its mm size.
+for (const [query, expectedSku] of [
+  ["سلك 1.5 احمر رول", "07151"],
+  ["سلك 1.5 اسود رول", "07154"],
+  ["سلك 1.5 اخضر رول", "07155"],
+]) {
+  const constraints = extractMatchConstraints(query);
+  assert.deepEqual(constraints.metricSizes, ["1.5"], query + " must infer the lone wire size as mm");
+  const result = findLocalProductMatch(query, resolverProducts, "", {});
+  assert.equal(result.product?.sku, expectedSku, query + " must resolve to the correct catalog SKU");
+  assert.equal(result.status, "HIGH_CONFIDENCE", query + " must be high confidence");
+}
+assert.deepEqual(
+  extractMatchConstraints("سلك 1.5 4 مللي احمر").metricSizes,
+  ["4"],
+  "multiple numbers must not trigger implicit-size inference; only explicit 4mm is constrained",
+);
+
 assert.equal(match("واير الخليج 3كور 6مل").some((candidate) => candidate.product.sku === "07446"), false, "3-core must reject 4-core");
 assert.equal(match("واير الخليج 4كور 6مل").some((candidate) => candidate.product.sku === "0736"), false, "4-core must reject 3-core");
 
