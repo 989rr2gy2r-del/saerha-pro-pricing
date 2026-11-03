@@ -105,6 +105,12 @@ type ReviewItem = {
   matchCandidates?: Array<{ id: string; sku: string; name_ar: string; score: number; reason: string }>;
   matchDiagnostics?: {
     searchQuery: string;
+    productQuery: string;
+    structuredMatchEvidence: string;
+    commercialUnit: string;
+    effectiveRawText: string;
+    parsedQuantity: number;
+    sourceQuantityRaw: string;
     catalogCount: number;
     displayedCandidateCount: number;
     candidates: Array<{ id: string; sku: string; name_ar: string; score: number; reason: string }>;
@@ -2566,6 +2572,12 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           matchCandidates: reviewCandidates,
           matchDiagnostics: {
             searchQuery,
+            productQuery,
+            structuredMatchEvidence,
+            commercialUnit,
+            effectiveRawText,
+            parsedQuantity: item.quantity,
+            sourceQuantityRaw: sourceSignals.quantityRaw,
             catalogCount: matchingProducts.length,
             displayedCandidateCount: reviewCandidates.length,
             candidates: reviewCandidates.slice(0, 5),
@@ -3418,7 +3430,14 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                           {item.matchDiagnostics.constraintRejectedSamples.length > 0 && (
                                             <div className="mt-1"><b>أمثلة أصناف استُبعدت بسبب المواصفات:</b><ul className="list-disc pr-5">{item.matchDiagnostics.constraintRejectedSamples.map((sample) => <li key={sample.sku}>{sample.sku} — {sample.name_ar}</li>)}</ul></div>
                                           )}
-                                                                                    <p className="mt-2 break-words"><b>عبارة البحث:</b> {item.matchDiagnostics.searchQuery || "فارغة"}</p>
+                                                                                    <p className="mt-2 break-words"><b>عبارة البحث النهائية:</b> {item.matchDiagnostics.searchQuery || "فارغة"}</p>
+                                          <div className="mt-2 space-y-1 border-t border-amber-200 pt-2 dark:border-amber-900">
+                                            <p className="break-words"><b>نص المصدر الخام:</b> {item.matchDiagnostics.effectiveRawText || "غير متاح"}</p>
+                                            <p className="break-words"><b>وصف السطر بعد إزالة بادئة الطلب:</b> {item.matchDiagnostics.productQuery || "فارغ"}</p>
+                                            <p className="break-words"><b>الوصف المنظم القادم من التحليل:</b> {item.matchDiagnostics.structuredMatchEvidence || "فارغ"}</p>
+                                            <p className="break-words"><b>الوحدة التجارية:</b> {item.matchDiagnostics.commercialUnit || "غير محددة"}</p>
+                                            <p><b>الكمية المستخرجة:</b> {item.matchDiagnostics.parsedQuantity} · <b>الكمية الظاهرة في نص المصدر:</b> {item.matchDiagnostics.sourceQuantityRaw || "لا توجد"}</p>
+                                          </div>
                                           {item.matchDiagnostics.skuCandidates.length > 0 && (
                                             <p className="mt-1"><b>أكواد محتملة من المصدر:</b> {item.matchDiagnostics.skuCandidates.join("، ")}</p>
                                           )}
