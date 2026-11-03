@@ -49,6 +49,7 @@ const MARKET_SYNONYMS: Array<[RegExp, string]> = [
   [/ستالايت|ستلايت/gi, "ستلايت"],
   [/فلكسبل/gi, "فليكسيبل"],
   [/كيبل/gi, "كيبل"],
+  [/سلك/gi, "واير"],
   [/واير/gi, "واير"],
   [/سيم/gi, "سيم"],
   [/بايب/gi, "بايب"],
@@ -237,7 +238,7 @@ export function normalizeProductText(value: string): string {
     .replace(/\b3\s*[/\-]\s*4\b/g, "3/4")
     .replace(/\b1\s*[/\-]\s*2\b/g, "1/2")
     .replace(/(\d+(?:\.\d+)?)\s*["”″]/g, "$1 انش")
-    .replace(/(\d+(?:\.\d+)?)\s*(?:مم|mm)\b/gi, "$1 مم")
+    .replace(/(\d+(?:\.\d+)?)\s*(?:مللى|مللي|ملي|مم|mm)\b/gi, "$1 مم")
     .replace(/(\d+(?:\.\d+)?)\s*(?:سم|cm)\b/gi, "$1 سم")
     .replace(/(\d+(?:\.\d+)?)\s*(?:انش|inch|in)\b/gi, "$1 انش")
     // Market phrasing such as "انش ونص" / "انش ونصف" means 1.5 inch.
@@ -325,7 +326,7 @@ export function extractMatchConstraints(value: string): MatchConstraints {
     colorAliases.filter(([needle]) => textTokens.has(needle)).map(([, canonical]) => canonical),
   )];
   const fractions = [...text.matchAll(/\b(\d+\/\d+)\b/g)].map((m) => m[1]);
-  const metricSizes = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:مم2|مم|ملم|mm2|mm)(?:\s|$|[^\p{L}\p{N}])/giu)].map((m) => m[1]);
+  const metricSizes = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:مللى|مللي|ملي|مم2|مم|ملم|mm2|mm)(?:\s|$|[^\p{L}\p{N}])/giu)].map((m) => m[1]);
   const wireLike = /(?:^|\s)(?:واير|كيبل|كابل|سلك|wire|cable)(?:\s|$)/i.test(text);
   const marketWireMetricSizes = wireLike
     ? [...text.matchAll(/(\d+(?:\.\d+)?)\s*مل(?:\s|$|[^\p{L}\p{N}])/giu)].map((m) => m[1])
