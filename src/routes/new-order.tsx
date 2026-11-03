@@ -2479,14 +2479,18 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           sourceUnitKnown &&
           !evidenceIssues.some((issue) => /لم يتم اعتمادها|لا تطابق|أكثر من زوج|تعارض/.test(issue));
 
-        // Keep review candidates visible without changing the matcher's auto-acceptance
-        // semantics. Exact/high-confidence matches use product; review-only matches expose
-        // the real catalog candidate through reviewProduct.
+        // Keep the matcher's confidence decision unchanged, but link the best real
+        // catalog candidate for NEEDS_REVIEW rows as a provisional product. This lets
+        // the user save without opening every blue review row and lets price lookup run.
+        // A row with no catalog candidate remains unmatched (red) and cannot be saved.
         const reviewProduct =
           selectedMatch && "reviewProduct" in selectedMatch
             ? selectedMatch.reviewProduct
             : null;
-        const selectedProduct = selectedMatch?.product ?? reviewProduct ?? null;
+        const topReviewCandidate = reviewCandidates[0]
+          ? matchingProducts.find((product) => product.id === reviewCandidates[0].id) ?? null
+          : null;
+        const selectedProduct = selectedMatch?.product ?? reviewProduct ?? topReviewCandidate ?? null;
         const confidence = selectedMatch
           ? Math.min(1, Math.max(0, selectedMatch.score))
           : 0;
