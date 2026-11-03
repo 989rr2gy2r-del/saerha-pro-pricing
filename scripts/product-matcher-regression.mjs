@@ -17,7 +17,7 @@ const tempFile = path.join(new URL(".", import.meta.url).pathname, ".product-mat
 fs.writeFileSync(tempFile, transpiled, "utf8");
 try {
   const matcher = await import(pathToFileURL(tempFile).href + "?regression=1");
-  const { rankProductMatches, extractMatchConstraints, candidateMatchesConstraints, findLocalProductMatch, findProductBySku, findProductByNormalizedName, resolveProductByNormalizedNameCandidates, resolveProductBySkuCandidates, findUniqueTechnicalProduct } = matcher;
+  const { rankProductMatches, diagnoseLocalProductMatch, extractMatchConstraints, candidateMatchesConstraints, findLocalProductMatch, findProductBySku, findProductByNormalizedName, resolveProductByNormalizedNameCandidates, resolveProductBySkuCandidates, findUniqueTechnicalProduct } = matcher;
 
 const products = [
   ["0761", "واير الخليج احمر مقاس 6مل", "WAIR GULF RED SAIZ 6 ML"],
@@ -104,6 +104,19 @@ const resolverProducts = products.map((product) => ({
   ...product,
   id: product.sku,
 }));
+
+const elbowProducts = [
+  { id: "02225", sku: "02225", name_ar: "كوع مفتوح 3/4 اخضر عدساني 25 ملم", name_en: "KWAA MFTWH 3/4 GREEN ADSANY 25 MM", unit: "حبه" },
+  { id: "12225", sku: "12225", name_ar: "كوع مفتوح 3/4 حار عدساني", name_en: "KWAA MFTWH 3/4 HAR ADSANY", unit: "حبه" },
+  { id: "8411", sku: "8411", name_ar: "كوع مفتوح 3/4 حار بلاستيك بحريني", name_en: "KWAA MFTWH 3/4 HAR PLASTIC BHRYNY", unit: "بالحبه" },
+];
+const elbowDiagnostics = diagnoseLocalProductMatch("كوع مفتوح 3/4 إنج", elbowProducts);
+assert.equal(elbowDiagnostics.retrievalStatus, "CANDIDATES_FOUND", "diagnostics must distinguish successful token retrieval");
+assert.ok(elbowDiagnostics.normalizedVariants.length > 0, "diagnostics must expose normalized query variants");
+assert.ok(elbowDiagnostics.identityTokens.includes("كوع"), "diagnostics must expose retrieval identity tokens");
+assert.equal(elbowDiagnostics.candidatePoolCount, 3, "diagnostics must count all token-retrieved catalog products");
+assert.equal(elbowDiagnostics.constraintPassedCount, 3, "diagnostics must count candidates passing technical constraints");
+assert.equal(elbowDiagnostics.constraintRejectedCount, 0, "diagnostics must count candidates rejected by technical constraints");
 
 assert.equal(
   matcher.normalizeProductText("سلك 1.5 احمر"),
