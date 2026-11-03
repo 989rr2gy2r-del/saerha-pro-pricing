@@ -566,6 +566,7 @@ export type Database = {
           status: Database["public"]["Enums"]["quote_status"]
           subtotal: number
           tax_amount: number
+          shipping_amount: number
           total: number
           updated_at: string
         }
@@ -584,6 +585,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal?: number
           tax_amount?: number
+          shipping_amount?: number
           total?: number
           updated_at?: string
         }
@@ -602,6 +604,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal?: number
           tax_amount?: number
+          shipping_amount?: number
           total?: number
           updated_at?: string
         }
