@@ -130,10 +130,30 @@ function Quotes() {
       const loadedQuotes = (data ?? []) as unknown as Quote[];
       const productIds = [...new Set(loadedQuotes.flatMap((quote) => quote.quotation_items ?? []).map((item) => item.product_id).filter((id): id is string => Boolean(id)))];
       if (productIds.length > 0) {
-        const { data: productNames, error: productNamesError } = await supabase.from("products").select("id, name_en").in("id", productIds);
-        if (productNamesError) console.error("Could not load English product names for invoice", productNamesError);
-        const englishNames = new Map((productNames ?? []).map((product) => [product.id, product.name_en ?? ""]));
-        for (const quote of loadedQuotes) for (const item of quote.quotation_items ?? []) item.product_name_en = item.product_id ? englishNames.get(item.product_id) ?? "" : "";
+        const { data: invoiceProducts, error: invoiceProductsError } = await supabase
+          .from("products")
+          .select("id, name_en, unit")
+          .in("id", productIds);
+        if (invoiceProductsError) {
+          console.error("Could not load product details for invoice", invoiceProductsError);
+        }
+        const productDetails = new Map(
+          (invoiceProducts ?? []).map((product) => [
+            product.id,
+            { nameEn: product.name_en ?? "", unit: product.unit ?? "" },
+          ]),
+        );
+        for (const quote of loadedQuotes) {
+          for (const item of quote.quotation_items ?? []) {
+            const product = item.product_id ? productDetails.get(item.product_id) : undefined;
+            item.product_name_en = product?.nameEn ?? "";
+            // Preserve the unit explicitly saved on the quotation item. For older
+            // rows where unit is empty, show the linked product's base unit instead.
+            if (!String(item.unit ?? "").trim() && product?.unit) {
+              item.unit = product.unit;
+            }
+          }
+        }
       }
       const today = new Date().toISOString().slice(0, 10);
       const expiredIds = loadedQuotes
