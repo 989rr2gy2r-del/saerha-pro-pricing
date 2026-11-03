@@ -2418,12 +2418,18 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             : null;
 
         const selectedMatch = match;
-        const matcherDiagnostics = diagnoseLocalProductMatch(
-          searchQuery,
-          matchingProducts,
-          marketTranslationAr,
-          matchingAliases,
-        );
+        const matcherDiagnostics = searchQuery && !exactSkuProduct && !exactNameProduct
+          ? diagnoseLocalProductMatch(searchQuery, matchingProducts, marketTranslationAr, matchingAliases)
+          : {
+              normalizedVariants: [],
+              identityTokens: [],
+              candidatePoolCount: 0,
+              unitCompatibleCount: 0,
+              constraintPassedCount: 0,
+              constraintRejectedCount: 0,
+              constraintRejectedSamples: [],
+              retrievalStatus: exactSkuProduct || exactNameProduct ? "BYPASSED_DIRECT_MATCH" : "EMPTY_QUERY",
+            };
         // For an ambiguous DB / distribution-board phrase, show real catalog
         // choices without auto-selecting one. OCR often renders "ديبي 6 واي"
         // as variants such as "وى 6خط"; this is suggestion-only and requires
