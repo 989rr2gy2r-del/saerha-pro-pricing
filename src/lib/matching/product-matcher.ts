@@ -33,7 +33,7 @@ const MARKET_SYNONYMS: Array<[RegExp, string]> = [
   [/\bpvc\b/gi, "بلاستيك"], [/\bcircular\b/gi, "دائري"],
   [/\bsolution\s+glue\b/gi, "لاصق"], [/\bglue\b/gi, "لاصق"],
   [/\bfour[-\s]?way\b/gi, "رباعي"], [/\bthree[-\s]?way\b/gi, "ثلاثي"], [/\btwo[-\s]?way\b/gi, "ثنائي"],
-  [/\bsingle[-\s]?pole\b/gi, "سنجل"], [/\bmcb\b/gi, "mcb بريكر"], [/\brccb\b/gi, "rccb"],
+  [/\bsingle[-\s]?pole\b/gi, "سنجل"], [/\bbreakers?\b/gi, "بريكر"], [/\bmcb\b/gi, "mcb بريكر"], [/\brccb\b/gi, "rccb"],
   [/\bpanel\b/gi, "لوحة"], [/\bsdb\b/gi, "لوحة"], [/\bboard\b/gi, "لوحة"],
   [/\belectrical\s+tape\b/gi, "تيب"], [/\btape\b/gi, "تيب"],
   [/\bsmall\s+electrical\s+connector\b/gi, "موصل"], [/\bconnector\b/gi, "موصل"],
