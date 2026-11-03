@@ -1302,7 +1302,6 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       void recordCorrection({ ...current, product: selected }, "corrected");
     }
     patchReviewItem(index, (item) => {
-      const nextStatus: MatchStatus = selected ? "HIGH_CONFIDENCE" : "UNMATCHED";
       const dbUnit = normalizeUnitValue(selected?.unit ?? "");
       const previousUnit = normalizeUnitValue(item.unit ?? "");
       const unitNote =
@@ -3989,6 +3988,17 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                       </p>
                                     )}
                                   </button>
+                                  <div className="mt-1">
+                                    {item.product && item.accepted ? (
+                                      <span className="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                                        معتمد من المستخدم
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                                        {item.product ? "مرشح من قاعدة البيانات — غير معتمد" : "لم يتم اختيار صنف — مطلوب المراجعة"}
+                                      </span>
+                                    )}
+                                  </div>
 
                                   {item.product && (
                                     <div className="mt-2 flex flex-wrap justify-start gap-2">
