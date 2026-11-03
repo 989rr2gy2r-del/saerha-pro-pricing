@@ -30,7 +30,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { createCustomer, fetchCustomers } from "@/lib/db/saerha-data";
 import type { Customer } from "@/lib/mock-data";
 import { convertQuantity } from "@/lib/pricing/unit-converter";
-import { diagnoseLocalProductMatch, extractMatchConstraints, findLocalProductMatch, getMarketArabicTranslation, normalizeProductText, resolveProductByNormalizedNameCandidates, resolveProductBySkuCandidates } from "@/lib/matching/product-matcher";
+import { diagnoseLocalProductMatch, extractMatchConstraints, findLocalProductMatch, getMarketArabicTranslation, normalizeProductText, resolveProductByNormalizedNameCandidates, resolveProductBySkuCandidates, stripTrailingParsedQuantity } from "@/lib/matching/product-matcher";
 import { normalizeQuantity, parseLocalOcrText, parseTextOrderFallback, stopAtOrderFooter } from "@/lib/order/order-input";
 import { extractOrderLineSignals, parseOrderSourceLines, reconcileOrderLineEvidence } from "@/lib/order/order-line-parser";
 
@@ -2312,12 +2312,19 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         // Use that value for display only; sourceEvidenceSafe below still
         // requires source-text proof before a line is treated as fully verified.
         const displayUnit = sourceSignals.unit || normalizeUnitValue(String(item.unit ?? ""));
-        const productQuery = effectiveRawText
+        const productQuerySource = effectiveRawText
           ? stripOrderPrefix(effectiveRawText, catalogSkus)
           : stripOrderPrefix(item.raw_text || item.description, catalogSkus);
+        // The parsed quantity is separate order data. Remove it from the end
+        // of descriptive fields only when the final standalone number exactly
+        // equals that quantity; preserve inch fractions and attached mm sizes.
+        const productQuery = stripTrailingParsedQuantity(productQuerySource, item.quantity);
+        const cleanDescription = stripTrailingParsedQuantity(String(item.description ?? ""), item.quantity);
+        const cleanNormalizedDescription = stripTrailingParsedQuantity(String(item.normalized_description_ar ?? ""), item.quantity);
+        const cleanRawText = stripTrailingParsedQuantity(String(item.raw_text ?? ""), item.quantity);
         const structuredMatchEvidence = [
-          item.description,
-          item.normalized_description_ar,
+          cleanDescription,
+          cleanNormalizedDescription,
           item.color,
           item.specification,
           item.brand,
@@ -2371,12 +2378,12 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
         const exactSkuProduct = skuResolution.product;
         const nameResolution = resolveProductByNormalizedNameCandidates(
           [
-            item.normalized_description_ar,
-            item.description,
+            cleanNormalizedDescription,
+            cleanDescription,
             productQuery,
-            effectiveRawText,
-            item.raw_text,
-            [item.description, item.color, item.specification, item.brand].filter(Boolean).join(" "),
+            stripTrailingParsedQuantity(effectiveRawText, item.quantity),
+            cleanRawText,
+            [cleanDescription, item.color, item.specification, item.brand].filter(Boolean).join(" "),
           ],
           matchingProducts,
         );
