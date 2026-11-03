@@ -1305,7 +1305,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
         // A deliberate manual catalog selection is accepted immediately.
         accepted: Boolean(selected),
         rejected: false,
-        status: selected ? "HIGH_CONFIDENCE" : "UNMATCHED",
+        status: selected ? ("HIGH_CONFIDENCE" as const) : ("UNMATCHED" as const),
         // Preserve only a real matcher score; never manufacture 100% on selection.
         matchScore: selected ? selectedCandidate?.score ?? null : null,
         matchReason: selected
