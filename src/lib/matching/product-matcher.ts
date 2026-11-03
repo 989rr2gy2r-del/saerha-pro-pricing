@@ -1048,7 +1048,7 @@ export function stripTrailingParsedQuantity(value: string, quantity: number | st
   if (!input || quantity == null || quantity === "") return input;
   const parsed = Number(String(quantity).replace(",", "."));
   if (!Number.isFinite(parsed)) return input;
-  const match = input.match(/(?:^|\\s)(\\d+(?:[.,]\\d+)?)\\s*$/);
+  const match = input.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*$/);
   if (!match) return input;
   const trailing = Number(match[1].replace(",", "."));
   if (!Number.isFinite(trailing) || trailing !== parsed) return input;
