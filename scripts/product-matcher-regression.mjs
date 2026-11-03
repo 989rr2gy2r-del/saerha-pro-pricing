@@ -50,7 +50,7 @@ const products = [
   model: null,
   size: null,
   color: null,
-  unit: sku === "07251" ? "لف" : "متر",
+  unit: sku.startsWith("0715") || sku === "07251" ? "رول" : "متر",
   description: null,
 }));
 
@@ -96,6 +96,15 @@ for (const [query, expectedSku, expectedColor] of [
 assert.equal(match("واير الخليج احمر 6مل").some((candidate) => candidate.product.sku === "07101"), false, "6mm red must reject 10mm red");
 assert.equal(match("واير الخليج احمر 6مل").some((candidate) => candidate.product.sku === "07161"), false, "6mm red must reject 16mm red");
 
+assert.equal(match("واير الخليج 3كور 6مل").some((candidate) => candidate.product.sku === "07446"), false, "3-core must reject 4-core");
+assert.equal(match("واير الخليج 4كور 6مل").some((candidate) => candidate.product.sku === "0736"), false, "4-core must reject 3-core");
+
+
+const resolverProducts = products.map((product) => ({
+  ...product,
+  id: product.sku,
+}));
+
 // Market wording regression: a single bare number on a wire line is its mm size.
 for (const [query, expectedSku] of [
   ["سلك 1.5 احمر رول", "07151"],
@@ -113,15 +122,6 @@ assert.deepEqual(
   ["4"],
   "multiple numbers must not trigger implicit-size inference; only explicit 4mm is constrained",
 );
-
-assert.equal(match("واير الخليج 3كور 6مل").some((candidate) => candidate.product.sku === "07446"), false, "3-core must reject 4-core");
-assert.equal(match("واير الخليج 4كور 6مل").some((candidate) => candidate.product.sku === "0736"), false, "4-core must reject 3-core");
-
-
-const resolverProducts = products.map((product) => ({
-  ...product,
-  id: product.sku,
-}));
 
 const resolvedGreenRoll = findLocalProductMatch(
   "9 0765 واير الخليج اخضر مقاس 6مل 4 ROLL",
