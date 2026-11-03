@@ -2487,10 +2487,10 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
           selectedMatch && "reviewProduct" in selectedMatch
             ? selectedMatch.reviewProduct
             : null;
-        const topReviewCandidate = reviewCandidates[0]
-          ? matchingProducts.find((product) => product.id === reviewCandidates[0].id) ?? null
-          : null;
-        const selectedProduct = selectedMatch?.product ?? reviewProduct ?? topReviewCandidate ?? null;
+        // Never attach a candidate merely because it is first in the suggestions.
+        // Only a matcher-approved product or its explicitly returned reviewProduct
+        // may be linked; otherwise keep the row unmatched until the user chooses.
+        const selectedProduct = selectedMatch?.product ?? reviewProduct ?? null;
         const confidence = selectedMatch
           ? Math.min(1, Math.max(0, selectedMatch.score))
           : 0;
