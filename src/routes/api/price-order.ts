@@ -40,10 +40,9 @@ function choosePrice(
     .filter((row) => row.price_type === "customer_special" && row.customer_id === customerId)
     .sort((a, b) => b.valid_from.localeCompare(a.valid_from))[0];
 
-  const preferredType =
-    customerType === "wholesale" || customerType === "contractor" || customerType === "government"
-      ? "reseller"
-      : "retail";
+  // Retail is the default for every customer category.
+  // Reseller pricing is never inferred from the customer's category.
+  const preferredType = "retail";
 
   const preferred = active
     .filter((row) => row.price_type === preferredType && !row.customer_id)
