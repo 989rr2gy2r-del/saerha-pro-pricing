@@ -124,6 +124,7 @@ function Quotes() {
       .select(
         "id, reference, issue_date, created_at, expiry_date, price_type, discount_amount, shipping_amount, tax_amount, subtotal, total, currency, status, notes, customers(name, company, phone, address), quotation_items(id, product_id, product_name, sku, quantity, unit, unit_price, discount_amount, line_total)",
       )
+      .order("created_at", { ascending: false })
       .order("issue_date", { ascending: false });
 
     if (!error) {
