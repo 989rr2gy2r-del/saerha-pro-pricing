@@ -1344,10 +1344,9 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       if (priceError) throw priceError;
 
       const now = Date.now();
-      const preferredType =
-        customerType === "wholesale" || customerType === "contractor" || customerType === "government"
-          ? "reseller"
-          : "retail";
+      // Retail is the safe default for every customer category.
+      // Reseller pricing must be selected explicitly; customer-specific prices remain higher priority.
+      const preferredType = "retail";
 
       // Only query conversions when at least one requested unit differs from
       // the product base unit. This keeps normal/base-unit pricing independent
@@ -1407,17 +1406,15 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
             const requestedUnit = (item.unit || item.product!.unit || "حبة").trim();
             const chosen =
-              rows.find((row) =>
-                row.price_type === "unit_price" &&
-                !row.customer_id &&
-                String(row.source_field ?? "").trim().toLowerCase() === requestedUnit.toLowerCase() &&
-                String(row.source_price_type ?? "") === preferredType
-              ) ??
-              rows.find((row) => row.price_type === "customer_special" && row.customer_id === selectedCustomerId) ??
-              rows.find((row) => row.price_type === preferredType && !row.customer_id) ??
-              rows.find((row) => row.price_type === "retail" && !row.customer_id) ??
-              rows.find((row) => row.price_type === "reseller" && !row.customer_id);
-
+  rows.find((row) => row.price_type === "customer_special" && row.customer_id === selectedCustomerId) ??
+  rows.find((row) =>
+    row.price_type === "unit_price" &&
+    !row.customer_id &&
+    String(row.source_field ?? "").trim().toLowerCase() === requestedUnit.toLowerCase() &&
+    String(row.source_price_type ?? "") === preferredType
+  ) ??
+  rows.find((row) => row.price_type === preferredType && !row.customer_id) ??
+  rows.find((row) => row.price_type === "retail" && !row.customer_id);
             if (!chosen) {
               return {
                 ...item,

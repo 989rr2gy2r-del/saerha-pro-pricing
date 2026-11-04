@@ -83,9 +83,9 @@ Deno.serve(async (req) => {
         Number(row.amount) >= 0
       );
     });
-    const preferredType = ["wholesale", "contractor", "government"].includes(String(customer.customer_type))
-      ? "reseller"
-      : "retail";
+    // Retail is the default for every customer category.
+    // Reseller pricing must be an explicit choice, not inferred from customer type.
+    const preferredType = "retail";
 
     const results = items.map((item: any, index: number) => {
       const productId = String(item?.productId ?? "");
@@ -103,8 +103,7 @@ Deno.serve(async (req) => {
       const chosen =
         pick("customer_special", customerId) ??
         pick(preferredType) ??
-        pick("retail") ??
-        pick("reseller");
+        pick("retail");
 
       return {
         index,
