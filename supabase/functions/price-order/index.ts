@@ -103,8 +103,7 @@ Deno.serve(async (req) => {
       const chosen =
         pick("customer_special", customerId) ??
         pick(preferredType) ??
-        pick("retail") ??
-        pick("reseller");
+        pick("retail");
 
       return {
         index,
