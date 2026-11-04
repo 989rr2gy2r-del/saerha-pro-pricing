@@ -1344,10 +1344,9 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
       if (priceError) throw priceError;
 
       const now = Date.now();
-      const preferredType =
-        customerType === "wholesale" || customerType === "contractor" || customerType === "government"
-          ? "reseller"
-          : "retail";
+      // Retail is the safe default for every customer category.
+      // Reseller pricing must be selected explicitly; customer-specific prices remain higher priority.
+      const preferredType = "retail";
 
       // Only query conversions when at least one requested unit differs from
       // the product base unit. This keeps normal/base-unit pricing independent
