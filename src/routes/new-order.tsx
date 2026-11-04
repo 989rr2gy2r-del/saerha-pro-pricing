@@ -1414,8 +1414,7 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
               ) ??
               rows.find((row) => row.price_type === "customer_special" && row.customer_id === selectedCustomerId) ??
               rows.find((row) => row.price_type === preferredType && !row.customer_id) ??
-              rows.find((row) => row.price_type === "retail" && !row.customer_id) ??
-              rows.find((row) => row.price_type === "reseller" && !row.customer_id);
+              rows.find((row) => row.price_type === "retail" && !row.customer_id);
 
             if (!chosen) {
               return {
