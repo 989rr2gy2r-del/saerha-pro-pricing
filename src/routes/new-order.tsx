@@ -1406,16 +1406,15 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
             const requestedUnit = (item.unit || item.product!.unit || "حبة").trim();
             const chosen =
-              rows.find((row) =>
-                row.price_type === "unit_price" &&
-                !row.customer_id &&
-                String(row.source_field ?? "").trim().toLowerCase() === requestedUnit.toLowerCase() &&
-                String(row.source_price_type ?? "") === preferredType
-              ) ??
-              rows.find((row) => row.price_type === "customer_special" && row.customer_id === selectedCustomerId) ??
-              rows.find((row) => row.price_type === preferredType && !row.customer_id) ??
-              rows.find((row) => row.price_type === "retail" && !row.customer_id);
-
+  rows.find((row) => row.price_type === "customer_special" && row.customer_id === selectedCustomerId) ??
+  rows.find((row) =>
+    row.price_type === "unit_price" &&
+    !row.customer_id &&
+    String(row.source_field ?? "").trim().toLowerCase() === requestedUnit.toLowerCase() &&
+    String(row.source_price_type ?? "") === preferredType
+  ) ??
+  rows.find((row) => row.price_type === preferredType && !row.customer_id) ??
+  rows.find((row) => row.price_type === "retail" && !row.customer_id);
             if (!chosen) {
               return {
                 ...item,
