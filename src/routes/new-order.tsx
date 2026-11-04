@@ -1060,7 +1060,10 @@ const [skuDrafts, setSkuDrafts] = useState<Record<string, string>>({});
 
     const handlePointerDownOutside = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Node && !productPickerRef.current?.contains(target)) {
+      const pickerRoot = target instanceof Element
+        ? target.closest("[data-product-picker-root]")
+        : null;
+      if (!pickerRoot && target instanceof Node && !productPickerRef.current?.contains(target)) {
         setOpenProductPickerId(null);
       }
     };
@@ -3304,7 +3307,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                                   </td>
 
                                   <td className="px-3 py-3 align-top">
-                                    <div ref={openProductPickerId === item.id ? productPickerRef : undefined} className="relative min-w-[300px]">
+                                    <div data-product-picker-root ref={openProductPickerId === item.id ? productPickerRef : undefined} className="relative min-w-[300px]">
                                       <button
                                         ref={(node) => {
                                           keyboardFieldRefs.current[`${item.id}:product`] = node;
@@ -3905,6 +3908,7 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                           return (
                             <div
                               key={item.id}
+                              data-product-picker-root
                               className="rounded-xl border bg-background p-3 shadow-sm"
                             >
                               <div className="flex items-start justify-between gap-3">
@@ -4297,6 +4301,34 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
                               <div className="flex items-center justify-between gap-3 text-sm">
                                 <span>خصم الفاتورة</span>
                                 <span className="font-bold tabular-nums">-{calculateOrderTotals(analysisResult.items).invoiceDiscountAmount.toFixed(3)} د.ك</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50/70 p-2 text-sm dark:bg-orange-950/20">
+                                <Label htmlFor="quotation-shipping-amount-mobile" className="font-extrabold">الشحن وأجور التوصيل</Label>
+                                <div className="flex w-36 items-center gap-2">
+                                  <Input
+                                    id="quotation-shipping-amount-mobile"
+                                    type="text"
+                                    inputMode="decimal"
+                                    dir="ltr"
+                                    value={shippingAmountDraft}
+                                    onFocus={(event) => event.currentTarget.select()}
+                                    onChange={(event) => setShippingAmountDraft(normalizeDecimalDraft(event.target.value))}
+                                    onBlur={() => {
+                                      const value = Number(normalizeDecimalDraft(shippingAmountDraft));
+                                      setShippingAmountDraft(Number.isFinite(value) && value >= 0 ? value.toFixed(3) : "0.000");
+                                    }}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        event.currentTarget.blur();
+                                      }
+                                    }}
+                                    aria-label="قيمة الشحن وأجور التوصيل بالدينار الكويتي"
+                                    placeholder="0.000"
+                                    className="h-9 bg-background text-left font-bold tabular-nums"
+                                  />
+                                  <span className="shrink-0 text-xs font-bold">د.ك</span>
+                                </div>
                               </div>
                               <div className="flex items-center justify-between gap-3 border-t pt-2 text-lg">
                                 <span className="font-black">الإجمالي النهائي</span>
