@@ -52,11 +52,7 @@ function choosePrice(
     .filter((row) => row.price_type === "retail" && !row.customer_id)
     .sort((a, b) => b.valid_from.localeCompare(a.valid_from))[0];
 
-  const reseller = active
-    .filter((row) => row.price_type === "reseller" && !row.customer_id)
-    .sort((a, b) => b.valid_from.localeCompare(a.valid_from))[0];
-
-  const chosen = customerSpecific ?? preferred ?? retail ?? reseller ?? null;
+  const chosen = customerSpecific ?? preferred ?? retail ?? null;
   if (!chosen) return null;
 
   return {
