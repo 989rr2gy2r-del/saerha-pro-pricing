@@ -2625,7 +2625,6 @@ const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
             .filter(Boolean)
             .join("\n"),
       );
-      void refreshPreviewPrices(matchedItems, customerId);
       setProgress(100);
     } catch (error) {
       setAnalysisError((error as Error)?.message ?? "حدث خطأ أثناء تحليل الطلبية.");
