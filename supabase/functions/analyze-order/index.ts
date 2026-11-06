@@ -46,20 +46,20 @@ function isNonItemRow(row: Record<string, unknown>) {
     : typeof row.arabic_name === "string"
       ? row.arabic_name.trim()
       : "";
-  const text = [description, rawText, normalized].filter(Boolean).join(" ").replace(/\\s+/g, " ").trim();
+  const text = [description, rawText, normalized].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
   if (!text) return true;
 
   const lower = text.toLowerCase().replace(/[：:]/g, ":").trim();
   // Invoice/quotation headings and document metadata must never become product rows.
-  if (/^(?:quotation|عرض\\s*سعر|فاتورة|invoice)$/i.test(lower)) return true;
-  if (/^(?:no\\s*:?\\s*#?\\s*\\d+|date\\s*:?\\s*.*|name\\s*:?\\s*.*|phone\\s*:?\\s*.*|address\\s*:?\\s*.*)$/i.test(lower)) return true;
-  if (/^(?:رقم\\s*(?:العرض|الفاتورة)?\\s*:?\\s*\\d+|التاريخ\\s*:?\\s*.*|الاسم\\s*:?\\s*.*|الهاتف\\s*:?\\s*.*|العنوان\\s*:?\\s*.*)$/i.test(lower)) return true;
+  if (/^(?:quotation|عرض\s*سعر|فاتورة|invoice)$/i.test(lower)) return true;
+  if (/^(?:no\s*:?\s*#?\s*\d+|date\s*:?\s*.*|name\s*:?\s*.*|phone\s*:?\s*.*|address\s*:?\s*.*)$/i.test(lower)) return true;
+  if (/^(?:رقم\s*(?:العرض|الفاتورة)?\s*:?\s*\d+|التاريخ\s*:?\s*.*|الاسم\s*:?\s*.*|الهاتف\s*:?\s*.*|العنوان\s*:?\s*.*)$/i.test(lower)) return true;
 
-  const headerLabels = lower.match(/\\b(?:total|subtotal|price|unit|qty|quantity|description|code|no)\\b/g) ?? [];
+  const headerLabels = lower.match(/\b(?:total|subtotal|price|unit|qty|quantity|description|code|no)\b/g) ?? [];
   if (headerLabels.length >= 4) return true;
 
-  const normalizedLabel = lower.replace(/[\\s:：]+/g, " ").trim();
-  if (/^(?:total|subtotal|discount|vat|grand total|الإجمالي|الاجمالي|المجموع|الخصم|الصافي|الضريبة)(?:\\s|$)/i.test(normalizedLabel)) return true;
+  const normalizedLabel = lower.replace(/[\s:：]+/g, " ").trim();
+  if (/^(?:total|subtotal|discount|vat|grand total|الإجمالي|الاجمالي|المجموع|الخصم|الصافي|الضريبة)(?:\s|$)/i.test(normalizedLabel)) return true;
   return false;
 }
 
