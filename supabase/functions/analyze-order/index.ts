@@ -38,6 +38,31 @@ async function getUser(req: Request) {
   return data.user ?? null;
 }
 
+function isNonItemRow(row: Record<string, unknown>) {
+  const description = typeof row.description === "string" ? row.description.trim() : "";
+  const rawText = typeof row.raw_text === "string" ? row.raw_text.trim() : "";
+  const normalized = typeof row.normalized_description_ar === "string"
+    ? row.normalized_description_ar.trim()
+    : typeof row.arabic_name === "string"
+      ? row.arabic_name.trim()
+      : "";
+  const text = [description, rawText, normalized].filter(Boolean).join(" ").replace(/\\s+/g, " ").trim();
+  if (!text) return true;
+
+  const lower = text.toLowerCase().replace(/[：:]/g, ":").trim();
+  // Invoice/quotation headings and document metadata must never become product rows.
+  if (/^(?:quotation|عرض\\s*سعر|فاتورة|invoice)$/i.test(lower)) return true;
+  if (/^(?:no\\s*:?\\s*#?\\s*\\d+|date\\s*:?\\s*.*|name\\s*:?\\s*.*|phone\\s*:?\\s*.*|address\\s*:?\\s*.*)$/i.test(lower)) return true;
+  if (/^(?:رقم\\s*(?:العرض|الفاتورة)?\\s*:?\\s*\\d+|التاريخ\\s*:?\\s*.*|الاسم\\s*:?\\s*.*|الهاتف\\s*:?\\s*.*|العنوان\\s*:?\\s*.*)$/i.test(lower)) return true;
+
+  const headerLabels = lower.match(/\\b(?:total|subtotal|price|unit|qty|quantity|description|code|no)\\b/g) ?? [];
+  if (headerLabels.length >= 4) return true;
+
+  const normalizedLabel = lower.replace(/[\\s:：]+/g, " ").trim();
+  if (/^(?:total|subtotal|discount|vat|grand total|الإجمالي|الاجمالي|المجموع|الخصم|الصافي|الضريبة)(?:\\s|$)/i.test(normalizedLabel)) return true;
+  return false;
+}
+
 function normalize(value: unknown) {
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const items = Array.isArray(source.items) ? source.items : [];
@@ -71,7 +96,7 @@ function normalize(value: unknown) {
         confidence: Number.isFinite(confidence) ? Math.min(1, Math.max(0, confidence)) : 0,
         notes: typeof row.notes === "string" ? row.notes.trim() : "",
       };
-    }).filter((item) => item.description || item.raw_text),
+    }).filter((item) => (item.description || item.raw_text) && !isNonItemRow(item)),
     notes: typeof source.notes === "string" ? source.notes.trim() : "",
   };
 }
